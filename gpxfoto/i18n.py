@@ -4,7 +4,8 @@ import locale
 import os
 
 DOMAIN = "gpxfoto"
-LOCALE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "locale")
+# realpath: in a strict editable install this file is a symbolic link
+LOCALE_DIR = os.path.join(os.path.dirname(os.path.realpath(__file__)), "locale")
 
 
 def setup():

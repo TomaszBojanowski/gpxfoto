@@ -97,3 +97,11 @@ xgettext --files-from=po/POTFILES.in --from-code=UTF-8 --language=Python \
     --output=po/gpxfoto.pot
 msgmerge --update --backup=none po/pl.po po/gpxfoto.pot
 ```
+
+Instalacja w trybie edytowalnym kompiluje tłumaczenia jednorazowo. Aby
+zobaczyć zmiany w `po/pl.po` bez ponownej instalacji, należy skompilować
+plik jeszcze raz:
+
+```
+msgfmt --check -o gpxfoto/locale/pl/LC_MESSAGES/gpxfoto.mo po/pl.po
+```

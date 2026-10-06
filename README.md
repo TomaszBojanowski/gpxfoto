@@ -96,3 +96,10 @@ xgettext --files-from=po/POTFILES.in --from-code=UTF-8 --language=Python \
     --output=po/gpxfoto.pot
 msgmerge --update --backup=none po/pl.po po/gpxfoto.pot
 ```
+
+An editable install compiles the translations once. To see changes to
+`po/pl.po` without reinstalling, compile it again:
+
+```
+msgfmt --check -o gpxfoto/locale/pl/LC_MESSAGES/gpxfoto.mo po/pl.po
+```
