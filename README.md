@@ -8,8 +8,9 @@ a phone. It writes nothing but GPS metadata and never changes the image.
 - **The image stays the same.** Only metadata is written, with exiftool;
   the image is never re-encoded.
 - **Every write is checked.** Before and after writing, gpxfoto computes a
-  SHA-256 of everything except the metadata segments. If they differ, the
-  change is rejected and the original file is left untouched.
+  SHA-256 checksum of everything except the metadata segments. If the
+  checksums differ, the change is rejected and the original file is left
+  untouched.
 - **Writes are atomic.** The result goes to a temporary file in the same
   directory and replaces the original only after the check. File
   permissions and the modification time are kept.
@@ -32,7 +33,7 @@ pip install --user .
 ## Usage
 
 ```
-gpxfoto PHOTOS... -g TRACK.gpx [-g TRACK.gpx ...] [options]
+gpxfoto PHOTO… -g FILE [-g FILE …] [options]
 ```
 
 Show what would be written:
@@ -52,19 +53,21 @@ gpxfoto ~/Pictures/2026-10-06 -g activity.gpx --write
 | `-g`, `--gpx FILE` | GPX file with the track; can be given more than once |
 | `--write` | write the locations; without it only a preview is shown |
 | `--offset SECONDS` | camera clock correction, added to the capture time |
-| `--timezone +HH:MM` | camera time zone; read from the photo's EXIF data by default |
+| `--timezone +HH:MM` | camera time zone for all photos (default: read from each photo’s EXIF data) |
 | `--max-gap SECONDS` | largest allowed time between a photo and the nearest track point (default: 120 s) |
 | `--overwrite` | also change photos that already have a location |
-| `--backup` | keep copies of the original files in the `originals` subdirectory |
+| `--backup` | keep copies of the original files in an `originals` subdirectory next to each photo |
 | `-r`, `--recursive` | also look for photos in subdirectories |
 
-The time zone of a photo is read from `OffsetTimeOriginal`, which cameras
-such as the Panasonic LUMIX S5II record. Without it, `--timezone` or the
-computer's time zone is used, and the preview says so.
+The time zone of a photo is read from `OffsetTimeOriginal` (or
+`OffsetTime`), which cameras such as the Panasonic LUMIX S5II record.
+`--timezone` overrides it for all photos. Without either, the computer’s
+time zone is used, and the list of photos says so.
 
-A photo is skipped when it lies further than `--max-gap` from the track, or
-in a break in recording longer than that, unless the position hardly
-changed during the break (less than 100 m).
+A photo is skipped when its capture time is more than `--max-gap` away from
+the nearest track point: before the track starts, after it ends, or in a
+break in recording. A photo taken during such a break still gets a location
+if the recorded position moved less than 100 m during the break.
 
 The program is in English with a Polish translation; the language follows
 the system settings.

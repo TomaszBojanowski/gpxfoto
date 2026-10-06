@@ -2,12 +2,12 @@
 
 [English](README.md)
 
-gpxfoto dopisuje do zdjęć lokalizację na podstawie trasy GPX zapisanej
+gpxfoto dopisuje do zdjęć położenie na podstawie trasy GPX zapisanej
 zegarkiem lub telefonem. Zapisuje wyłącznie metadane GPS i nigdy nie
 zmienia obrazu.
 
-- **Obraz pozostaje bez zmian.** Zapisywane są tylko metadane, przez
-  exiftool; obraz nie jest ponownie kodowany.
+- **Obraz pozostaje bez zmian.** Zapisywane są tylko metadane (za pomocą
+  programu exiftool); obraz nie jest ponownie kodowany.
 - **Każdy zapis jest sprawdzany.** Przed zapisem i po nim program liczy sumę
   SHA-256 wszystkiego poza segmentami metadanych. Jeśli sumy się różnią,
   zmiana zostaje odrzucona, a oryginalny plik pozostaje nietknięty.
@@ -16,7 +16,7 @@ zmienia obrazu.
   i data modyfikacji zostają zachowane.
 - **Domyślnie podgląd.** Bez opcji `--write` nic nie jest zmieniane.
 - **Bez zgadywania.** Zdjęcie bez wiarygodnego punktu trasy zostaje bez
-  lokalizacji, a program podaje powód.
+  położenia, a program podaje powód.
 
 ## Wymagania
 
@@ -33,7 +33,7 @@ pip install --user .
 ## Użycie
 
 ```
-gpxfoto ZDJĘCIA... -g TRASA.gpx [-g TRASA.gpx ...] [opcje]
+gpxfoto ZDJĘCIE… -g PLIK [-g PLIK …] [opcje]
 ```
 
 Podgląd tego, co zostałoby zapisane:
@@ -42,7 +42,7 @@ Podgląd tego, co zostałoby zapisane:
 gpxfoto ~/Obrazy/2026-10-06 -g activity.gpx
 ```
 
-Zapisanie lokalizacji:
+Zapisanie położenia:
 
 ```
 gpxfoto ~/Obrazy/2026-10-06 -g activity.gpx --write
@@ -50,22 +50,25 @@ gpxfoto ~/Obrazy/2026-10-06 -g activity.gpx --write
 
 | Opcja | Znaczenie |
 |---|---|
-| `-g`, `--gpx PLIK` | plik GPX z trasą; można podać kilka razy |
-| `--write` | zapisuje lokalizację; bez tej opcji wyświetlany jest tylko podgląd |
+| `-g`, `--gpx PLIK` | plik GPX z trasą; można podać wielokrotnie |
+| `--write` | zapisuje położenie; bez tej opcji wyświetlany jest tylko podgląd |
 | `--offset SEKUNDY` | poprawka zegara aparatu, dodawana do czasu wykonania zdjęcia |
-| `--timezone +GG:MM` | strefa czasowa aparatu; domyślnie odczytywana z danych EXIF zdjęcia |
+| `--timezone +GG:MM` | strefa czasowa aparatu dla wszystkich zdjęć (domyślnie: odczytywana z danych EXIF każdego zdjęcia) |
 | `--max-gap SEKUNDY` | największy dopuszczalny odstęp czasu między zdjęciem a najbliższym punktem trasy (domyślnie: 120 s) |
-| `--overwrite` | zmienia także zdjęcia, które mają już lokalizację |
-| `--backup` | zachowuje kopie oryginalnych plików w podkatalogu `originals` |
+| `--overwrite` | zmienia także zdjęcia, które mają już zapisane położenie |
+| `--backup` | zachowuje kopie oryginalnych plików w podkatalogu `originals` obok każdego zdjęcia |
 | `-r`, `--recursive` | wyszukuje zdjęcia także w podkatalogach |
 
-Strefa czasowa zdjęcia jest odczytywana z pola `OffsetTimeOriginal`, które
-zapisują aparaty takie jak Panasonic LUMIX S5II. Jeśli go brak, używana jest
-strefa z opcji `--timezone` albo strefa komputera, o czym informuje podgląd.
+Strefa czasowa zdjęcia jest odczytywana z pola `OffsetTimeOriginal` (lub
+`OffsetTime`), które zapisują aparaty takie jak Panasonic LUMIX S5II. Opcja
+`--timezone` zastępuje ją dla wszystkich zdjęć. Jeśli nie ma żadnej z nich,
+używana jest strefa czasowa komputera, o czym informuje lista zdjęć.
 
-Zdjęcie zostaje pominięte, jeśli dzieli je od trasy więcej niż `--max-gap`
-albo wypada w dłuższej przerwie w zapisie trasy — chyba że w czasie
-przerwy położenie prawie się nie zmieniło (o mniej niż 100 m).
+Zdjęcie zostaje pominięte, jeśli czas jego wykonania dzieli od najbliższego
+punktu trasy więcej niż `--max-gap`: przed początkiem trasy, po jej
+zakończeniu albo w przerwie w zapisie trasy. Zdjęcie wykonane w czasie
+takiej przerwy otrzymuje jednak położenie, jeśli w trakcie przerwy zapisane
+położenie zmieniło się o mniej niż 100 m.
 
 Program jest po angielsku, z polskim tłumaczeniem; język wynika z ustawień
 systemu.
@@ -82,9 +85,9 @@ pomija; `tests/test_private.py` korzysta z tych plików, jeśli tam są.
 
 ### Tłumaczenia
 
-Komunikaty są pisane po angielsku i tłumaczone przez gettext; polskie
-tłumaczenie znajduje się w `po/pl.po`. Po zmianie komunikatów należy
-zaktualizować szablon i tłumaczenia:
+Komunikaty są pisane po angielsku i tłumaczone za pomocą narzędzia
+gettext; polskie tłumaczenie znajduje się w `po/pl.po`. Po zmianie
+komunikatów należy zaktualizować szablon i tłumaczenia:
 
 ```
 xgettext --files-from=po/POTFILES.in --from-code=UTF-8 --language=Python \
