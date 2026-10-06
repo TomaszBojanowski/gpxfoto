@@ -1,0 +1,9 @@
+__pycache__/
+*.py[cod]
+/build/
+/dist/
+*.egg-info/
+.pytest_cache/
+
+# Private photos and tracks used for local testing only
+/tests/prywatne/
