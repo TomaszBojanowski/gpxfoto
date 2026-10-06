@@ -1,0 +1,99 @@
+"""Loading GPX tracks and finding the position at a given moment."""
+import bisect
+import math
+import xml.etree.ElementTree as ET
+from datetime import datetime, timezone
+
+
+def _local_name(tag):
+    return tag.rsplit("}", 1)[-1]
+
+
+def _parse_time(text):
+    text = text.strip()
+    if text.endswith(("Z", "z")):
+        text = text[:-1] + "+00:00"
+    time = datetime.fromisoformat(text)
+    if time.tzinfo is None:          # GPX times are UTC by definition
+        time = time.replace(tzinfo=timezone.utc)
+    return time.astimezone(timezone.utc)
+
+
+def load_gpx(paths):
+    """Return a sorted list of (unix_time, lat, lon, elevation|None)."""
+    points = []
+    for path in paths:
+        for _, el in ET.iterparse(path):
+            if _local_name(el.tag) != "trkpt":
+                continue
+            time_text = ele_text = None
+            for child in el:
+                name = _local_name(child.tag)
+                if name == "time" and child.text:
+                    time_text = child.text
+                elif name == "ele" and child.text:
+                    ele_text = child.text
+            if time_text is not None:
+                try:
+                    points.append((
+                        _parse_time(time_text).timestamp(),
+                        float(el.attrib["lat"]),
+                        float(el.attrib["lon"]),
+                        float(ele_text) if ele_text is not None else None,
+                    ))
+                except (ValueError, KeyError):
+                    pass
+            el.clear()
+    points.sort(key=lambda p: p[0])
+    return points
+
+
+def _distance_m(a, b):
+    r = 6371000.0
+    f1, f2 = math.radians(a[1]), math.radians(b[1])
+    df, dl = f2 - f1, math.radians(b[2] - a[2])
+    h = math.sin(df / 2) ** 2 + math.cos(f1) * math.cos(f2) * math.sin(dl / 2) ** 2
+    return 2 * r * math.asin(math.sqrt(h))
+
+
+def locate(points, times, t, max_gap):
+    """Return (lat, lon, elevation, gap_s) or (None, reason)."""
+    i = bisect.bisect_left(times, t)
+    if i == 0:
+        before, after = None, points[0]
+    elif i == len(points):
+        before, after = points[-1], None
+    else:
+        before, after = points[i - 1], points[i]
+
+    if before is None or after is None:
+        p = after or before
+        gap = abs(p[0] - t)
+        if gap > max_gap:
+            where = "przed początkiem" if before is None else "po końcu"
+            return None, f"{where} trasy o {_format_duration(gap)}"
+        return p[1], p[2], p[3], gap
+
+    gap = min(t - before[0], after[0] - t)
+    # A longer break in recording (e.g. auto-pause) is fine as long as
+    # the position hardly changed during it.
+    if gap > max_gap and _distance_m(before, after) > 100:
+        return None, f"przerwa w trasie, najbliższy punkt {_format_duration(gap)} dalej"
+    span = after[0] - before[0]
+    u = (t - before[0]) / span if span > 0 else 0.0
+    lat = before[1] + (after[1] - before[1]) * u
+    lon = before[2] + (after[2] - before[2]) * u
+    if before[3] is not None and after[3] is not None:
+        ele = before[3] + (after[3] - before[3]) * u
+    else:
+        ele = before[3] if before[3] is not None else after[3]
+    return lat, lon, ele, gap
+
+
+def _format_duration(s):
+    s = int(round(s))
+    if s < 120:
+        return f"{s} s"
+    if s < 7200:
+        return f"{s // 60} min"
+    return f"{s // 3600} h {s % 3600 // 60} min"

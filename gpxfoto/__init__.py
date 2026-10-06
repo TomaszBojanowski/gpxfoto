@@ -1,6 +1,6 @@
-"""Geotagowanie zdjęć na podstawie trasy GPX.
+"""Geotagging photos from a GPX track.
 
-Zapisuje wyłącznie metadane GPS (przez exiftool). Dane obrazu nie są
-ponownie kompresowane, a program po każdym zapisie sprawdza sumą
-kontrolną, że pozostały identyczne co do bajta.
+Only GPS metadata is written (with exiftool). Image data is never
+re-encoded, and after every write a checksum confirms that it stayed
+identical byte for byte.
 """
