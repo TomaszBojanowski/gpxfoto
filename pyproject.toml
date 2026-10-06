@@ -6,6 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "gpxfoto"
 version = "0.1.0"
 description = "Geotag photos from a GPX track without changing the image"
+readme = "README.md"
 requires-python = ">=3.11"
 
 [project.optional-dependencies]
@@ -19,3 +20,4 @@ include = ["gpxfoto*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["."]
