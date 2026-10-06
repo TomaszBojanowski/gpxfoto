@@ -298,6 +298,8 @@ def test_no_files_or_no_timed_points(tmp_path):
     ("", "no element found: line 1, column 0"),
     ("<gpx><trk><trkseg>", "no element found: line 1, column 18"),
     ("not xml", "syntax error: line 1, column 0"),
+    ('<?xml version="1.0" encoding="EUC-JP"?><gpx/>', "multi-byte encodings are not supported"),
+    ('<?xml version="1.0" encoding="bogus"?><gpx/>', "unknown encoding: bogus"),
 ])
 def test_unreadable_file_is_reported_with_its_name(tmp_path, content, error):
     good = write_gpx(tmp_path / "good.gpx", [("2026-06-01T10:00:00Z", 50.0, 19.0, None)])

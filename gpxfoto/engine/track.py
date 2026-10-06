@@ -23,14 +23,14 @@ def _parse_time(text):
 def load_gpx(paths):
     """Return a sorted list of (unix_time, lat, lon, elevation|None).
 
-    Raises ValueError naming the file when a file cannot be read or is not
-    valid XML.
+    Raises ValueError naming the file when a file cannot be read, is not
+    valid XML or uses an encoding that cannot be decoded.
     """
     points = []
     for path in paths:
         try:
             points += _read_points(path)
-        except (OSError, ET.ParseError) as e:
+        except (OSError, ET.ParseError, ValueError, LookupError) as e:
             error = e.strerror if isinstance(e, OSError) and e.strerror else e
             # Translators: {error} describes the problem, e.g. “No such file or directory”
             raise ValueError(_("Cannot read the GPX file {path}: {error}").format(
