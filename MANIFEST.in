@@ -1,3 +1,5 @@
 include README.pl.md
 include po/LINGUAS po/POTFILES.in po/*.pot po/*.po
+graft tests
 prune tests/prywatne
+global-exclude __pycache__ *.py[cod]
