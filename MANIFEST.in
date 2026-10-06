@@ -1,0 +1,2 @@
+include po/LINGUAS po/POTFILES.in po/*.pot po/*.po
+prune tests/prywatne
