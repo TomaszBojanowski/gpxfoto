@@ -17,8 +17,9 @@ DEFAULT_MAX_GAP = 120
 
 # Notes shown next to photos whose time zone did not come from the camera
 TZ_NOTES = {
-    TZ_MANUAL: N_("manual time zone"),
-    TZ_SYSTEM: N_("system time zone (not in EXIF)"),
+    # Translators: {option} is the command-line option --timezone
+    TZ_MANUAL: N_("time zone from {option}"),
+    TZ_SYSTEM: N_("computer’s time zone (not in EXIF)"),
 }
 
 # Messages printed by argparse itself. They are listed here so that they
@@ -44,27 +45,35 @@ ARGPARSE_MESSAGES = (
 def build_parser():
     parser = argparse.ArgumentParser(
         prog="gpxfoto",
-        description=_("Adds locations from a GPX track to photos without changing the image."))
-    parser.add_argument("photos", nargs="+", metavar=_("photos"),
+        description=_("Adds locations from GPX tracks to photos without changing the "
+                      "image data."))
+    # Translators: placeholder for arguments in the usage line of --help;
+    # keep it a single word
+    parser.add_argument("photos", nargs="+", metavar=_("PHOTO"),
                         help=_("JPEG files or directories with photos"))
-    parser.add_argument("-g", "--gpx", action="append", required=True,
+    # Translators: placeholder for a file name in --help; keep it a single word
+    parser.add_argument("-g", "--gpx", action="append", required=True, metavar=_("FILE"),
                         help=_("GPX file with the track (can be given more than once)"))
     parser.add_argument("--write", action="store_true",
                         help=_("write the locations to the files (without this option "
                                "only a preview is shown)"))
+    # Translators: placeholder for a number in --help; keep it a single word
     parser.add_argument("--offset", type=float, default=0.0, metavar=_("SECONDS"),
                         help=_("camera clock correction in seconds, added to the capture time"))
+    # Translators: placeholder in --help; HH stands for hours, MM for minutes
     parser.add_argument("--timezone", metavar=_("+HH:MM"),
-                        help=_("camera time zone; read from the photo's EXIF data by default"))
+                        help=_("camera time zone for all photos (default: read from each "
+                               "photo’s EXIF data)"))
     parser.add_argument("--max-gap", type=float, default=float(DEFAULT_MAX_GAP),
                         metavar=_("SECONDS"),
                         help=_("largest allowed time between a photo and the nearest track "
                                "point (default: {seconds} s)").format(seconds=DEFAULT_MAX_GAP))
     parser.add_argument("--overwrite", action="store_true",
                         help=_("also change photos that already have a location"))
+    # Translators: {directory} is the name of the directory, which is not translated
     parser.add_argument("--backup", action="store_true",
-                        help=_("keep copies of the original files in the “{directory}” "
-                               "subdirectory").format(directory=BACKUP_DIR))
+                        help=_("keep copies of the original files in a “{directory}” "
+                               "subdirectory next to each photo").format(directory=BACKUP_DIR))
     parser.add_argument("-r", "--recursive", action="store_true",
                         help=_("also look for photos in subdirectories"))
     return parser
@@ -75,25 +84,27 @@ def main():
     args = build_parser().parse_args()
 
     if shutil.which("exiftool") is None:
-        sys.exit(_("exiftool is not installed. On Fedora, install it with: "
-                   "sudo dnf install perl-Image-ExifTool"))
+        sys.exit(_("exiftool is not installed. On Fedora, install it with: {command}").format(
+            command="sudo dnf install perl-Image-ExifTool"))
     try:
         manual_tz = parse_utc_offset(args.timezone) if args.timezone else None
     except (ValueError, IndexError):
-        sys.exit(_("The time zone must be given as +02:00 or -05:00."))
+        sys.exit(_("The time zone must be in the form +HH:MM, for example +02:00 or -05:00."))
 
     points = load_gpx(args.gpx)
     if not points:
-        sys.exit(ngettext("The GPX file contains no track points with a time.",
-                          "The GPX files contain no track points with a time.",
+        sys.exit(ngettext("The GPX file contains no track points with timestamps.",
+                          "The GPX files contain no track points with timestamps.",
                           len(args.gpx)))
     times = [p[0] for p in points]
     start = datetime.fromtimestamp(times[0]).astimezone()
     end = datetime.fromtimestamp(times[-1]).astimezone()
-    print(ngettext("Track: {count} point, {start} – {end} (local time of this computer)",
-                   "Track: {count} points, {start} – {end} (local time of this computer)",
+    # Translators: {start} and {end} are the date and time of the first and the
+    # last track point
+    print(ngettext("Track: {count} point, {start} – {end} (this computer’s time zone)",
+                   "Track: {count} points, {start} – {end} (this computer’s time zone)",
                    len(points)).format(count=i18n.number(len(points)),
-                                       start=f"{start:%x %X}", end=f"{end:%X}"))
+                                       start=f"{start:%x %X}", end=f"{end:%x %X}"))
 
     try:
         files = find_photos(args.photos, args.recursive)
@@ -111,8 +122,11 @@ def main():
         path = meta["SourceFile"]
         name = os.path.basename(path)
         if "GPSLatitude" in meta and not args.overwrite:
-            print(f"  {name:<16} " + _("skipped: {reason}").format(
-                reason=_("already has a location")))
+            # Translators: reason why a photo was skipped
+            reason = _("already has a location")
+            # Translators: shown after the file name of a photo; {reason} says
+            # why the photo was skipped, e.g. “already has a location”
+            print(f"  {name:<16} " + _("skipped: {reason}").format(reason=reason))
             skipped += 1
             continue
         taken, detail = capture_time(meta, manual_tz)
@@ -138,7 +152,9 @@ def main():
             ele_text = _("{elevation} m").format(elevation=i18n.number(ele, width=6))
         else:
             ele_text = "       —"
-        note = f"  [{_(TZ_NOTES[detail])}]" if detail in TZ_NOTES else ""
+        note = ""
+        if detail in TZ_NOTES:
+            note = "  [" + _(TZ_NOTES[detail]).format(option="--timezone") + "]"
         print(f"  {name:<16} {taken:%X}  {position} {ele_text}{note}")
         plan.append((path, lat, lon, ele, taken.astimezone(timezone.utc)))
 
@@ -146,8 +162,9 @@ def main():
         matched=i18n.number(len(plan)), skipped=i18n.number(skipped)))
     if not args.write:
         if plan:
-            print(_("This was a preview; nothing was written. "
-                    "Use --write to write the locations."))
+            # Translators: {option} is the command-line option --write
+            print(_("This was a preview; no files were changed. "
+                    "Use {option} to write the locations.").format(option="--write"))
         return
 
     written = errors = 0
@@ -157,11 +174,12 @@ def main():
             written += 1
         except (RuntimeError, ValueError, OSError) as e:
             errors += 1
-            print("  " + _("ERROR {name}: {error} (file unchanged)").format(
+            print("  " + _("Could not write {name}: {error} (file unchanged)").format(
                 name=os.path.basename(path), error=e))
-    print(_("Written: {written}, errors: {errors}. "
-            "Image data checked in every written file: unchanged.").format(
-                written=i18n.number(written), errors=i18n.number(errors)))
+    print(_("Written: {written}, errors: {errors}").format(
+        written=i18n.number(written), errors=i18n.number(errors)))
+    if written:
+        print(_("The image data of every written file was verified as unchanged."))
     if errors:
         sys.exit(1)
 

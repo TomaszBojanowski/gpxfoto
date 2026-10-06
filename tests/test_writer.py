@@ -14,7 +14,7 @@ from gpxfoto.engine.writer import BACKUP_DIR, image_checksum, write_location
 
 TIME = datetime(2026, 6, 1, 8, 30, 15, tzinfo=timezone.utc)
 MTIME_NS = 1_700_000_000_123_456_789
-REJECTED = "image data differs after writing — change rejected"
+REJECTED = "exiftool changed the image data; the result was discarded"
 
 
 @pytest.fixture(autouse=True)

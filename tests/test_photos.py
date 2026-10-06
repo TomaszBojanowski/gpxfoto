@@ -179,8 +179,8 @@ def test_capture_time_invalid_offset_falls_back_to_system_time_zone(meta, system
     {"OffsetTimeOriginal": "+02:00", "SubSecTimeOriginal": "045"},
 ])
 def test_capture_time_without_date(meta):
-    assert capture_time(meta, None) == (None, "no capture date in EXIF")
-    assert capture_time(meta, zone(2)) == (None, "no capture date in EXIF")
+    assert capture_time(meta, None) == (None, "no capture time in EXIF")
+    assert capture_time(meta, zone(2)) == (None, "no capture time in EXIF")
 
 
 @pytest.mark.parametrize("value", [
@@ -196,12 +196,12 @@ def test_capture_time_without_date(meta):
 ])
 def test_capture_time_unreadable_date(value):
     meta = {"DateTimeOriginal": value, "OffsetTimeOriginal": "+02:00"}
-    assert capture_time(meta, None) == (None, f"unreadable date: {value}")
+    assert capture_time(meta, None) == (None, f"invalid capture time in EXIF: {value}")
 
 
 def test_capture_time_unreadable_date_does_not_fall_back_to_create_date():
     meta = {"DateTimeOriginal": "0000:00:00 00:00:00", "CreateDate": "2024:05:01 12:00:00"}
-    assert capture_time(meta, None) == (None, "unreadable date: 0000:00:00 00:00:00")
+    assert capture_time(meta, None) == (None, "invalid capture time in EXIF: 0000:00:00 00:00:00")
 
 
 # find_photos

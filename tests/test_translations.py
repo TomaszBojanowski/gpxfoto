@@ -25,10 +25,10 @@ XGETTEXT = ["xgettext", "--files-from=po/POTFILES.in", "--from-code=UTF-8", "--l
             "--package-version=0.1.0",
             "--msgid-bugs-address=https://github.com/tomaszbojanowski/gpxfoto/issues"]
 
-TRACK_SINGULAR = "Track: {count} point, {start} – {end} (local time of this computer)"
-TRACK_PLURAL = "Track: {count} points, {start} – {end} (local time of this computer)"
-NO_POINTS_SINGULAR = "The GPX file contains no track points with a time."
-NO_POINTS_PLURAL = "The GPX files contain no track points with a time."
+TRACK_SINGULAR = "Track: {count} point, {start} – {end} (this computer’s time zone)"
+TRACK_PLURAL = "Track: {count} points, {start} – {end} (this computer’s time zone)"
+NO_POINTS_SINGULAR = "The GPX file contains no track points with timestamps."
+NO_POINTS_PLURAL = "The GPX files contain no track points with timestamps."
 
 BRACE_FIELD = re.compile(r"\{[^{}]*\}")
 PERCENT_FIELD = re.compile(
@@ -323,27 +323,29 @@ def test_polish_plural_forms(polish_mo, n, word):
     translation = gettext.translation(i18n.DOMAIN, str(polish_mo), languages=["pl"])
     track = translation.ngettext(TRACK_SINGULAR, TRACK_PLURAL, n)
     assert track.format(count=n, start="S", end="E") == \
-        f"Trasa: {n} {word}, S – E (czas lokalny komputera)"
-    expected = ("Plik GPX nie zawiera punktów trasy z czasem." if n == 1
-                else "Pliki GPX nie zawierają punktów trasy z czasem.")
+        f"Trasa: {n} {word}, S – E (strefa czasowa komputera)"
+    expected = ("Plik GPX nie zawiera punktów trasy ze znacznikami czasu." if n == 1
+                else "Pliki GPX nie zawierają punktów trasy ze znacznikami czasu.")
     assert translation.ngettext(NO_POINTS_SINGULAR, NO_POINTS_PLURAL, n) == expected
 
 
 # ---- Polish output of gpxfoto.cli.main() ------------------------------------
 
-USAGE = ("użycie: gpxfoto [-h] -g GPX [--write] [--offset SEKUNDY] [--timezone +GG:MM] "
-         "[--max-gap SEKUNDY] [--overwrite] [--backup] [-r] zdjęcia [zdjęcia ...]")
+USAGE = ("użycie: gpxfoto [-h] -g PLIK [--write] [--offset SEKUNDY] [--timezone +GG:MM] "
+         "[--max-gap SEKUNDY] [--overwrite] [--backup] [-r] ZDJĘCIE [ZDJĘCIE ...]")
 HELP = {
-    "zdjęcia": "pliki JPEG lub katalogi ze zdjęciami",
+    "ZDJĘCIE": "pliki JPEG lub katalogi ze zdjęciami",
     "--help": "wyświetla ten komunikat pomocy i kończy działanie",
-    "--gpx": "plik GPX z trasą (można podać kilka razy)",
-    "--write": "zapisuje lokalizację w plikach (bez tej opcji wyświetlany jest tylko podgląd)",
+    "--gpx": "plik GPX z trasą (można podać wielokrotnie)",
+    "--write": "zapisuje położenie w plikach (bez tej opcji wyświetlany jest tylko podgląd)",
     "--offset": "poprawka zegara aparatu w sekundach, dodawana do czasu wykonania zdjęcia",
-    "--timezone": "strefa czasowa aparatu; domyślnie odczytywana z danych EXIF zdjęcia",
+    "--timezone": "strefa czasowa aparatu dla wszystkich zdjęć (domyślnie: odczytywana z danych "
+                  "EXIF każdego zdjęcia)",
     "--max-gap": "największy dopuszczalny odstęp czasu między zdjęciem a najbliższym punktem "
                  "trasy (domyślnie: 120 s)",
-    "--overwrite": "zmienia także zdjęcia, które mają już lokalizację",
-    "--backup": "zachowuje kopie oryginalnych plików w podkatalogu „originals”",
+    "--overwrite": "zmienia także zdjęcia, które mają już zapisane położenie",
+    "--backup": "zachowuje kopie oryginalnych plików w podkatalogu „originals” obok każdego "
+                "zdjęcia",
     "--recursive": "wyszukuje zdjęcia także w podkatalogach",
 }
 
@@ -354,8 +356,8 @@ def test_help_is_polish(polish_cli, capsys):
     assert exit_info.value.code == 0
     output = capsys.readouterr().out
     lines = output.splitlines()
-    assert lines[:3] == [USAGE, "", "Dopisuje do zdjęć lokalizację z trasy GPX, "
-                                    "nie zmieniając obrazu."]
+    assert lines[:3] == [USAGE, "", "Dopisuje do zdjęć położenie na podstawie tras GPX, "
+                                    "nie zmieniając danych obrazu."]
     assert "argumenty pozycyjne:" in lines
     assert "opcje:" in lines
     # "-g GPX, --gpx GPX" before Python 3.13, "-g, --gpx GPX" since
@@ -403,12 +405,13 @@ def test_missing_exiftool_message_is_polish(polish_cli, monkeypatch):
 def test_invalid_timezone_message_is_polish(polish_cli, exiftool_present):
     with pytest.raises(SystemExit) as exit_info:
         polish_cli("-g", "t.gpx", "a.jpg", "--timezone", "2h")
-    assert exit_info.value.code == "Strefę czasową należy podać w postaci +02:00 lub -05:00."
+    assert exit_info.value.code == ("Strefę czasową należy podać w postaci +GG:MM, na przykład "
+                                    "+02:00 lub -05:00.")
 
 
 @pytest.mark.parametrize("files, message", [
-    (1, "Plik GPX nie zawiera punktów trasy z czasem."),
-    (2, "Pliki GPX nie zawierają punktów trasy z czasem."),
+    (1, "Plik GPX nie zawiera punktów trasy ze znacznikami czasu."),
+    (2, "Pliki GPX nie zawierają punktów trasy ze znacznikami czasu."),
 ])
 def test_empty_track_message_is_polish(polish_cli, exiftool_present, tmp_path, files, message):
     args = []
@@ -430,7 +433,7 @@ def test_track_summary_uses_polish_plurals(polish_cli, exiftool_present, tmp_pat
         polish_cli("-g", gpx, tmp_path / "photos")
     assert exit_info.value.code == "Nie znaleziono zdjęć JPEG."
     assert capsys.readouterr().out == (f"Trasa: {count} {word}, 05/01/24 12:00:00 – "
-                                       f"12:00:{count - 1:02d} (czas lokalny komputera)\n")
+                                       f"05/01/24 12:00:{count - 1:02d} (strefa czasowa komputera)\n")
 
 
 def test_missing_photo_message_is_polish(polish_cli, exiftool_present, tmp_path):
@@ -458,7 +461,8 @@ TRACK = [
     ("2024-05-01T10:01:40Z", 50.001, 20.002, 210.0),
     ("2024-05-01T11:00:00Z", 50.1, 20.1, 300.0),
 ]
-TRACK_LINE = "Trasa: 3 punkty, 05/01/24 12:00:00 – 13:00:00 (czas lokalny komputera)"
+TRACK_LINE = ("Trasa: 3 punkty, 05/01/24 12:00:00 – 05/01/24 13:00:00 "
+              "(strefa czasowa komputera)")
 
 
 def photo(directory, name, *tags):
@@ -489,15 +493,17 @@ def test_preview_is_polish(polish_cli, tmp_path, capsys):
         TRACK_LINE,
         "  a.jpg            12:00:50  50.000500; 20.001000    205 m",
         "  b.jpg            12:01:00  50.000600; 20.001200    206 m"
-        "  [systemowa strefa czasowa (brak w EXIF)]",
-        "  c.jpg            12:30:00  pominięte: przerwa w trasie, najbliższy punkt 28 min dalej",
+        "  [strefa czasowa komputera (brak w EXIF)]",
+        "  c.jpg            12:30:00  pominięte: przerwa w zapisie trasy, najbliższy punkt "
+        "oddalony o 28 min",
         "  d.jpg            pominięte: brak daty wykonania w EXIF",
-        "  e.jpg            pominięte: ma już lokalizację",
-        "  f.jpg            11:58:30  pominięte: przed początkiem trasy o 90 s",
-        "  g.jpg            15:30:00  pominięte: po końcu trasy o 2 h 30 min",
-        "  h.jpg            pominięte: nieczytelna data: 0000:00:00 00:00:00",
+        "  e.jpg            pominięte: ma już zapisane położenie",
+        "  f.jpg            11:58:30  pominięte: 90 s przed początkiem trasy",
+        "  g.jpg            15:30:00  pominięte: 2 h 30 min po zakończeniu trasy",
+        "  h.jpg            pominięte: nieprawidłowa data wykonania w EXIF: 0000:00:00 00:00:00",
         "Dopasowano: 2, pominięto: 6",
-        "To był podgląd, nic nie zapisano. Aby zapisać lokalizację, należy użyć opcji --write.",
+        "To był podgląd, nie zmieniono żadnych plików. Aby zapisać położenie, należy użyć "
+        "opcji --write.",
     ]
 
 
@@ -513,15 +519,16 @@ def test_write_summary_and_errors_are_polish(polish_cli, tmp_path, capsys):
     with pytest.raises(SystemExit) as exit_info:
         polish_cli("-g", gpx, tmp_path / "photos", "--timezone", "+02:00", "--write")
     assert exit_info.value.code == 1
-    matched = "12:00:50  50.000500; 20.001000        —  [ręcznie podana strefa czasowa]"
+    matched = "12:00:50  50.000500; 20.001000        —  [strefa czasowa z opcji --timezone]"
     assert capsys.readouterr().out.splitlines() == [
         TRACK_LINE,
         f"  a.jpg            {matched}",
         f"  b.jpg            {matched}",
         f"  c.jpg            {matched}",
         "Dopasowano: 3, pominięto: 0",
-        "  BŁĄD b.jpg: uszkodzona struktura JPEG (plik bez zmian)",
-        "Zapisano: 2, błędy: 1. Sprawdzono dane obrazu w każdym zapisanym pliku: bez zmian.",
+        "  Nie można zapisać pliku b.jpg: uszkodzona struktura JPEG (plik bez zmian)",
+        "Zapisano: 2, błędy: 1",
+        "Sprawdzono, że dane obrazu w każdym zapisanym pliku pozostały bez zmian.",
     ]
     assert damaged.read_bytes() == original
 
@@ -549,10 +556,11 @@ def test_polish_locale_without_language_variable(polish_cli, tmp_path, capsys):
     polish_cli("-g", gpx, tmp_path / "photos", LC_ALL="pl_PL.UTF-8", LANGUAGE=None)
     thousands = locale.localeconv()["thousands_sep"]
     assert capsys.readouterr().out.splitlines() == [
-        f"Trasa: 1{thousands}803 punkty, 01.05.2024 12:00:00 – 12:30:02 "
-        "(czas lokalny komputera)",
+        f"Trasa: 1{thousands}803 punkty, 01.05.2024 12:00:00 – 01.05.2024 12:30:02 "
+        "(strefa czasowa komputera)",
         "  a.jpg            12:00:50  50,000500; 20,001000    205 m",
         "Dopasowano: 1, pominięto: 0",
-        "To był podgląd, nic nie zapisano. Aby zapisać lokalizację, należy użyć opcji --write.",
+        "To był podgląd, nie zmieniono żadnych plików. Aby zapisać położenie, należy użyć "
+        "opcji --write.",
     ]
     assert thousands.isspace()

@@ -61,7 +61,7 @@ def write_location(path, lat, lon, ele, time_utc, backup):
         if process.returncode != 0 or not os.path.exists(temp):
             raise RuntimeError(process.stderr.strip() or _("exiftool did not write the file"))
         if image_checksum(temp) != before:
-            raise RuntimeError(_("image data differs after writing — change rejected"))
+            raise RuntimeError(_("exiftool changed the image data; the result was discarded"))
         stat = os.stat(path)
         shutil.copymode(path, temp)
         os.utime(temp, ns=(stat.st_atime_ns, stat.st_mtime_ns))

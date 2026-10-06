@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: gpxfoto 0.1.0\n"
 "Report-Msgid-Bugs-To: https://github.com/tomaszbojanowski/gpxfoto/issues\n"
-"POT-Creation-Date: 2026-10-06 21:33+0000\n"
+"POT-Creation-Date: 2026-10-06 22:37+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -18,203 +18,227 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=INTEGER; plural=EXPRESSION;\n"
 
-#: gpxfoto/cli.py:20
-msgid "manual time zone"
-msgstr ""
-
+#. Translators: {option} is the command-line option --timezone
 #: gpxfoto/cli.py:21
-msgid "system time zone (not in EXIF)"
+#, python-brace-format
+msgid "time zone from {option}"
 msgstr ""
 
-#: gpxfoto/cli.py:28
-msgid "usage: "
+#: gpxfoto/cli.py:22
+msgid "computer’s time zone (not in EXIF)"
 msgstr ""
 
 #: gpxfoto/cli.py:29
+msgid "usage: "
+msgstr ""
+
+#: gpxfoto/cli.py:30
 #, python-format
 msgid "%(heading)s:"
 msgstr ""
 
-#: gpxfoto/cli.py:30
+#: gpxfoto/cli.py:31
 msgid "positional arguments"
 msgstr ""
 
-#: gpxfoto/cli.py:31
+#: gpxfoto/cli.py:32
 msgid "options"
 msgstr ""
 
-#: gpxfoto/cli.py:32
-msgid "show this help message and exit"
-msgstr ""
-
 #: gpxfoto/cli.py:33
-#, python-format
-msgid "%(prog)s: error: %(message)s\n"
+msgid "show this help message and exit"
 msgstr ""
 
 #: gpxfoto/cli.py:34
 #, python-format
-msgid "argument %(argument_name)s: %(message)s"
+msgid "%(prog)s: error: %(message)s\n"
 msgstr ""
 
 #: gpxfoto/cli.py:35
 #, python-format
-msgid "the following arguments are required: %s"
+msgid "argument %(argument_name)s: %(message)s"
 msgstr ""
 
 #: gpxfoto/cli.py:36
 #, python-format
-msgid "unrecognized arguments: %s"
+msgid "the following arguments are required: %s"
 msgstr ""
 
 #: gpxfoto/cli.py:37
 #, python-format
-msgid "ambiguous option: %(option)s could match %(matches)s"
+msgid "unrecognized arguments: %s"
 msgstr ""
 
 #: gpxfoto/cli.py:38
 #, python-format
-msgid "ignored explicit argument %r"
+msgid "ambiguous option: %(option)s could match %(matches)s"
 msgstr ""
 
 #: gpxfoto/cli.py:39
-msgid "expected one argument"
+#, python-format
+msgid "ignored explicit argument %r"
 msgstr ""
 
 #: gpxfoto/cli.py:40
+msgid "expected one argument"
+msgstr ""
+
+#: gpxfoto/cli.py:41
 #, python-format
 msgid "invalid %(type)s value: %(value)r"
 msgstr ""
 
-#: gpxfoto/cli.py:47
-msgid "Adds locations from a GPX track to photos without changing the image."
-msgstr ""
-
 #: gpxfoto/cli.py:48
-msgid "photos"
+msgid ""
+"Adds locations from GPX tracks to photos without changing the image data."
 msgstr ""
 
-#: gpxfoto/cli.py:49
-msgid "JPEG files or directories with photos"
-msgstr ""
-
-#: gpxfoto/cli.py:51
-msgid "GPX file with the track (can be given more than once)"
+#. Translators: placeholder for arguments in the usage line of --help;
+#. keep it a single word
+#: gpxfoto/cli.py:52
+msgid "PHOTO"
 msgstr ""
 
 #: gpxfoto/cli.py:53
+msgid "JPEG files or directories with photos"
+msgstr ""
+
+#. Translators: placeholder for a file name in --help; keep it a single word
+#: gpxfoto/cli.py:55
+msgid "FILE"
+msgstr ""
+
+#: gpxfoto/cli.py:56
+msgid "GPX file with the track (can be given more than once)"
+msgstr ""
+
+#: gpxfoto/cli.py:58
 msgid ""
 "write the locations to the files (without this option only a preview is "
 "shown)"
 msgstr ""
 
-#: gpxfoto/cli.py:55 gpxfoto/cli.py:60
+#. Translators: placeholder for a number in --help; keep it a single word
+#: gpxfoto/cli.py:61 gpxfoto/cli.py:68
 msgid "SECONDS"
 msgstr ""
 
-#: gpxfoto/cli.py:56
+#: gpxfoto/cli.py:62
 msgid "camera clock correction in seconds, added to the capture time"
 msgstr ""
 
-#: gpxfoto/cli.py:57
+#. Translators: placeholder in --help; HH stands for hours, MM for minutes
+#: gpxfoto/cli.py:64
 msgid "+HH:MM"
 msgstr ""
 
-#: gpxfoto/cli.py:58
-msgid "camera time zone; read from the photo's EXIF data by default"
+#: gpxfoto/cli.py:65
+msgid ""
+"camera time zone for all photos (default: read from each photo’s EXIF data)"
 msgstr ""
 
-#: gpxfoto/cli.py:61
+#: gpxfoto/cli.py:69
 #, python-brace-format
 msgid ""
 "largest allowed time between a photo and the nearest track point (default: "
 "{seconds} s)"
 msgstr ""
 
-#: gpxfoto/cli.py:64
+#: gpxfoto/cli.py:72
 msgid "also change photos that already have a location"
 msgstr ""
 
-#: gpxfoto/cli.py:66
+#: gpxfoto/cli.py:75
 #, python-brace-format
-msgid "keep copies of the original files in the “{directory}” subdirectory"
-msgstr ""
-
-#: gpxfoto/cli.py:69
-msgid "also look for photos in subdirectories"
+msgid ""
+"keep copies of the original files in a “{directory}” subdirectory next to "
+"each photo"
 msgstr ""
 
 #: gpxfoto/cli.py:78
-msgid ""
-"exiftool is not installed. On Fedora, install it with: sudo dnf install perl-"
-"Image-ExifTool"
-msgstr ""
-
-#: gpxfoto/cli.py:83
-msgid "The time zone must be given as +02:00 or -05:00."
+msgid "also look for photos in subdirectories"
 msgstr ""
 
 #: gpxfoto/cli.py:87
-msgid "The GPX file contains no track points with a time."
-msgid_plural "The GPX files contain no track points with a time."
-msgstr[0] ""
-msgstr[1] ""
-
-#: gpxfoto/cli.py:93
 #, python-brace-format
-msgid "Track: {count} point, {start} – {end} (local time of this computer)"
-msgid_plural ""
-"Track: {count} points, {start} – {end} (local time of this computer)"
+msgid "exiftool is not installed. On Fedora, install it with: {command}"
+msgstr ""
+
+#: gpxfoto/cli.py:92
+msgid "The time zone must be in the form +HH:MM, for example +02:00 or -05:00."
+msgstr ""
+
+#: gpxfoto/cli.py:96
+msgid "The GPX file contains no track points with timestamps."
+msgid_plural "The GPX files contain no track points with timestamps."
 msgstr[0] ""
 msgstr[1] ""
 
-#: gpxfoto/cli.py:103
+#. Translators: {start} and {end} are the date and time of the first and the
+#. last track point
+#: gpxfoto/cli.py:104
+#, python-brace-format
+msgid "Track: {count} point, {start} – {end} (this computer’s time zone)"
+msgid_plural ""
+"Track: {count} points, {start} – {end} (this computer’s time zone)"
+msgstr[0] ""
+msgstr[1] ""
+
+#: gpxfoto/cli.py:114
 msgid "No JPEG photos found."
 msgstr ""
 
-#: gpxfoto/cli.py:114 gpxfoto/cli.py:120 gpxfoto/cli.py:127
-#, python-brace-format
-msgid "skipped: {reason}"
+#. Translators: reason why a photo was skipped
+#: gpxfoto/cli.py:126
+msgid "already has a location"
 msgstr ""
 
-#: gpxfoto/cli.py:115
-msgid "already has a location"
+#. Translators: shown after the file name of a photo; {reason} says
+#. why the photo was skipped, e.g. “already has a location”
+#: gpxfoto/cli.py:129 gpxfoto/cli.py:134 gpxfoto/cli.py:141
+#, python-brace-format
+msgid "skipped: {reason}"
 msgstr ""
 
 #. Translators: latitude and longitude in degrees. If your language
 #. uses a comma as the decimal separator, separate them with something
 #. else, for example a semicolon.
-#: gpxfoto/cli.py:134
+#: gpxfoto/cli.py:148
 #, python-brace-format
 msgid "{latitude}, {longitude}"
 msgstr ""
 
 #. Translators: elevation in metres
-#: gpxfoto/cli.py:138
+#: gpxfoto/cli.py:152
 #, python-brace-format
 msgid "{elevation} m"
 msgstr ""
 
-#: gpxfoto/cli.py:145
+#: gpxfoto/cli.py:161
 #, python-brace-format
 msgid "Matched: {matched}, skipped: {skipped}"
 msgstr ""
 
-#: gpxfoto/cli.py:149
-msgid ""
-"This was a preview; nothing was written. Use --write to write the locations."
-msgstr ""
-
-#: gpxfoto/cli.py:160
-#, python-brace-format
-msgid "ERROR {name}: {error} (file unchanged)"
-msgstr ""
-
-#: gpxfoto/cli.py:162
+#. Translators: {option} is the command-line option --write
+#: gpxfoto/cli.py:166
 #, python-brace-format
 msgid ""
-"Written: {written}, errors: {errors}. Image data checked in every written "
-"file: unchanged."
+"This was a preview; no files were changed. Use {option} to write the "
+"locations."
+msgstr ""
+
+#: gpxfoto/cli.py:177
+#, python-brace-format
+msgid "Could not write {name}: {error} (file unchanged)"
+msgstr ""
+
+#: gpxfoto/cli.py:179
+#, python-brace-format
+msgid "Written: {written}, errors: {errors}"
+msgstr ""
+
+#: gpxfoto/cli.py:182
+msgid "The image data of every written file was verified as unchanged."
 msgstr ""
 
 #: gpxfoto/engine/photos.py:30
@@ -229,41 +253,49 @@ msgid ""
 "{errors}"
 msgstr ""
 
-#: gpxfoto/engine/photos.py:58
-msgid "no capture date in EXIF"
+#. Translators: reason why a photo was skipped
+#: gpxfoto/engine/photos.py:59
+msgid "no capture time in EXIF"
 msgstr ""
 
-#: gpxfoto/engine/photos.py:62
+#. Translators: reason why a photo was skipped; {value} is the text found
+#: gpxfoto/engine/photos.py:64
 #, python-brace-format
-msgid "unreadable date: {value}"
+msgid "invalid capture time in EXIF: {value}"
 msgstr ""
 
-#: gpxfoto/engine/track.py:75
-#, python-brace-format
-msgid "before the start of the track by {duration}"
-msgstr ""
-
+#. Translators: reason why a photo was skipped; {duration} is
+#. a time span such as “10 min”
 #: gpxfoto/engine/track.py:77
 #, python-brace-format
-msgid "after the end of the track by {duration}"
+msgid "{duration} before the start of the track"
 msgstr ""
 
-#: gpxfoto/engine/track.py:85
+#. Translators: reason why a photo was skipped; {duration} is
+#. a time span such as “10 min”
+#: gpxfoto/engine/track.py:81
 #, python-brace-format
-msgid "gap in the track, nearest point {duration} away"
+msgid "{duration} after the end of the track"
 msgstr ""
 
-#: gpxfoto/engine/track.py:101
+#. Translators: reason why a photo was skipped; {duration} is a time
+#. span such as “10 min”
+#: gpxfoto/engine/track.py:91
+#, python-brace-format
+msgid "gap in the track recording, nearest point {duration} away"
+msgstr ""
+
+#: gpxfoto/engine/track.py:107
 #, python-brace-format
 msgid "{seconds} s"
 msgstr ""
 
-#: gpxfoto/engine/track.py:103
+#: gpxfoto/engine/track.py:109
 #, python-brace-format
 msgid "{minutes} min"
 msgstr ""
 
-#: gpxfoto/engine/track.py:104
+#: gpxfoto/engine/track.py:110
 #, python-brace-format
 msgid "{hours} h {minutes} min"
 msgstr ""
@@ -281,5 +313,5 @@ msgid "exiftool did not write the file"
 msgstr ""
 
 #: gpxfoto/engine/writer.py:64
-msgid "image data differs after writing — change rejected"
+msgid "exiftool changed the image data; the result was discarded"
 msgstr ""

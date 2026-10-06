@@ -18,10 +18,9 @@ TRACK = [
     ("2024-05-01T10:00:00Z", 50.0, 20.0, 200.0),
     ("2024-05-01T10:01:40Z", 50.001, 20.002, 210.0),
 ]
-TRACK_LINE = "Track: 2 points, 05/01/24 12:00:00 – 12:01:40 (local time of this computer)"
-PREVIEW_LINE = "This was a preview; nothing was written. Use --write to write the locations."
-WRITTEN_LINE = ("Written: {}, errors: {}. "
-                "Image data checked in every written file: unchanged.")
+TRACK_LINE = "Track: 2 points, 05/01/24 12:00:00 – 05/01/24 12:01:40 (this computer’s time zone)"
+PREVIEW_LINE = "This was a preview; no files were changed. Use --write to write the locations."
+VERIFIED_LINE = "The image data of every written file was verified as unchanged."
 # 50 s after the start of TRACK, halfway between its two points
 MATCH_LINE = "  a.jpg            12:00:50  50.000500, 20.001000    205 m"
 
@@ -31,6 +30,12 @@ GPS_TAGS = ("GPS:GPSLatitude", "GPS:GPSLatitudeRef", "GPS:GPSLongitude", "GPS:GP
             "GPS:GPSMapDatum")
 
 needs_posix_shell = pytest.mark.skipif(os.name != "posix", reason="needs /bin/sh")
+
+
+def written(count, errors):
+    """Summary lines after writing; the check is reported only if a file was written."""
+    lines = [f"Written: {count}, errors: {errors}"]
+    return lines if str(count) == "0" else lines + [VERIFIED_LINE]
 
 
 def taken(local_time, offset="+02:00", date="2024:05:01"):
@@ -93,9 +98,9 @@ def test_preview_shows_positions_and_changes_nothing(photo, gpx):
     assert result.stdout.splitlines() == [
         TRACK_LINE,
         MATCH_LINE,
-        "  nodate.jpg       skipped: no capture date in EXIF",
+        "  nodate.jpg       skipped: no capture time in EXIF",
         "  nozone.jpg       12:00:30  50.000300, 20.000600    203 m"
-        "  [system time zone (not in EXIF)]",
+        "  [computer’s time zone (not in EXIF)]",
         "Matched: 2, skipped: 1",
         PREVIEW_LINE,
     ]
@@ -116,7 +121,7 @@ def test_write_adds_location_and_keeps_image_mode_and_mtime(photo, gpx):
 
     assert result.returncode == 0, result.stderr
     assert result.stdout.splitlines() == [
-        TRACK_LINE, MATCH_LINE, "Matched: 1, skipped: 0", WRITTEN_LINE.format(1, 0)]
+        TRACK_LINE, MATCH_LINE, "Matched: 1, skipped: 0", *written(1, 0)]
     assert read_tags(path, *GPS_TAGS) == gps_written(50.0005, 20.001, 205, "2024:05:01",
                                                      "10:00:50")
     assert image_checksum(path) == checksum
@@ -139,11 +144,11 @@ def test_several_gpx_files_and_southern_western_positions(tmp_path, photo, gpx):
 
     assert result.returncode == 0, result.stderr
     assert result.stdout.splitlines() == [
-        "Track: 4 points, 05/01/24 12:00:00 – 18:01:40 (local time of this computer)",
+        "Track: 4 points, 05/01/24 12:00:00 – 05/02/24 18:01:40 (this computer’s time zone)",
         "  chile.jpg        12:00:50  -33.000500, -70.001000    -15 m",
         "  poland.jpg       12:00:50  50.000500, 20.001000    205 m",
         "Matched: 2, skipped: 0",
-        WRITTEN_LINE.format(2, 0),
+        *written(2, 0),
     ]
     assert read_tags(chile, *GPS_TAGS) == gps_written(-33.0005, -70.001, -15, "2024:05:02",
                                                       "16:00:50")
@@ -163,14 +168,14 @@ def test_photo_with_location_is_skipped_unless_overwrite(photo, gpx):
         TRACK_LINE,
         "  a.jpg            skipped: already has a location",
         "Matched: 0, skipped: 1",
-        WRITTEN_LINE.format(0, 0),
+        *written(0, 0),
     ]
     assert path.read_bytes() == original
 
     replaced = run_cli(path, "-g", gpx, "--write", "--overwrite")
     assert replaced.returncode == 0, replaced.stderr
     assert replaced.stdout.splitlines() == [
-        TRACK_LINE, MATCH_LINE, "Matched: 1, skipped: 0", WRITTEN_LINE.format(1, 0)]
+        TRACK_LINE, MATCH_LINE, "Matched: 1, skipped: 0", *written(1, 0)]
     assert read_tags(path, "GPS:GPSLatitude", "GPS:GPSLongitude") == {
         "GPSLatitude": pytest.approx(50.0005, abs=1e-7),
         "GPSLongitude": pytest.approx(20.001, abs=1e-7)}
@@ -193,7 +198,7 @@ def test_zero_latitude_and_elevation_are_values_not_missing_data(tmp_path, photo
         "  a.jpg            12:00:50  0.000000, 9.001000      0 m",
         "  null-island.jpg  skipped: already has a location",
         "Matched: 1, skipped: 1",
-        WRITTEN_LINE.format(1, 0),
+        *written(1, 0),
     ]
     # The GPS time includes the --offset correction
     assert read_tags(path, *GPS_TAGS) == gps_written(0.0, 9.001, 0.0, "2024:05:01", "10:00:50")
@@ -224,14 +229,14 @@ def test_timezone_overrides_the_one_from_exif(photo, gpx):
     assert from_exif.returncode == 0, from_exif.stderr
     assert from_exif.stdout.splitlines() == [
         TRACK_LINE,
-        "  a.jpg            12:00:50  skipped: before the start of the track by 2 h 59 min",
+        "  a.jpg            12:00:50  skipped: 2 h 59 min before the start of the track",
         "Matched: 0, skipped: 1",
     ]
 
     manual = run_cli(path, "-g", gpx, "--timezone", "+02:00")
     assert manual.returncode == 0, manual.stderr
     assert manual.stdout.splitlines() == [
-        TRACK_LINE, MATCH_LINE + "  [manual time zone]", "Matched: 1, skipped: 0",
+        TRACK_LINE, MATCH_LINE + "  [time zone from --timezone]", "Matched: 1, skipped: 0",
         PREVIEW_LINE]
 
 
@@ -243,7 +248,7 @@ def test_negative_timezone_given_with_equals_sign(photo, gpx):
 
     assert result.returncode == 0, result.stderr
     assert result.stdout.splitlines()[1] == (
-        "  a.jpg            07:00:50  50.000500, 20.001000    205 m  [manual time zone]")
+        "  a.jpg            07:00:50  50.000500, 20.001000    205 m  [time zone from --timezone]")
 
 
 @needs_exiftool
@@ -253,7 +258,7 @@ def test_invalid_timezone_exits_with_message(jpeg_file, gpx, value):
 
     assert result.returncode == 1
     assert result.stdout == ""
-    assert result.stderr == "The time zone must be given as +02:00 or -05:00.\n"
+    assert result.stderr == "The time zone must be in the form +HH:MM, for example +02:00 or -05:00.\n"
 
 
 @needs_exiftool
@@ -262,13 +267,13 @@ def test_max_gap(tmp_path, photo):
     gpx = write_gpx(tmp_path / "gap.gpx", [("2024-05-01T10:00:00Z", 50.0, 20.0, None),
                                            ("2024-05-01T10:10:00Z", 50.01, 20.0, None)])
     path = photo("a.jpg", taken("12:03:00"))
-    track_line = "Track: 2 points, 05/01/24 12:00:00 – 12:10:00 (local time of this computer)"
+    track_line = "Track: 2 points, 05/01/24 12:00:00 – 05/01/24 12:10:00 (this computer’s time zone)"
 
     default = run_cli(path, "-g", gpx)
     assert default.returncode == 0, default.stderr
     assert default.stdout.splitlines() == [
         track_line,
-        "  a.jpg            12:03:00  skipped: gap in the track, nearest point 3 min away",
+        "  a.jpg            12:03:00  skipped: gap in the track recording, nearest point 3 min away",
         "Matched: 0, skipped: 1",
     ]
 
@@ -293,11 +298,11 @@ def test_one_point_track_and_default_max_gap_of_120_s(tmp_path, photo):
 
     assert result.returncode == 0, result.stderr
     assert result.stdout.splitlines() == [
-        "Track: 1 point, 05/01/24 12:00:00 – 12:00:00 (local time of this computer)",
-        "  a.jpg            11:57:59  skipped: before the start of the track by 2 min",
+        "Track: 1 point, 05/01/24 12:00:00 – 05/01/24 12:00:00 (this computer’s time zone)",
+        "  a.jpg            11:57:59  skipped: 2 min before the start of the track",
         "  b.jpg            11:58:00  50.000000, 20.000000    200 m",
         "  c.jpg            12:02:00  50.000000, 20.000000    200 m",
-        "  d.jpg            12:02:01  skipped: after the end of the track by 2 min",
+        "  d.jpg            12:02:01  skipped: 2 min after the end of the track",
         "Matched: 2, skipped: 2",
         PREVIEW_LINE,
     ]
@@ -328,7 +333,7 @@ def test_backup_keeps_identical_copy_of_original(photo, gpx):
     result = run_cli(path, "-g", gpx, "--write", "--backup")
 
     assert result.returncode == 0, result.stderr
-    assert result.stdout.splitlines()[-1] == WRITTEN_LINE.format(1, 0)
+    assert result.stdout.splitlines()[-2:] == written(1, 0)
     assert sorted(os.listdir(path.parent)) == ["a.jpg", "originals"]
     backup = path.parent / "originals" / "a.jpg"
     assert os.listdir(backup.parent) == ["a.jpg"]
@@ -360,8 +365,8 @@ exec {shutil.which("exiftool")} "$@"
         "  bad.jpg          12:00:50  50.000500, 20.001000    205 m",
         "  good.jpg         12:00:50  50.000500, 20.001000    205 m",
         "Matched: 2, skipped: 0",
-        "  ERROR bad.jpg: simulated failure (file unchanged)",
-        WRITTEN_LINE.format(1, 1),
+        "  Could not write bad.jpg: simulated failure (file unchanged)",
+        *written(1, 1),
     ]
     assert bad.read_bytes() == original
     assert read_tags(good, "GPS:GPSLatitude") == {
@@ -390,10 +395,10 @@ def test_damaged_jpeg_and_unusable_backup_directory_are_reported(photo, gpx):
         f"  b.jpg            {matched}",
         f"  damaged.jpg      {matched}",
         "Matched: 3, skipped: 0",
-        f"  ERROR a.jpg: [Errno {errno.EEXIST}] {os.strerror(errno.EEXIST)}: "
+        f"  Could not write a.jpg: [Errno {errno.EEXIST}] {os.strerror(errno.EEXIST)}: "
         f"'{blocked.parent / 'originals'}' (file unchanged)",
-        "  ERROR damaged.jpg: damaged JPEG structure (file unchanged)",
-        WRITTEN_LINE.format(1, 2),
+        "  Could not write damaged.jpg: damaged JPEG structure (file unchanged)",
+        *written(1, 2),
     ]
     for f, content in originals.items():
         assert f.read_bytes() == content
@@ -419,8 +424,8 @@ def test_missing_photo_path(tmp_path, gpx):
 
 @needs_exiftool
 @pytest.mark.parametrize("count, message", [
-    (1, "The GPX file contains no track points with a time."),
-    (2, "The GPX files contain no track points with a time."),
+    (1, "The GPX file contains no track points with timestamps."),
+    (2, "The GPX files contain no track points with timestamps."),
 ])
 def test_gpx_without_timed_points(tmp_path, jpeg_file, count, message):
     gpx_args = []
@@ -472,9 +477,9 @@ def test_exiftool_without_output(tmp_path, gpx, jpeg_file):
 
 
 @pytest.mark.parametrize("args, message", [
-    ((), "the following arguments are required: photos, -g/--gpx"),
+    ((), "the following arguments are required: PHOTO, -g/--gpx"),
     (("a.jpg",), "the following arguments are required: -g/--gpx"),
-    (("-g", "t.gpx"), "the following arguments are required: photos"),
+    (("-g", "t.gpx"), "the following arguments are required: PHOTO"),
     (("a.jpg", "-g"), "argument -g/--gpx: expected one argument"),
     (("a.jpg", "-g", "t.gpx", "--offset", "abc"), "argument --offset: invalid float value: 'abc'"),
     (("a.jpg", "-g", "t.gpx", "--max-gap", "1m"),
@@ -495,10 +500,10 @@ def test_help(tmp_path):
 
     assert result.returncode == 0
     assert result.stdout.startswith("usage: gpxfoto ")
-    assert "Adds locations from a GPX track to photos without changing the image." in result.stdout
+    assert "Adds locations from GPX tracks to photos without changing the image data." in result.stdout
     assert "--max-gap SECONDS" in result.stdout
     assert "(default: 120 s)" in result.stdout
-    assert "“originals” subdirectory" in result.stdout
+    assert "“originals” subdirectory next to each photo" in result.stdout
 
 
 # Regional settings
@@ -540,8 +545,8 @@ def test_numbers_follow_the_system_locale(tmp_path, photo, numeric_locale):
 
     assert result.returncode == 0, result.stderr
     assert result.stdout.splitlines() == [
-        f"Track: 1{separator}000 points, 05/01/24 12:00:00 – 12:16:39 "
-        "(local time of this computer)",
+        f"Track: 1{separator}000 points, 05/01/24 12:00:00 – 05/01/24 12:16:39 "
+        "(this computer’s time zone)",
         f"  a.jpg            12:00:05  50{point}000500, 20{point}000000  1{separator}205 m",
         "Matched: 1, skipped: 0",
         PREVIEW_LINE,
@@ -577,14 +582,14 @@ def test_summary_counts_follow_the_locale(tmp_path, monkeypatch, capsys):
 
     assert exit_info.value.code == 1
     lines = capsys.readouterr().out.splitlines()
-    # Track line, 3000 photos, matched/skipped, 1000 errors, written/errors
-    assert len(lines) == 4003
+    # Track line, 3000 photos, matched/skipped, 1000 errors, written/errors, check
+    assert len(lines) == 4004
     assert lines[1] == "  0.jpg            12:00:50  50,000500, 20,001000    205 m"
-    assert lines[2001] == "  no-date-0.jpg    skipped: no capture date in EXIF"
+    assert lines[2001] == "  no-date-0.jpg    skipped: no capture time in EXIF"
     assert lines[3001:3005] == [
         "Matched: 2.000, skipped: 1.000",
-        "  ERROR 1.jpg: failure 1 (file unchanged)",
-        "  ERROR 3.jpg: failure 3 (file unchanged)",
-        "  ERROR 5.jpg: failure 5 (file unchanged)",
+        "  Could not write 1.jpg: failure 1 (file unchanged)",
+        "  Could not write 3.jpg: failure 3 (file unchanged)",
+        "  Could not write 5.jpg: failure 5 (file unchanged)",
     ]
-    assert lines[-1] == WRITTEN_LINE.format("1.000", "1.000")
+    assert lines[-2:] == written("1.000", "1.000")

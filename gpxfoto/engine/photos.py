@@ -55,11 +55,13 @@ def capture_time(meta, manual_tz):
     """Return (aware datetime, TZ_* source) or (None, reason)."""
     raw = meta.get("DateTimeOriginal") or meta.get("CreateDate")
     if not raw:
-        return None, _("no capture date in EXIF")
+        # Translators: reason why a photo was skipped
+        return None, _("no capture time in EXIF")
     try:
         time = datetime.strptime(str(raw)[:19], "%Y:%m:%d %H:%M:%S")
     except ValueError:
-        return None, _("unreadable date: {value}").format(value=raw)
+        # Translators: reason why a photo was skipped; {value} is the text found
+        return None, _("invalid capture time in EXIF: {value}").format(value=raw)
     fraction = str(meta.get("SubSecTimeOriginal", "")).strip()
     if fraction.isdigit():
         time += timedelta(seconds=float("0." + fraction))

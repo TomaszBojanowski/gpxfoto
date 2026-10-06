@@ -349,9 +349,9 @@ def test_locate_after_end_within_max_gap(offset, gap):
 
 
 @pytest.mark.parametrize("offset, max_gap, reason", [
-    (-121, 120, "before the start of the track by 2 min"),
-    (-30, 10, "before the start of the track by 30 s"),
-    (-7260, 120, "before the start of the track by 2 h 1 min"),
+    (-121, 120, "2 min before the start of the track"),
+    (-30, 10, "30 s before the start of the track"),
+    (-7260, 120, "2 h 1 min before the start of the track"),
 ])
 def test_locate_before_start_beyond_max_gap(offset, max_gap, reason):
     points, times = STEADY
@@ -359,9 +359,9 @@ def test_locate_before_start_beyond_max_gap(offset, max_gap, reason):
 
 
 @pytest.mark.parametrize("offset, max_gap, reason", [
-    (121, 120, "after the end of the track by 2 min"),
-    (30, 10, "after the end of the track by 30 s"),
-    (90061, 120, "after the end of the track by 25 h 1 min"),
+    (121, 120, "2 min after the end of the track"),
+    (30, 10, "30 s after the end of the track"),
+    (90061, 120, "25 h 1 min after the end of the track"),
 ])
 def test_locate_after_end_beyond_max_gap(offset, max_gap, reason):
     points, times = STEADY
@@ -380,12 +380,12 @@ MOVING = track((T0, 50.0, 19.0, 100.0), (T0 + 600, 50.01, 19.0, 160.0))
 
 
 @pytest.mark.parametrize("offset, max_gap, reason", [
-    (200, 120, "gap in the track, nearest point 3 min away"),
-    (300, 120, "gap in the track, nearest point 5 min away"),
-    (121, 120, "gap in the track, nearest point 2 min away"),
-    (479, 120, "gap in the track, nearest point 2 min away"),
-    (90, 60, "gap in the track, nearest point 90 s away"),
-    (510, 60, "gap in the track, nearest point 90 s away"),
+    (200, 120, "gap in the track recording, nearest point 3 min away"),
+    (300, 120, "gap in the track recording, nearest point 5 min away"),
+    (121, 120, "gap in the track recording, nearest point 2 min away"),
+    (479, 120, "gap in the track recording, nearest point 2 min away"),
+    (90, 60, "gap in the track recording, nearest point 90 s away"),
+    (510, 60, "gap in the track recording, nearest point 90 s away"),
 ])
 def test_locate_rejects_long_gap_with_movement(offset, max_gap, reason):
     points, times = MOVING
@@ -420,7 +420,7 @@ def test_locate_movement_limit_is_100_m(lat_change, lon_change, accepted):
         assert result == pytest.approx(
             (50.0 + lat_change / 2, 19.0 + lon_change / 2, None, 1800))
     else:
-        assert result == (None, "gap in the track, nearest point 30 min away")
+        assert result == (None, "gap in the track recording, nearest point 30 min away")
 
 
 def test_locate_with_duplicate_timestamps():
@@ -482,9 +482,9 @@ def test_format_duration(seconds, text):
 
 
 MESSAGES = {
-    "before the start of the track by {duration}",
-    "after the end of the track by {duration}",
-    "gap in the track, nearest point {duration} away",
+    "{duration} before the start of the track",
+    "{duration} after the end of the track",
+    "gap in the track recording, nearest point {duration} away",
     "{seconds} s",
     "{minutes} min",
     "{hours} h {minutes} min",
@@ -501,9 +501,9 @@ def marked(monkeypatch):
 
 
 @pytest.mark.parametrize("t, reason", [
-    (T0 - 30, "«before the start of the track by «30 s»»"),
-    (T0 + 20180, "«after the end of the track by «3 min»»"),
-    (T0 + 7260, "«gap in the track, nearest point «2 h 1 min» away»"),
+    (T0 - 30, "««30 s» before the start of the track»"),
+    (T0 + 20180, "««3 min» after the end of the track»"),
+    (T0 + 7260, "«gap in the track recording, nearest point «2 h 1 min» away»"),
 ])
 def test_reasons_are_translated(marked, t, reason):
     points, times = track((T0, 50.0, 19.0, None), (T0 + 20000, 51.0, 20.0, None))
