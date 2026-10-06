@@ -92,9 +92,8 @@ def main():
     end = datetime.fromtimestamp(times[-1]).astimezone()
     print(ngettext("Track: {count} point, {start} – {end} (local time of this computer)",
                    "Track: {count} points, {start} – {end} (local time of this computer)",
-                   len(points)).format(count=len(points),
-                                       start=f"{start:%Y-%m-%d %H:%M:%S}",
-                                       end=f"{end:%H:%M:%S}"))
+                   len(points)).format(count=i18n.number(len(points)),
+                                       start=f"{start:%x %X}", end=f"{end:%X}"))
 
     try:
         files = find_photos(args.photos, args.recursive)
@@ -124,17 +123,27 @@ def main():
         taken += timedelta(seconds=args.offset)
         result = locate(points, times, taken.timestamp(), args.max_gap)
         if result[0] is None:
-            print(f"  {name:<16} {taken:%H:%M:%S}  "
+            print(f"  {name:<16} {taken:%X}  "
                   + _("skipped: {reason}").format(reason=result[1]))
             skipped += 1
             continue
         lat, lon, ele, gap = result
-        ele_text = f"{ele:6.0f} m" if ele is not None else "       —"
+        # Translators: latitude and longitude in degrees. If your language
+        # uses a comma as the decimal separator, separate them with something
+        # else, for example a semicolon.
+        position = _("{latitude}, {longitude}").format(
+            latitude=i18n.number(lat, 6), longitude=i18n.number(lon, 6))
+        if ele is not None:
+            # Translators: elevation in metres
+            ele_text = _("{elevation} m").format(elevation=i18n.number(ele, width=6))
+        else:
+            ele_text = "       —"
         note = f"  [{_(TZ_NOTES[detail])}]" if detail in TZ_NOTES else ""
-        print(f"  {name:<16} {taken:%H:%M:%S}  {lat:.6f}, {lon:.6f} {ele_text}{note}")
+        print(f"  {name:<16} {taken:%X}  {position} {ele_text}{note}")
         plan.append((path, lat, lon, ele, taken.astimezone(timezone.utc)))
 
-    print(_("Matched: {matched}, skipped: {skipped}").format(matched=len(plan), skipped=skipped))
+    print(_("Matched: {matched}, skipped: {skipped}").format(
+        matched=i18n.number(len(plan)), skipped=i18n.number(skipped)))
     if not args.write:
         if plan:
             print(_("This was a preview; nothing was written. "
@@ -152,7 +161,7 @@ def main():
                 name=os.path.basename(path), error=e))
     print(_("Written: {written}, errors: {errors}. "
             "Image data checked in every written file: unchanged.").format(
-                written=written, errors=errors))
+                written=i18n.number(written), errors=i18n.number(errors)))
     if errors:
         sys.exit(1)
 

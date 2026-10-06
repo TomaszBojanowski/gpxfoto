@@ -21,6 +21,11 @@ def setup():
     gettext.textdomain(DOMAIN)
 
 
+def number(value, decimals=0, width=0):
+    """Format a number according to the regional settings."""
+    return locale.format_string(f"%.{decimals}f", value, grouping=True).rjust(width)
+
+
 def N_(message):
     """Mark a string for translation without translating it yet."""
     return message
