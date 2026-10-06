@@ -16,6 +16,16 @@ Użytkownik: jedna osoba, Fedora z GNOME, aparat Panasonic LUMIX S5II (DC-S5M2),
 4. **Domyślnie podgląd.** Bez wyraźnego polecenia zapisu program niczego nie zmienia.
 5. **Nie zgadujemy.** Zdjęcie bez wiarygodnego punktu trasy zostaje bez lokalizacji, z podanym powodem.
 
+## Język
+
+- **Program jest po angielsku, z polskim tłumaczeniem.** Wszystkie teksty widoczne dla użytkownika (terminal i okno) są w kodzie po angielsku i przechodzą przez gettext; polskie tłumaczenie w `po/pl.po` jest kompletne w każdym wydaniu.
+- Nazwy opcji w terminalu są angielskie i nie podlegają tłumaczeniu (`--write`, `--backup`, `--offset`, `--timezone`, `--max-gap`, `--overwrite`, `--recursive`); tłumaczone są opisy opcji i komunikaty.
+- Kod, nazwy modułów, funkcji i zmiennych, komentarze oraz opisy commitów po angielsku.
+- `README.md` po angielsku, `README.pl.md` po polsku; opis i metainfo aplikacji w obu językach.
+- Polskie tłumaczenie zgodne z konwencjami polskiego zespołu tłumaczy GNOME (formy bezosobowe, polskie cudzysłowy „”, wielokropek jako jeden znak, poprawne formy liczby mnogiej). Autor sprawdza je osobiście przed każdym wydaniem.
+- Liczby, daty i jednostki formatowane według ustawień regionalnych systemu.
+- Obecny `gpxfoto.py` ma polskie komunikaty, opcje i nazwy w kodzie — przełożenie na angielski jest częścią etapu 1.
+
 ## Szybkość i płynność (obowiązuje we wszystkich etapach)
 
 Okno ma reagować natychmiast, niezależnie od tego, co dzieje się w tle.
@@ -48,10 +58,10 @@ W repozytorium jest `gpxfoto.py` — działający silnik uruchamiany z terminala
 - czytać GPX z dowolnego źródła (dowolna przestrzeń nazw, punkty `trkpt` z czasem), także kilka plików naraz,
 - czytać czas zdjęcia z `DateTimeOriginal` + `SubSecTimeOriginal` + `OffsetTimeOriginal`,
 - interpolować położenie i wysokość między sąsiednimi punktami trasy,
-- pomijać zdjęcia poza trasą lub w przerwie zapisu dłuższej niż `--max-odstep` (120 s), chyba że w trakcie przerwy położenie zmieniło się o mniej niż 100 m,
+- pomijać zdjęcia poza trasą lub w przerwie zapisu dłuższej niż `--max-odstep` (120 s; docelowo `--max-gap`), chyba że w trakcie przerwy położenie zmieniło się o mniej niż 100 m,
 - pomijać zdjęcia, które już mają lokalizację (chyba że `--nadpisz`),
 - zapisywać: GPSLatitude/Ref, GPSLongitude/Ref, GPSAltitude/Ref, GPSDateStamp, GPSTimeStamp (UTC), GPSMapDatum,
-- spełnić wymagania 1–5; opcje `--zapisz`, `--kopia`, `--korekta`, `--strefa`, `-r`.
+- spełnić wymagania 1–5; opcje (jeszcze po polsku) `--zapisz`, `--kopia`, `--korekta`, `--strefa`, `-r`.
 
 ## Ustalenia z prawdziwych plików
 
@@ -65,24 +75,24 @@ W repozytorium jest `gpxfoto.py` — działający silnik uruchamiany z terminala
 - Python 3, w silniku tylko biblioteka standardowa; `exiftool` jako jedyne narzędzie zapisujące metadane.
 - Interfejs graficzny: GTK4 + libadwaita (PyGObject), mapa przez libshumate.
 - Dystrybucja: Flatpak (exiftool dołączony do pakietu).
-- Teksty interfejsu po angielsku w kodzie, tłumaczone przez gettext; polskie tłumaczenie w komplecie od pierwszego wydania z oknem.
+- Tłumaczenia przez gettext (szczegóły w sekcji „Język”).
 
 ## Układ repozytorium (docelowy)
 
 ```
 gpxfoto/
-  silnik/        # logika bez zależności od GTK
-    trasa.py     # wczytywanie GPX/FIT, interpolacja, postoje
-    zdjecia.py   # odczyt metadanych, czas zdjęcia
-    zapis.py     # exiftool, suma kontrolna, zapis atomowy, cofanie
-    zegar.py     # wyznaczanie poprawki zegara aparatu
+  engine/        # logika bez zależności od GTK
+    track.py     # wczytywanie GPX/FIT, interpolacja, postoje
+    photos.py    # odczyt metadanych, czas zdjęcia
+    writer.py    # exiftool, suma kontrolna, zapis atomowy, cofanie
+    clock.py     # wyznaczanie poprawki zegara aparatu
   cli.py         # polecenie terminalowe
-  okno/          # GTK4/libadwaita (etap 4)
+  ui/            # GTK4/libadwaita (etap 4)
 tests/
 po/
 ```
 
-Silnik nie importuje niczego z `okno/`. Okno wywołuje silnik wyłącznie w wątku roboczym.
+Silnik nie importuje niczego z `ui/`. Okno wywołuje silnik wyłącznie w wątku roboczym.
 
 ## Etapy
 
@@ -91,6 +101,7 @@ Każdy etap kończy się działającym programem i przechodzącymi testami. Jedn
 ### Etap 1 — porządek i testy
 
 - Podział `gpxfoto.py` na moduły jak wyżej, bez zmiany zachowania.
+- Przełożenie kodu, opcji i komunikatów na angielski; gettext, szablon `po/gpxfoto.pot` i kompletne `po/pl.po`.
 - `pyproject.toml`, polecenie `gpxfoto` po instalacji.
 - Testy (`pytest`): parser GPX (Garmin, plik bez przestrzeni nazw, czas z ułamkami i z przesunięciem strefy), interpolacja, przerwy w trasie, suma kontrolna obrazu, zapis atomowy, odrzucenie zmiany przy uszkodzonym wyniku.
 - Pliki testowe JPEG generowane w testach lub małe, sztuczne. **Prywatnych zdjęć i tras autora nie dodawać do repozytorium** (`.gitignore` na `tests/prywatne/`).
@@ -163,7 +174,7 @@ Podstawowe elementy z tej listy (mapa na całe okno, miniatury na trasie, pasek 
 
 - Małe kroki: jedna zmiana, test, commit. Przed większą zmianą krótki opis, co i dlaczego.
 - Wyjaśnienia dla autora prostym językiem, po polsku.
-- Każda zmiana w `zapis.py` wymaga testu potwierdzającego wymagania 1–3.
+- Każda zmiana w `writer.py` wymaga testu potwierdzającego wymagania 1–3.
 - Nie dodawać zależności bez uzgodnienia.
 - Commity wyłącznie z tożsamością autora z konfiguracji gita, bez żadnych dodatkowych stopek ani dopisków w opisie.
 - Komunikaty commitów po angielsku, w trybie rozkazującym.
