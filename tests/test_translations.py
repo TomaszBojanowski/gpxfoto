@@ -500,8 +500,8 @@ def test_preview_is_polish(polish_cli, tmp_path, capsys):
     polish_cli("-g", gpx, photos, "--max-gap", "60")
     assert capsys.readouterr().out.splitlines() == [
         TRACK_LINE,
-        "  a.jpg            12:00:50  50.000500; 20.001000    205 m",
-        "  b.jpg            12:01:00  50.000600; 20.001200    206 m"
+        "  a.jpg            12:00:50  50.000500, 20.001000    205 m",
+        "  b.jpg            12:01:00  50.000600, 20.001200    206 m"
         "  [strefa czasowa komputera (brak w EXIF)]",
         "  c.jpg            12:30:00  pominięte: przerwa w zapisie trasy, najbliższy punkt "
         "oddalony o 28 min",
@@ -528,7 +528,7 @@ def test_write_summary_and_errors_are_polish(polish_cli, tmp_path, capsys):
     with pytest.raises(SystemExit) as exit_info:
         polish_cli("-g", gpx, tmp_path / "photos", "--timezone", "+02:00", "--write")
     assert exit_info.value.code == 1
-    matched = "12:00:50  50.000500; 20.001000        —  [strefa czasowa z opcji --timezone]"
+    matched = "12:00:50  50.000500, 20.001000        —  [strefa czasowa z opcji --timezone]"
     assert capsys.readouterr().out.splitlines() == [
         TRACK_LINE,
         f"  a.jpg            {matched}",

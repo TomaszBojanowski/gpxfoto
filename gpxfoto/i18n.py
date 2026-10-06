@@ -26,6 +26,16 @@ def number(value, decimals=0, width=0):
     return locale.format_string(f"%.{decimals}f", value, grouping=True).rjust(width)
 
 
+def coordinates(lat, lon):
+    """Format latitude and longitude according to the regional settings.
+
+    With a decimal comma, a comma between the two numbers would be
+    ambiguous, so they are separated by a semicolon.
+    """
+    separator = "; " if locale.localeconv()["decimal_point"] == "," else ", "
+    return number(lat, 6) + separator + number(lon, 6)
+
+
 def N_(message):
     """Mark a string for translation without translating it yet."""
     return message

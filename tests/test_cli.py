@@ -551,6 +551,7 @@ def numeric_locale():
 @needs_exiftool
 def test_numbers_follow_the_system_locale(tmp_path, photo, numeric_locale):
     name, point, separator = numeric_locale
+    between = "; " if point == "," else ", "
     # 1000 points one second apart, climbing from 1200 m
     gpx = write_gpx(tmp_path / "long.gpx", [
         (f"2024-05-01T10:{i // 60:02d}:{i % 60:02d}Z", 50.0 + i / 10000, 20.0, 1200 + i)
@@ -564,7 +565,7 @@ def test_numbers_follow_the_system_locale(tmp_path, photo, numeric_locale):
     assert result.stdout.splitlines() == [
         f"Track: 1{separator}000 points, 05/01/24 12:00:00 – 05/01/24 12:16:39 "
         "(this computer’s time zone)",
-        f"  a.jpg            12:00:05  50{point}000500, 20{point}000000  1{separator}205 m",
+        f"  a.jpg            12:00:05  50{point}000500{between}20{point}000000  1{separator}205 m",
         "Matched: 1, skipped: 0",
         PREVIEW_LINE,
     ]
@@ -601,7 +602,7 @@ def test_summary_counts_follow_the_locale(tmp_path, monkeypatch, capsys):
     lines = capsys.readouterr().out.splitlines()
     # Track line, 3000 photos, matched/skipped, 1000 errors, written/errors, check
     assert len(lines) == 4004
-    assert lines[1] == "  0.jpg            12:00:50  50,000500, 20,001000    205 m"
+    assert lines[1] == "  0.jpg            12:00:50  50,000500; 20,001000    205 m"
     assert lines[2001] == "  no-date-0.jpg    skipped: no capture time in EXIF"
     assert lines[3001:3005] == [
         "Matched: 2.000, skipped: 1.000",

@@ -145,11 +145,7 @@ def main():
             skipped += 1
             continue
         lat, lon, ele, gap = result
-        # Translators: latitude and longitude in degrees. If your language
-        # uses a comma as the decimal separator, separate them with something
-        # else, for example a semicolon.
-        position = _("{latitude}, {longitude}").format(
-            latitude=i18n.number(lat, 6), longitude=i18n.number(lon, 6))
+        position = i18n.coordinates(lat, lon)
         if ele is not None:
             # Translators: elevation in metres
             ele_text = _("{elevation} m").format(elevation=i18n.number(ele, width=6))

@@ -8,7 +8,7 @@ msgstr ""
 "Project-Id-Version: gpxfoto\n"
 "Report-Msgid-Bugs-To: "
 "https://github.com/tomaszbojanowski/gpxfoto/issues\n"
-"POT-Creation-Date: 2026-10-06 22:42+0000\n"
+"POT-Creation-Date: 2026-10-06 23:22+0000\n"
 "PO-Revision-Date: 2026-10-06 23:45+0200\n"
 "Last-Translator: Tomasz <t.bojanowski@protonmail.com>\n"
 "Language-Team: Polish\n"
@@ -222,27 +222,19 @@ msgstr "ma już zapisane położenie"
 msgid "skipped: {reason}"
 msgstr "pominięte: {reason}"
 
-#. Translators: latitude and longitude in degrees. If your language
-#. uses a comma as the decimal separator, separate them with something
-#. else, for example a semicolon.
-#: gpxfoto/cli.py:151
-#, python-brace-format
-msgid "{latitude}, {longitude}"
-msgstr "{latitude}; {longitude}"
-
 #. Translators: elevation in metres
-#: gpxfoto/cli.py:155
+#: gpxfoto/cli.py:151
 #, python-brace-format
 msgid "{elevation} m"
 msgstr "{elevation} m"
 
-#: gpxfoto/cli.py:164
+#: gpxfoto/cli.py:160
 #, python-brace-format
 msgid "Matched: {matched}, skipped: {skipped}"
 msgstr "Dopasowano: {matched}, pominięto: {skipped}"
 
 #. Translators: {option} is the command-line option --write
-#: gpxfoto/cli.py:169
+#: gpxfoto/cli.py:165
 #, python-brace-format
 msgid ""
 "This was a preview; no files were changed. Use {option} to write the "
@@ -251,17 +243,17 @@ msgstr ""
 "To był podgląd, nie zmieniono żadnych plików. Aby zapisać położenie, "
 "należy użyć opcji {option}."
 
-#: gpxfoto/cli.py:180
+#: gpxfoto/cli.py:176
 #, python-brace-format
 msgid "Could not write {name}: {error} (file unchanged)"
 msgstr "Nie można zapisać pliku {name}: {error} (plik bez zmian)"
 
-#: gpxfoto/cli.py:182
+#: gpxfoto/cli.py:178
 #, python-brace-format
 msgid "Written: {written}, errors: {errors}"
 msgstr "Zapisano: {written}, błędy: {errors}"
 
-#: gpxfoto/cli.py:185
+#: gpxfoto/cli.py:181
 msgid "The image data of every written file was verified as unchanged."
 msgstr ""
 "Sprawdzono, że dane obrazu w każdym zapisanym pliku pozostały bez "
