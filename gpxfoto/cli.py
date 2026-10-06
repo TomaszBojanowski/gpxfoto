@@ -49,10 +49,16 @@ def main():
     kon = datetime.fromtimestamp(czasy[-1]).astimezone()
     print(f"Trasa: {len(punkty)} punktów, {pocz:%Y-%m-%d %H:%M:%S} – {kon:%H:%M:%S} (czas lokalny komputera)")
 
-    pliki = znajdz_zdjecia(a.zdjecia, a.rekurencyjnie)
+    try:
+        pliki = znajdz_zdjecia(a.zdjecia, a.rekurencyjnie)
+    except FileNotFoundError as e:
+        sys.exit(str(e))
     if not pliki:
         sys.exit("Nie znaleziono zdjęć JPG.")
-    metadane = odczytaj_metadane(pliki)
+    try:
+        metadane = odczytaj_metadane(pliki)
+    except RuntimeError as e:
+        sys.exit(str(e))
 
     plan, pominiete = [], 0
     for meta in metadane:

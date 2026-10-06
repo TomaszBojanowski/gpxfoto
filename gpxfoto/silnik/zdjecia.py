@@ -2,7 +2,6 @@
 import json
 import os
 import subprocess
-import sys
 from datetime import datetime, timedelta, timezone
 
 ROZSZERZENIA = {".jpg", ".jpeg"}
@@ -22,7 +21,7 @@ def znajdz_zdjecia(sciezki, rekurencyjnie):
         elif os.path.isfile(s):
             wynik.append(s)
         else:
-            sys.exit(f"Nie ma takiego pliku ani katalogu: {s}")
+            raise FileNotFoundError(f"Nie ma takiego pliku ani katalogu: {s}")
     return wynik
 
 
@@ -34,7 +33,7 @@ def odczytaj_metadane(pliki):
                      "-GPSLatitude", "-GPSLongitude", "--"] + pliki[start:start + 500]
         proces = subprocess.run(polecenie, capture_output=True, text=True)
         if not proces.stdout.strip():
-            sys.exit("exiftool nie zwrócił danych:\n" + proces.stderr)
+            raise RuntimeError("exiftool nie zwrócił danych:\n" + proces.stderr)
         wynik.extend(json.loads(proces.stdout))
     return wynik
 
