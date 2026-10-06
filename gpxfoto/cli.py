@@ -91,7 +91,10 @@ def main():
     except (ValueError, IndexError):
         sys.exit(_("The time zone must be in the form +HH:MM, for example +02:00 or -05:00."))
 
-    points = load_gpx(args.gpx)
+    try:
+        points = load_gpx(args.gpx)
+    except ValueError as e:
+        sys.exit(str(e))
     if not points:
         sys.exit(ngettext("The GPX file contains no track points with timestamps.",
                           "The GPX files contain no track points with timestamps.",

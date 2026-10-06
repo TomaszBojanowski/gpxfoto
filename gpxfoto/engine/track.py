@@ -21,31 +21,47 @@ def _parse_time(text):
 
 
 def load_gpx(paths):
-    """Return a sorted list of (unix_time, lat, lon, elevation|None)."""
+    """Return a sorted list of (unix_time, lat, lon, elevation|None).
+
+    Raises ValueError naming the file when a file cannot be read or is not
+    valid XML.
+    """
     points = []
     for path in paths:
-        for _event, el in ET.iterparse(path):
-            if _local_name(el.tag) != "trkpt":
-                continue
-            time_text = ele_text = None
-            for child in el:
-                name = _local_name(child.tag)
-                if name == "time" and child.text:
-                    time_text = child.text
-                elif name == "ele" and child.text:
-                    ele_text = child.text
-            if time_text is not None:
-                try:
-                    points.append((
-                        _parse_time(time_text).timestamp(),
-                        float(el.attrib["lat"]),
-                        float(el.attrib["lon"]),
-                        float(ele_text) if ele_text is not None else None,
-                    ))
-                except (ValueError, KeyError):
-                    pass
-            el.clear()
+        try:
+            points += _read_points(path)
+        except (OSError, ET.ParseError) as e:
+            error = e.strerror if isinstance(e, OSError) and e.strerror else e
+            # Translators: {error} describes the problem, e.g. “No such file or directory”
+            raise ValueError(_("Cannot read the GPX file {path}: {error}").format(
+                path=path, error=error)) from e
     points.sort(key=lambda p: p[0])
+    return points
+
+
+def _read_points(path):
+    points = []
+    for _event, el in ET.iterparse(path):
+        if _local_name(el.tag) != "trkpt":
+            continue
+        time_text = ele_text = None
+        for child in el:
+            name = _local_name(child.tag)
+            if name == "time" and child.text:
+                time_text = child.text
+            elif name == "ele" and child.text:
+                ele_text = child.text
+        if time_text is not None:
+            try:
+                points.append((
+                    _parse_time(time_text).timestamp(),
+                    float(el.attrib["lat"]),
+                    float(el.attrib["lon"]),
+                    float(ele_text) if ele_text is not None else None,
+                ))
+            except (ValueError, KeyError):
+                pass
+        el.clear()
     return points
 
 

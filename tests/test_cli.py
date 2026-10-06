@@ -439,6 +439,23 @@ def test_gpx_without_timed_points(tmp_path, jpeg_file, count, message):
     assert result.stderr == message + "\n"
 
 
+
+@needs_exiftool
+@pytest.mark.parametrize("content, error", [
+    (None, "No such file or directory"),
+    ("<gpx>", "no element found: line 1, column 5"),
+])
+def test_unreadable_gpx_file(tmp_path, jpeg_file, content, error):
+    path = tmp_path / "track.gpx"
+    if content is not None:
+        path.write_text(content)
+
+    result = run_cli(jpeg_file(), "-g", path)
+
+    assert result.returncode == 1
+    assert result.stdout == ""
+    assert result.stderr == f"Cannot read the GPX file {path}: {error}\n"
+
 @needs_exiftool
 def test_directory_without_jpegs(tmp_path, gpx):
     directory = tmp_path / "empty"

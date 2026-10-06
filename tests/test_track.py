@@ -293,6 +293,28 @@ def test_no_files_or_no_timed_points(tmp_path):
     assert load_gpx([path]) == []
 
 
+@pytest.mark.parametrize("content, error", [
+    (None, "No such file or directory"),
+    ("", "no element found: line 1, column 0"),
+    ("<gpx><trk><trkseg>", "no element found: line 1, column 18"),
+    ("not xml", "syntax error: line 1, column 0"),
+])
+def test_unreadable_file_is_reported_with_its_name(tmp_path, content, error):
+    good = write_gpx(tmp_path / "good.gpx", [("2026-06-01T10:00:00Z", 50.0, 19.0, None)])
+    bad = tmp_path / "bad.gpx"
+    if content is not None:
+        bad.write_text(content, encoding="utf-8")
+    with pytest.raises(ValueError) as raised:
+        load_gpx([good, bad])
+    assert str(raised.value) == f"Cannot read the GPX file {bad}: {error}"
+
+
+def test_directory_is_not_a_gpx_file(tmp_path):
+    with pytest.raises(ValueError) as raised:
+        load_gpx([tmp_path])
+    assert str(raised.value) == f"Cannot read the GPX file {tmp_path}: Is a directory"
+
+
 # locate
 
 def track(*points):

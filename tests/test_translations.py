@@ -444,6 +444,15 @@ def test_missing_photo_message_is_polish(polish_cli, exiftool_present, tmp_path)
     assert exit_info.value.code == f"Nie ma takiego pliku ani katalogu: {missing}"
 
 
+def test_unreadable_gpx_message_is_polish(polish_cli, exiftool_present, tmp_path):
+    gpx = tmp_path / "track.gpx"
+    gpx.write_text("<gpx>", encoding="utf-8")
+    with pytest.raises(SystemExit) as exit_info:
+        polish_cli("-g", gpx, tmp_path / "a.jpg")
+    assert exit_info.value.code == (f"Nie można odczytać pliku GPX {gpx}: "
+                                    "no element found: line 1, column 5")
+
+
 def test_exiftool_without_output_message_is_polish(polish_cli, exiftool_present, tmp_path,
                                                     monkeypatch):
     gpx = write_gpx(tmp_path / "track.gpx", [("2024-05-01T10:00:00Z", 50.0, 20.0, None)])
