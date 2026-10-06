@@ -3,6 +3,7 @@ import json
 import os
 import subprocess
 from datetime import datetime, timedelta, timezone
+from gettext import gettext as _
 
 EXTENSIONS = {".jpg", ".jpeg"}
 
@@ -26,7 +27,7 @@ def find_photos(paths, recursive):
         elif os.path.isfile(path):
             found.append(path)
         else:
-            raise FileNotFoundError(f"Nie ma takiego pliku ani katalogu: {path}")
+            raise FileNotFoundError(_("No such file or directory: {path}").format(path=path))
     return found
 
 
@@ -38,7 +39,8 @@ def read_metadata(files):
                    "-GPSLatitude", "-GPSLongitude", "--"] + files[start:start + 500]
         process = subprocess.run(command, capture_output=True, text=True)
         if not process.stdout.strip():
-            raise RuntimeError("exiftool nie zwrócił danych:\n" + process.stderr)
+            raise RuntimeError(_("exiftool returned no data:\n{errors}").format(
+                errors=process.stderr))
         result.extend(json.loads(process.stdout))
     return result
 
@@ -53,11 +55,11 @@ def capture_time(meta, manual_tz):
     """Return (aware datetime, TZ_* source) or (None, reason)."""
     raw = meta.get("DateTimeOriginal") or meta.get("CreateDate")
     if not raw:
-        return None, "brak daty wykonania w EXIF"
+        return None, _("no capture date in EXIF")
     try:
         time = datetime.strptime(str(raw)[:19], "%Y:%m:%d %H:%M:%S")
     except ValueError:
-        return None, f"nieczytelna data: {raw}"
+        return None, _("unreadable date: {value}").format(value=raw)
     fraction = str(meta.get("SubSecTimeOriginal", "")).strip()
     if fraction.isdigit():
         time += timedelta(seconds=float("0." + fraction))

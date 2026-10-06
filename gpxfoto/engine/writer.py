@@ -4,6 +4,10 @@ import os
 import shutil
 import subprocess
 import tempfile
+from gettext import gettext as _
+
+# Subdirectory for copies of the original files
+BACKUP_DIR = "originals"
 
 
 def image_checksum(path):
@@ -15,11 +19,11 @@ def image_checksum(path):
     digest = hashlib.sha256()
     with open(path, "rb") as f:
         if f.read(2) != b"\xff\xd8":
-            raise ValueError("to nie jest plik JPEG")
+            raise ValueError(_("not a JPEG file"))
         while True:
             header = f.read(4)
             if len(header) < 4 or header[0] != 0xFF:
-                raise ValueError("uszkodzona struktura JPEG")
+                raise ValueError(_("damaged JPEG structure"))
             marker = header[1]
             length = int.from_bytes(header[2:4], "big")
             metadata = 0xE0 <= marker <= 0xEF or marker == 0xFE
@@ -55,14 +59,14 @@ def write_location(path, lat, lon, ele, time_utc, backup):
         command += ["-o", temp, "--", path]
         process = subprocess.run(command, capture_output=True, text=True)
         if process.returncode != 0 or not os.path.exists(temp):
-            raise RuntimeError(process.stderr.strip() or "exiftool nie zapisał pliku")
+            raise RuntimeError(process.stderr.strip() or _("exiftool did not write the file"))
         if image_checksum(temp) != before:
-            raise RuntimeError("dane obrazu różnią się po zapisie — zmiana odrzucona")
+            raise RuntimeError(_("image data differs after writing — change rejected"))
         stat = os.stat(path)
         shutil.copymode(path, temp)
         os.utime(temp, ns=(stat.st_atime_ns, stat.st_mtime_ns))
         if backup:
-            target = os.path.join(directory, "oryginaly")
+            target = os.path.join(directory, BACKUP_DIR)
             os.makedirs(target, exist_ok=True)
             shutil.copy2(path, os.path.join(target, os.path.basename(path)))
         os.replace(temp, path)       # atomic replacement

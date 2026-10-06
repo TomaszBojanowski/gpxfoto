@@ -3,6 +3,7 @@ import bisect
 import math
 import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
+from gettext import gettext as _
 
 
 def _local_name(tag):
@@ -23,7 +24,7 @@ def load_gpx(paths):
     """Return a sorted list of (unix_time, lat, lon, elevation|None)."""
     points = []
     for path in paths:
-        for _, el in ET.iterparse(path):
+        for _event, el in ET.iterparse(path):
             if _local_name(el.tag) != "trkpt":
                 continue
             time_text = ele_text = None
@@ -70,15 +71,19 @@ def locate(points, times, t, max_gap):
         p = after or before
         gap = abs(p[0] - t)
         if gap > max_gap:
-            where = "przed początkiem" if before is None else "po końcu"
-            return None, f"{where} trasy o {_format_duration(gap)}"
+            if before is None:
+                reason = _("before the start of the track by {duration}")
+            else:
+                reason = _("after the end of the track by {duration}")
+            return None, reason.format(duration=_format_duration(gap))
         return p[1], p[2], p[3], gap
 
     gap = min(t - before[0], after[0] - t)
     # A longer break in recording (e.g. auto-pause) is fine as long as
     # the position hardly changed during it.
     if gap > max_gap and _distance_m(before, after) > 100:
-        return None, f"przerwa w trasie, najbliższy punkt {_format_duration(gap)} dalej"
+        return None, _("gap in the track, nearest point {duration} away").format(
+            duration=_format_duration(gap))
     span = after[0] - before[0]
     u = (t - before[0]) / span if span > 0 else 0.0
     lat = before[1] + (after[1] - before[1]) * u
@@ -93,7 +98,7 @@ def locate(points, times, t, max_gap):
 def _format_duration(s):
     s = int(round(s))
     if s < 120:
-        return f"{s} s"
+        return _("{seconds} s").format(seconds=s)
     if s < 7200:
-        return f"{s // 60} min"
-    return f"{s // 3600} h {s % 3600 // 60} min"
+        return _("{minutes} min").format(minutes=s // 60)
+    return _("{hours} h {minutes} min").format(hours=s // 3600, minutes=s % 3600 // 60)
