@@ -7,6 +7,7 @@ JPEGs with maker notes, thumbnails and MPF previews.
 """
 import glob
 import os
+import re
 import shutil
 import time
 
@@ -37,9 +38,13 @@ needs_photos = pytest.mark.skipif(not (TRACKS and PHOTOS),
 @needs_tracks
 @pytest.mark.parametrize("path", TRACKS, ids=os.path.basename)
 def test_track_loads_quickly(path):
-    start = time.perf_counter()
-    points = load_gpx([path])
-    elapsed = time.perf_counter() - start
+    # The best of three runs, so that a busy machine does not fail the test
+    elapsed = []
+    for _ in range(3):
+        start = time.perf_counter()
+        points = load_gpx([path])
+        elapsed.append(time.perf_counter() - start)
+    elapsed = min(elapsed)
     assert points
     assert [p[0] for p in points] == sorted(p[0] for p in points)
     assert all(-90 <= p[1] <= 90 and -180 <= p[2] <= 180 for p in points)
@@ -61,11 +66,18 @@ def test_photos_get_location_and_keep_image(tmp_path):
     for p in copies:
         assert (image_checksum(p), os.stat(p).st_mtime_ns) == before[p]
 
+    contents = {p: open(p, "rb").read() for p in copies}
     written = run_cli(tmp_path, *gpx_args, "--overwrite", "--write")
     assert written.returncode == 0, written.stdout + written.stderr
-    located = 0
+    matched = int(re.search(r"^Matched: (\d+)", written.stdout, re.M).group(1))
+    count = int(re.search(r"^Written: (\d+), errors: 0$", written.stdout, re.M).group(1))
+    # The photos must lie on the tracks, otherwise this test checks nothing
+    assert count == matched >= 1, written.stdout
+    changed = 0
     for p in copies:
         assert (image_checksum(p), os.stat(p).st_mtime_ns) == before[p]
-        tags = read_tags(p, "GPSLatitude", "GPSLongitude")
-        located += "GPSLatitude" in tags and "GPSLongitude" in tags
-    assert located, written.stdout
+        if open(p, "rb").read() != contents[p]:
+            changed += 1
+            tags = read_tags(p, "GPSLatitude", "GPSLongitude")
+            assert "GPSLatitude" in tags and "GPSLongitude" in tags
+    assert changed == count, written.stdout

@@ -144,6 +144,9 @@ def polish_cli(polish_mo):
         patch.setenv("LC_ALL", "C.UTF-8")
         patch.setenv("TZ", "Europe/Warsaw")
         patch.setenv("COLUMNS", "200")
+        patch.delenv("FORCE_COLOR", raising=False)
+        patch.setenv("PYTHON_COLORS", "0")
+        patch.setenv("NO_COLOR", "1")
         patch.setattr(i18n, "LOCALE_DIR", str(polish_mo))
         time.tzset()
 

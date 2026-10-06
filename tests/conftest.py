@@ -98,14 +98,20 @@ def write_gpx(path, points, namespace=GPX_NAMESPACE, garmin=False):
 
 
 def run_cli(*args, cwd=None, env=None):
-    """Run "python -m gpxfoto" in English with a fixed time zone."""
+    """Run "python -m gpxfoto" in English with a fixed time zone and no colours."""
     environment = {k: v for k, v in os.environ.items()
-                   if not k.startswith(("LC_", "LANG"))}
+                   if not k.startswith(("LC_", "LANG")) and k != "FORCE_COLOR"}
     environment.update({"LC_ALL": "C.UTF-8", "TZ": "Europe/Warsaw", "PYTHONPATH": ROOT,
-                        "COLUMNS": "200"})
+                        "COLUMNS": "200", "PYTHON_COLORS": "0", "NO_COLOR": "1"})
     environment.update(env or {})
     return subprocess.run([sys.executable, "-m", "gpxfoto", *map(str, args)],
                           cwd=cwd, env=environment, capture_output=True, text=True)
+
+
+@pytest.fixture(autouse=True)
+def work_in_tmp_path(tmp_path, monkeypatch):
+    """Relative paths, in the tests and in the code under test, stay in tmp_path."""
+    monkeypatch.chdir(tmp_path)
 
 
 @pytest.fixture

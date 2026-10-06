@@ -263,7 +263,8 @@ def test_interrupted_exiftool_leaves_no_temp_file(tmp_path, photo, fake_exiftool
     assert os.listdir(tmp_path) == ["photo.jpg"]
 
 
-def test_failed_replace_keeps_original(tmp_path, photo, fake_exiftool, monkeypatch):
+@pytest.mark.parametrize("backup", [False, True])
+def test_failed_replace_keeps_original(tmp_path, photo, fake_exiftool, monkeypatch, backup):
     def fail(source, target):
         raise OSError(28, "No space left on device")
 
@@ -271,9 +272,52 @@ def test_failed_replace_keeps_original(tmp_path, photo, fake_exiftool, monkeypat
     fake_exiftool()
     monkeypatch.setattr(writer.os, "replace", fail)
     with pytest.raises(OSError, match="No space left on device"):
-        write_location(photo, 50.0, 19.0, 200.0, TIME, backup=False)
+        write_location(photo, 50.0, 19.0, 200.0, TIME, backup=backup)
     assert state(photo) == before
-    assert os.listdir(tmp_path) == ["photo.jpg"]
+    assert sorted(os.listdir(tmp_path)) == (["originals", "photo.jpg"] if backup
+                                            else ["photo.jpg"])
+
+
+def test_mode_and_times_are_set_before_the_replacement(photo, fake_exiftool, monkeypatch):
+    """The atomic replacement already brings the original permissions and
+    modification time; nothing is fixed up afterwards."""
+    seen = []
+    real = os.replace
+
+    def spy(source, target):
+        info = os.stat(source)
+        seen.append((stat.S_IMODE(info.st_mode), info.st_mtime_ns))
+        real(source, target)
+
+    fake_exiftool()
+    monkeypatch.setattr(writer.os, "replace", spy)
+    write_location(photo, 50.0, 19.0, 200.0, TIME, backup=False)
+    assert seen == [(0o640, MTIME_NS)]
+
+
+def test_times_are_those_reported_for_the_photo(photo, fake_exiftool, monkeypatch):
+    """Independent of whether the file system updates access times on reads."""
+    os.utime(photo, ns=(MTIME_NS - 10**9, MTIME_NS))
+    reported, applied = [], []
+    real_stat, real_utime = os.stat, os.utime
+
+    def spy_stat(path, *args, **kwargs):
+        info = real_stat(path, *args, **kwargs)
+        if os.fspath(path) == os.fspath(photo):
+            reported.append((info.st_atime_ns, info.st_mtime_ns))
+        return info
+
+    def spy_utime(path, *args, **kwargs):
+        applied.append(kwargs.get("ns"))
+        return real_utime(path, *args, **kwargs)
+
+    fake_exiftool()
+    monkeypatch.setattr(writer.os, "stat", spy_stat)
+    monkeypatch.setattr(writer.os, "utime", spy_utime)
+    write_location(photo, 50.0, 19.0, 200.0, TIME, backup=False)
+    assert len(applied) == 1
+    assert applied[0] in reported
+    assert applied[0][1] == MTIME_NS
 
 
 def test_non_jpeg_photo_is_rejected_before_exiftool(tmp_path, fake_exiftool):
