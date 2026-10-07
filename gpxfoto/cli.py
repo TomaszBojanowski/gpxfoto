@@ -4,14 +4,15 @@ import os
 import re
 import shutil
 import sys
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from gettext import gettext as _, ngettext
 
 from gpxfoto import i18n
+from gpxfoto.engine.matching import match_photos, summarize
 from gpxfoto.engine.photos import (
-    TZ_MANUAL, TZ_SYSTEM, capture_time, check_exiftool, find_photos, parse_utc_offset,
+    TZ_MANUAL, TZ_SYSTEM, check_exiftool, find_photos, parse_utc_offset, photo_from_metadata,
     read_metadata)
-from gpxfoto.engine.track import load_gpx, locate
+from gpxfoto.engine.track import load_track
 from gpxfoto.engine.writer import BACKUP_DIR, write_location
 from gpxfoto.i18n import N_
 
@@ -127,6 +128,26 @@ def build_parser():
     return parser
 
 
+def photo_line(result):
+    """The preview line of one photo."""
+    name = printable(os.path.basename(result.photo.path))
+    time = "" if result.time is None else f"{result.time:%X}  "
+    if result.reason is not None:
+        # Translators: shown after the file name of a photo; {reason} says
+        # why the photo was skipped, e.g. “already has a location”
+        return f"  {name:<16} {time}" + _("skipped: {reason}").format(reason=result.reason)
+    position = i18n.coordinates(result.lat, result.lon)
+    if result.ele is not None:
+        # Translators: elevation in metres
+        ele_text = _("{elevation} m").format(elevation=i18n.number(result.ele, width=6))
+    else:
+        ele_text = "       —"
+    note = ""
+    if result.photo.tz_source in TZ_NOTES:
+        note = "  [" + _(TZ_NOTES[result.photo.tz_source]).format(option="--timezone") + "]"
+    return f"  {name:<16} {time}{position} {ele_text}{note}"
+
+
 def main():
     i18n.setup()
     args = build_parser().parse_args(join_negative_time_zone(sys.argv[1:]))
@@ -144,16 +165,15 @@ def main():
         sys.exit(_("The time zone must be in the form +HH:MM, for example +02:00 or -05:00."))
 
     try:
-        points = load_gpx(args.gpx)
+        track = load_track(args.gpx)
     except ValueError as e:
         sys.exit(str(e))
-    if not points:
+    if track is None:
         sys.exit(ngettext("The GPX file contains no track points with timestamps.",
                           "The GPX files contain no track points with timestamps.",
                           len(args.gpx)))
-    times = [p[0] for p in points]
-    start = datetime.fromtimestamp(times[0]).astimezone()
-    end = datetime.fromtimestamp(times[-1]).astimezone()
+    start = datetime.fromtimestamp(track.first).astimezone()
+    end = datetime.fromtimestamp(track.last).astimezone()
     # Translators: date and time of a track point as a strftime format. %x
     # and %X follow the system's regional settings; replace them only if
     # those are wrong for your language, as they are for Polish on macOS
@@ -164,7 +184,7 @@ def main():
     # last track point
     print(ngettext("Track: {count} point, {start} – {end} (this computer’s time zone)",
                    "Track: {count} points, {start} – {end} (this computer’s time zone)",
-                   len(points)).format(count=i18n.number(len(points)),
+                   len(track.points)).format(count=i18n.number(len(track.points)),
                                        start=start.strftime(time_format),
                                        end=end.strftime(time_format)))
 
@@ -187,53 +207,16 @@ def main():
     except RuntimeError as e:
         sys.exit(str(e))
 
-    plan, skipped = [], 0
-    for meta in metadata:
-        path = meta["SourceFile"]
-        name = printable(os.path.basename(path))
-        if "GPSLatitude" in meta and not args.overwrite:
-            # Translators: reason why a photo was skipped
-            reason = _("already has a location")
-            # Translators: shown after the file name of a photo; {reason} says
-            # why the photo was skipped, e.g. “already has a location”
-            print(f"  {name:<16} " + _("skipped: {reason}").format(reason=reason))
-            skipped += 1
-            continue
-        taken, detail = capture_time(meta, manual_tz)
-        if taken is None:
-            print(f"  {name:<16} " + _("skipped: {reason}").format(reason=detail))
-            skipped += 1
-            continue
-        try:
-            taken += timedelta(seconds=args.offset)
-            time_utc = taken.astimezone(timezone.utc)
-        except OverflowError:
-            # Translators: reason why a photo was skipped
-            reason = _("the corrected capture time is out of range")
-            print(f"  {name:<16} " + _("skipped: {reason}").format(reason=reason))
-            skipped += 1
-            continue
-        result = locate(points, times, taken.timestamp(), args.max_gap)
-        if result[0] is None:
-            print(f"  {name:<16} {taken:%X}  "
-                  + _("skipped: {reason}").format(reason=result[1]))
-            skipped += 1
-            continue
-        lat, lon, ele, gap = result
-        position = i18n.coordinates(lat, lon)
-        if ele is not None:
-            # Translators: elevation in metres
-            ele_text = _("{elevation} m").format(elevation=i18n.number(ele, width=6))
-        else:
-            ele_text = "       —"
-        note = ""
-        if detail in TZ_NOTES:
-            note = "  [" + _(TZ_NOTES[detail]).format(option="--timezone") + "]"
-        print(f"  {name:<16} {taken:%X}  {position} {ele_text}{note}")
-        plan.append((path, lat, lon, ele, time_utc, "GPSLatitude" in meta))
+    photos = [photo_from_metadata(meta, manual_tz) for meta in metadata]
+    results = match_photos(photos, [track], args.offset, args.max_gap,
+                           overwrite=args.overwrite)
+    for result in results:
+        print(photo_line(result))
+    summary = summarize(results)
+    plan = [result for result in results if result.reason is None]
 
     print(_("Matched: {matched}, skipped: {skipped}").format(
-        matched=i18n.number(len(plan)), skipped=i18n.number(skipped)))
+        matched=i18n.number(summary.matched), skipped=i18n.number(summary.skipped)))
     if not args.write:
         if plan:
             # Translators: {option} is the command-line option --write
@@ -242,9 +225,11 @@ def main():
         return
 
     written = errors = 0
-    for path, lat, lon, ele, time_utc, had_location in plan:
+    for result in plan:
+        path = result.photo.path
         try:
-            write_location(path, lat, lon, ele, time_utc, args.backup, replace=had_location,
+            write_location(path, result.lat, result.lon, result.ele, result.time_utc,
+                           args.backup, replace=result.photo.has_location,
                            seen=seen.get(path))
             written += 1
         except (RuntimeError, ValueError, OSError) as e:

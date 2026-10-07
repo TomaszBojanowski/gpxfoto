@@ -2,6 +2,7 @@
 import bisect
 import math
 import xml.etree.ElementTree as ET
+from collections import namedtuple
 from datetime import datetime, timezone
 from gettext import gettext as _
 
@@ -28,6 +29,51 @@ def _parse_time(text):
     if time.tzinfo is None:          # GPX times are UTC by definition
         time = time.replace(tzinfo=timezone.utc)
     return time.astimezone(timezone.utc)
+
+
+class Track:
+    """The points of one or more GPX files, used together as one track.
+
+    named: the files were given by the user, not found in a directory.
+    """
+    __slots__ = ("files", "named", "points", "times")
+
+    def __init__(self, files, named, points):
+        self.files = tuple(files)
+        self.named = named
+        self.points = points
+        self.times = [p[0] for p in points]
+
+    @property
+    def first(self):
+        return self.times[0]
+
+    @property
+    def last(self):
+        return self.times[-1]
+
+
+def load_track(paths, named=True):
+    """Return the Track of the GPX files at paths, or None if they hold no points.
+
+    Raises ValueError like load_gpx().
+    """
+    points = load_gpx(paths)
+    return Track(paths, named, points) if points else None
+
+
+# Where a moment lies on the tracks: a position, or the reason there is none
+Match = namedtuple("Match", "lat lon ele gap track reason", defaults=(None,) * 6)
+
+
+def match(tracks, t, max_gap):
+    """Return the Match of Unix time t on tracks."""
+    track = tracks[0]
+    result = locate(track.points, track.times, t, max_gap)
+    if result[0] is None:
+        return Match(track=track, reason=result[1])
+    lat, lon, ele, gap = result
+    return Match(lat, lon, ele, gap, track)
 
 
 def load_gpx(paths):

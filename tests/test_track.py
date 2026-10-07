@@ -582,3 +582,28 @@ def marked(monkeypatch):
 def test_reasons_are_translated(marked, t, reason):
     points, times = track((T0, 50.0, 19.0, None), (T0 + 20000, 51.0, 20.0, None))
     assert locate(points, times, t, 10) == (None, reason)
+
+
+# load_track and match
+
+def test_load_track_keeps_the_files_and_the_times(tmp_path):
+    first = write_gpx(tmp_path / "a.gpx", [("2026-06-01T10:00:10Z", 50.0, 19.0, None)])
+    second = write_gpx(tmp_path / "b.gpx", [("2026-06-01T10:00:00Z", 51.0, 20.0, 5.0)])
+    track = track_module.load_track([first, second])
+    assert track.files == (first, second) and track.named
+    assert track.points == [(T0, 51.0, 20.0, 5.0), (T0 + 10, 50.0, 19.0, None)]
+    assert (track.times, track.first, track.last) == ([T0, T0 + 10], T0, T0 + 10)
+
+
+def test_load_track_without_points_is_none(tmp_path):
+    empty = write_gpx(tmp_path / "a.gpx", [(None, 50.0, 19.0, None)])
+    assert track_module.load_track([empty]) is None
+
+
+def test_match_gives_the_position_or_the_reason(tmp_path):
+    loaded = track_module.Track(["t.gpx"], True, [(T0, 50.0, 19.0, None),
+                                                  (T0 + 100, 51.0, 20.0, None)])
+    assert track_module.match([loaded], T0 + 50, 120) == track_module.Match(
+        50.5, 19.5, None, 50, loaded)
+    assert track_module.match([loaded], T0 + 400, 120) == track_module.Match(
+        track=loaded, reason="5 min after the end of the track")
