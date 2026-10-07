@@ -464,7 +464,7 @@ def test_exiftool_without_output_message_is_polish(polish_cli, exiftool_present,
         run=lambda command, **kwargs: subprocess.CompletedProcess(command, 1, "", "Error: x\n")))
     with pytest.raises(SystemExit) as exit_info:
         polish_cli("-g", gpx, tmp_path / "a.jpg")
-    assert exit_info.value.code == "Program exiftool nie zwrócił danych:\nError: x\n"
+    assert exit_info.value.code == "Program exiftool nie działa:\nError: x\n"
 
 
 # Europe/Warsaw is UTC+2 on this date; the C locale writes dates as MM/DD/YY.

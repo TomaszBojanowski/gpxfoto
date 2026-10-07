@@ -9,7 +9,8 @@ from gettext import gettext as _, ngettext
 
 from gpxfoto import i18n
 from gpxfoto.engine.photos import (
-    TZ_MANUAL, TZ_SYSTEM, capture_time, find_photos, parse_utc_offset, read_metadata)
+    TZ_MANUAL, TZ_SYSTEM, capture_time, check_exiftool, find_photos, parse_utc_offset,
+    read_metadata)
 from gpxfoto.engine.track import load_gpx, locate
 from gpxfoto.engine.writer import BACKUP_DIR, write_location
 from gpxfoto.i18n import N_
@@ -132,6 +133,10 @@ def main():
     if shutil.which("exiftool") is None:
         sys.exit(_("exiftool is not installed. On Fedora, install it with: {command}").format(
             command="sudo dnf install perl-Image-ExifTool"))
+    try:
+        check_exiftool()
+    except RuntimeError as e:
+        sys.exit(str(e))
     try:
         manual_tz = parse_utc_offset(args.timezone) if args.timezone is not None else None
     except ValueError:

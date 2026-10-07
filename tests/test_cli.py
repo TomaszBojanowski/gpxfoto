@@ -491,6 +491,31 @@ def test_overwrite_in_the_southern_hemisphere_leaves_no_wrong_xmp(tmp_path, phot
         "GPSLatitude": pytest.approx(-22.9505, abs=1e-7),
         "GPSLongitude": pytest.approx(-43.2105, abs=1e-7)}
 
+
+@needs_exiftool
+def test_names_exiftool_shows_differently_do_not_hide_other_photos(photo, gpx):
+    """exiftool shows U+FFFF as "???"; that must not drop the photos after it."""
+    for name in ["a.jpg", "b\uffff.jpg", "c.jpg", "d.jpg"]:
+        photo(name, taken("12:00:50"))
+
+    result = run_cli(photo("e.jpg", taken("12:00:50")).parent, "-g", gpx)
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.splitlines()[-2] == "Matched: 5, skipped: 0"
+
+
+@needs_exiftool
+def test_photo_exiftool_cannot_read_is_skipped_with_a_reason(photo, gpx):
+    path = photo("a.jpg", taken("12:00:50"))
+    (path.parent / "empty.jpg").write_bytes(b"")
+
+    result = run_cli(path.parent, "-g", gpx)
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.splitlines()[1:4] == [
+        MATCH_LINE, "  empty.jpg        skipped: cannot be read: File is empty",
+        "Matched: 1, skipped: 1"]
+
 @needs_exiftool
 @needs_posix_shell
 def test_failed_write_is_reported_and_exits_with_status_1(tmp_path, photo, gpx):
@@ -631,14 +656,14 @@ def test_exiftool_not_on_path(tmp_path, gpx, jpeg_file):
 
 
 @needs_posix_shell
-def test_exiftool_without_output(tmp_path, gpx, jpeg_file):
+def test_exiftool_that_does_not_work(tmp_path, gpx, jpeg_file):
     env = fake_exiftool(tmp_path / "bin", 'echo "cannot read files" >&2\nexit 1\n')
 
     result = run_cli(jpeg_file(), "-g", gpx, env=env)
 
     assert result.returncode == 1
-    assert result.stdout == TRACK_LINE + "\n"
-    assert result.stderr == "exiftool returned no data:\ncannot read files\n\n"
+    assert result.stdout == ""
+    assert result.stderr == "exiftool does not work:\ncannot read files\n\n"
 
 
 @pytest.mark.parametrize("args, message", [

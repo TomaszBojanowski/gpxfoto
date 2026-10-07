@@ -10,8 +10,8 @@ import pytest
 from conftest import latin2_name, make_jpeg, needs_exiftool, set_tags
 from gpxfoto.engine import photos
 from gpxfoto.engine.photos import (
-    TZ_CAMERA, TZ_MANUAL, TZ_SYSTEM, capture_time, find_photos, parse_utc_offset,
-    read_metadata)
+    TZ_CAMERA, TZ_MANUAL, TZ_SYSTEM, capture_time, check_exiftool, find_photos,
+    parse_utc_offset, read_metadata)
 
 # POSIX rules work without the tz database: Central European Time with DST.
 CENTRAL_EUROPE = "CET-1CEST,M3.5.0,M10.5.0/3"
@@ -187,6 +187,11 @@ def test_capture_time_without_date(meta):
     assert capture_time(meta, zone(2)) == (None, "no capture time in EXIF")
 
 
+def test_capture_time_of_file_exiftool_cannot_read():
+    meta = {"SourceFile": "a.jpg", "Error": "File format error"}
+    assert capture_time(meta, None) == (None, "cannot be read: File format error")
+
+
 @pytest.mark.parametrize("value", [
     "0000:00:00 00:00:00",
     "2024-05-01 12:34:56",
@@ -263,6 +268,16 @@ def test_find_photos_searches_a_backup_directory_given_explicitly(tmp_path):
     assert find_photos([str(backups), str(temp)], recursive=True) == [
         str(backups / "a.jpg"), str(temp)]
 
+
+
+def test_find_photos_skips_what_is_not_a_regular_file(tmp_path):
+    (tmp_path / "a.jpg").write_bytes(b"")
+    os.symlink("missing.jpg", tmp_path / "broken.jpg")
+    os.symlink("a.jpg", tmp_path / "link.jpg")
+    (tmp_path / "dir.jpg").mkdir()
+    if hasattr(os, "mkfifo"):
+        os.mkfifo(tmp_path / "pipe.jpg")
+    assert find_photos([str(tmp_path)], recursive=False) == [str(tmp_path / "a.jpg")]
 
 def test_find_photos_returns_each_photo_once(photo_tree, monkeypatch):
     monkeypatch.chdir(photo_tree)
@@ -386,25 +401,45 @@ def test_read_metadata_damaged_file_does_not_fail_the_batch(tmp_path):
     photo = write_photo(tmp_path / "photo.jpg", "-CreateDate=2024:05:01 08:00:00")
     assert subprocess.run(["exiftool", "--", str(damaged)], capture_output=True).returncode != 0
     assert read_metadata([str(damaged), photo]) == [
-        {"SourceFile": str(damaged)},
+        {"SourceFile": str(damaged), "Error": "File format error"},
         {"SourceFile": photo, "CreateDate": "2024:05:01 08:00:00"}]
 
 
 @needs_exiftool
-def test_read_metadata_raises_when_exiftool_prints_nothing(tmp_path):
+def test_read_metadata_of_file_exiftool_cannot_read(tmp_path):
+    readable = write_photo(tmp_path / "a.jpg", "-DateTimeOriginal=2024:05:01 12:00:00")
     missing = str(tmp_path / "missing.jpg")
+    empty = tmp_path / "empty.jpg"
+    empty.write_bytes(b"")
+    entries = read_metadata([missing, readable, str(empty)])
+    assert entries[0] == {"SourceFile": missing,
+                          "Error": f"Error: File not found - {missing}"}
+    assert entries[1]["SourceFile"] == readable
+    assert entries[1]["DateTimeOriginal"] == "2024:05:01 12:00:00"
+    assert (entries[2]["SourceFile"], entries[2]["Error"]) == (str(empty), "File is empty")
+
+
+@needs_exiftool
+def test_check_exiftool_accepts_a_working_exiftool():
+    check_exiftool()
+
+
+def test_check_exiftool_reports_a_broken_one(monkeypatch):
+    def run(command, **kwargs):
+        assert command == ["exiftool", "-ver"]
+        return subprocess.CompletedProcess(command, 2, "", "Can't locate Image/ExifTool.pm\n")
+
+    monkeypatch.setattr(photos.subprocess, "run", run)
     with pytest.raises(RuntimeError) as error:
-        read_metadata([missing])
-    message = str(error.value)
-    assert message.startswith("exiftool returned no data:\n")
-    assert f"File not found - {missing}" in message
+        check_exiftool()
+    assert str(error.value) == "exiftool does not work:\nCan't locate Image/ExifTool.pm\n"
 
 
 # read_metadata with a fake exiftool
 
 PREFIX = ["exiftool", "-json", "-n", "-DateTimeOriginal", "-CreateDate",
           "-OffsetTimeOriginal", "-OffsetTime", "-SubSecTimeOriginal",
-          "-GPSLatitude", "-GPSLongitude", "--"]
+          "-GPSLatitude", "-GPSLongitude", "-Error", "--"]
 
 
 @pytest.fixture
@@ -438,20 +473,48 @@ def test_read_metadata_runs_exiftool_in_batches_of_500(fake_exiftool, count, bat
     assert [f for c in fake_exiftool for f in c[len(PREFIX):]] == files
 
 
-def test_read_metadata_matches_entries_in_order(monkeypatch):
-    """exiftool shows bytes that are not UTF-8 as "?" and leaves out files
-    it cannot read; each entry still gets the path that was given."""
-    files = ["a.jpg", "zdj\udceacie.jpg", "gone.jpg", "\udce2\udc82.jpg", "zdj?cie.jpg"]
+def test_read_metadata_pairs_entries_with_files_in_order(monkeypatch):
+    """The names exiftool shows are not used: they can differ from the real
+    ones (bytes that are not UTF-8, some valid characters)."""
+    files = ["a.jpg", "zdj\udceacie.jpg", "b\uffff.jpg", "zdj?cie.jpg"]
 
     def run(command, **kwargs):
-        shown = ["a.jpg", "zdj?cie.jpg", "??.jpg", "zdj?cie.jpg"]
-        stdout = json.dumps([{"SourceFile": f, "N": i} for i, f in enumerate(shown)])
-        return subprocess.CompletedProcess(command, 1, stdout, "Error: File not found\n")
+        shown = ["a.jpg", "zdj?cie.jpg", "b???.jpg", "zdj?cie.jpg"]
+        return subprocess.CompletedProcess(
+            command, 0, json.dumps([{"SourceFile": f, "N": i} for i, f in enumerate(shown)]), "")
 
     monkeypatch.setattr(photos.subprocess, "run", run)
-    assert read_metadata(files) == [
-        {"SourceFile": "a.jpg", "N": 0}, {"SourceFile": "zdj\udceacie.jpg", "N": 1},
-        {"SourceFile": "\udce2\udc82.jpg", "N": 2}, {"SourceFile": "zdj?cie.jpg", "N": 3}]
+    assert read_metadata(files) == [{"SourceFile": f, "N": i} for i, f in enumerate(files)]
+
+
+def skipping_exiftool(monkeypatch, unreadable):
+    """A fake exiftool that leaves out the files in unreadable; returns its calls."""
+    calls = []
+
+    def run(command, **kwargs):
+        files = command[len(PREFIX):]
+        calls.append(files)
+        entries = [{"SourceFile": "?", "Name": f} for f in files if f not in unreadable]
+        errors = "".join(f"Error: File not found - {f}\n" for f in files if f in unreadable)
+        return subprocess.CompletedProcess(command, 1 if errors else 0,
+                                           json.dumps(entries) if entries else "", errors)
+
+    monkeypatch.setattr(photos.subprocess, "run", run)
+    return calls
+
+
+@pytest.mark.parametrize("count, unreadable", [
+    (2, {0}), (5, {4}), (8, {0, 7}), (500, {3, 250, 499}), (600, {599}), (3, {0, 1, 2}),
+])
+def test_read_metadata_keeps_all_others_when_files_cannot_be_read(monkeypatch, count,
+                                                                   unreadable):
+    files = [f"{i}.jpg" for i in range(count)]
+    calls = skipping_exiftool(monkeypatch, {files[i] for i in unreadable})
+    expected = [{"SourceFile": f, "Error": f"Error: File not found - {f}"} if i in unreadable
+                else {"SourceFile": f, "Name": f} for i, f in enumerate(files)]
+    assert read_metadata(files) == expected
+    # Halving finds each unreadable file with few extra runs of exiftool
+    assert len(calls) <= 2 + 4 * len(unreadable) * max(1, count.bit_length())
 
 
 @needs_exiftool
@@ -465,15 +528,17 @@ def test_read_metadata_of_file_name_that_is_not_utf8(tmp_path):
     assert entries[0]["DateTimeOriginal"] == "2024:05:01 12:00:00"
 
 
-@pytest.mark.parametrize("stdout", ["", "  \n"])
-def test_read_metadata_raises_with_exiftool_errors(monkeypatch, stdout):
+@pytest.mark.parametrize("stdout, stderr, error", [
+    ("", "Error: boom\n", "Error: boom"),
+    ("  \n", "Warning: x\nError: boom\n\n", "Error: boom"),
+    ("", "", "exiftool could not read the file"),
+])
+def test_read_metadata_takes_the_last_error_line(monkeypatch, stdout, stderr, error):
     def run(command, **kwargs):
-        return subprocess.CompletedProcess(command, 1, stdout, "Error: boom\n")
+        return subprocess.CompletedProcess(command, 1, stdout, stderr)
 
     monkeypatch.setattr(photos.subprocess, "run", run)
-    with pytest.raises(RuntimeError) as error:
-        read_metadata(["a.jpg"])
-    assert str(error.value) == "exiftool returned no data:\nError: boom\n"
+    assert read_metadata(["a.jpg"]) == [{"SourceFile": "a.jpg", "Error": error}]
 
 
 @pytest.mark.parametrize("stdout", [
@@ -486,19 +551,6 @@ def test_read_metadata_reports_output_that_is_not_json(monkeypatch, stdout):
     monkeypatch.setattr(photos.subprocess, "run", run)
     with pytest.raises(RuntimeError) as raised:
         read_metadata(["a.jpg"])
-    # The rest of the message comes from the JSON parser
-    assert str(raised.value).startswith("exiftool returned data that cannot be read: ")
+    assert str(raised.value) == "exiftool returned data that cannot be read"
 
 
-def test_read_metadata_raises_when_a_later_batch_is_empty(monkeypatch):
-    calls = []
-
-    def run(command, **kwargs):
-        calls.append(command)
-        stdout = json.dumps([{"SourceFile": f} for f in command[len(PREFIX):]])
-        return subprocess.CompletedProcess(command, 0, stdout if len(calls) == 1 else "", "")
-
-    monkeypatch.setattr(photos.subprocess, "run", run)
-    with pytest.raises(RuntimeError):
-        read_metadata([f"{i}.jpg" for i in range(600)])
-    assert len(calls) == 2
