@@ -118,6 +118,11 @@ Każdy etap kończy się działającym programem i przechodzącymi testami. Jedn
 - **Kontrola krzyżowa** `DateTimeOriginal` + przesunięcie z `Panasonic:TimeStamp`; rozbieżność zgłaszana jako ostrzeżenie.
 - **Postoje**: wykrywanie odcinków bez ruchu; zdjęcie wykonane blisko postoju jest do niego przypinane. W podglądzie informacja, ile zdjęć wypada na postoje (wskaźnik, czy poprawka zegara jest dobra).
 - **Samo dobieranie trasy**: wskazany katalog z trasami, każde zdjęcie dopasowane do pliku obejmującego jego czas.
+- **Ostrzeżenia o podejrzanym dopasowaniu** (tylko w podglądzie; program niczego sam nie zmienia):
+  - *przesunięcie o równą godzinę*: jeśli po przesunięciu czasu zdjęć o dokładnie ±1 h (także ±30 min i wielokrotności godziny) wyraźnie więcej zdjęć wypada na postojach, program proponuje taką poprawkę z krótkim wyjaśnieniem (typowa przyczyna: nieprzestawiony czas letni/zimowy albo strefa czasowa w aparacie);
+  - *zdjęcia w ruchu*: jeśli większość zdjęć wypada w chwilach, gdy według trasy poruszano się pełnym tempem, a nie na postojach lub przy zwolnieniu, program ostrzega, że zegar aparatu może być przesunięty;
+  - *nieprawdopodobne przeskoki*: kolejne zdjęcia zrobione w odstępie sekund, a dopasowane do miejsc odległych o setki metrów;
+  - progi dobrać na prawdziwych danych i opisać w testach; ostrzeżenie nie może pojawiać się przy poprawnym dopasowaniu wzorcowych zdjęć autora.
 - **Kierunek marszu** (GPSImgDirection / GPSTrack) — tylko jako opcja, domyślnie wyłączona; to kierunek ruchu, nie obiektywu.
 - Kryterium: testy dla każdej funkcji; podgląd pokazuje zastosowaną poprawkę i źródło trasy dla każdego zdjęcia.
 
