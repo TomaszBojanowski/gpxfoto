@@ -111,8 +111,8 @@ def locate(points, times, t, max_gap):
 
     gap = min(t - before[0], after[0] - t)
     # A longer break in recording (e.g. auto-pause) is fine as long as
-    # the position hardly changed during it.
-    if gap > max_gap and _distance_m(before, after) > 100:
+    # the position changed by less than 100 m during it.
+    if gap > max_gap and _distance_m(before, after) >= 100:
         # Translators: reason why a photo was skipped; {duration} is a time
         # span such as “10 min”
         return None, _("gap in the track recording, nearest point {duration} away").format(

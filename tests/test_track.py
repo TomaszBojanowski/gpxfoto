@@ -7,7 +7,7 @@ import pytest
 
 from conftest import write_gpx
 from gpxfoto.engine import track as track_module
-from gpxfoto.engine.track import _format_duration, _parse_time, load_gpx, locate
+from gpxfoto.engine.track import _distance_m, _format_duration, _parse_time, load_gpx, locate
 
 
 def utc(*fields):
@@ -483,6 +483,14 @@ def test_locate_movement_limit_is_100_m(lat_change, lon_change, accepted):
             (50.0 + lat_change / 2, 19.0 + lon_change / 2, None, 1800))
     else:
         assert result == (None, "gap in the track recording, nearest point 30 min away")
+
+
+def test_locate_movement_of_exactly_100_m_is_movement():
+    """The plan accepts a break if the position changed by less than 100 m."""
+    points, times = track((T0, 0.0, 0.0, None), (T0 + 600, 0.0, 0.0008993216059187306, None))
+    assert _distance_m(points[0], points[1]) == 100.0
+    assert locate(points, times, T0 + 300, 120) == (
+        None, "gap in the track recording, nearest point 5 min away")
 
 
 def test_locate_with_duplicate_timestamps():
