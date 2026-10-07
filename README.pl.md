@@ -156,9 +156,10 @@ pół minuty, na których trasa przesuwa się wolniej niż 0,2 m/s, a jeśli ma
 wysokość z barometru, także wznosi się lub opada wolniej niż 0,03 m/s,
 dzięki czemu powolne, strome podejście nie jest postojem. Postojem jest też
 przerwa w zapisie trasy, której oba końce dzieli najwyżej 10 m. Zdjęcie
-wykonane w czasie postoju, gdy trasa znajduje się najwyżej 20 m od niego
-i najwyżej 5 m wyżej lub niżej, otrzymuje położenie postoju, czyli medianę
-jego punktów, a w jego wierszu podane są godziny postoju. Położenie
+wykonane w czasie postoju, gdy trasa znajduje się najwyżej 20 m od niego,
+a przy wysokości z barometru także najwyżej 5 m wyżej lub niżej, otrzymuje
+położenie postoju, czyli medianę jego punktów, a w jego wierszu podane są
+godziny postoju. Położenie
 pozostałych zdjęć się nie zmienia. Przerwy krótsze niż około minuty zwykle
 nie są postojami.
 

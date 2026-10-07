@@ -72,8 +72,11 @@ _M_PER_DEGREE = math.pi * 6371000.0 / 180
 # A stretch of the track without movement: start and end are the Unix
 # times of its first and last point (both included), lat, lon and
 # elevation (None if unknown) the median position of its still points,
-# first and last the indices of its first and last point in the track
-Stop = namedtuple("Stop", "start end lat lon elevation first last")
+# first and last the indices of its first and last point in the track.
+# steady_height is false when the track's elevations are too noisy to
+# compare (they come from GPS, not a barometer).
+Stop = namedtuple("Stop", "start end lat lon elevation first last steady_height",
+                  defaults=(True,))
 
 
 def _median(values):
@@ -556,7 +559,8 @@ def find_stops(points):
     times = [p[0] for p in points]
     lons = _unwrapped_longitudes(points)
     heights = [p[3] for p in points]
-    if _elevation_noise(heights) > ELEVATION_NOISE:
+    steady = _elevation_noise(heights) <= ELEVATION_NOISE
+    if not steady:
         heights = [None] * n
     # Positions in metres east and north of the first point, and prefix
     # sums for quick means; relative values keep the sums precise
@@ -692,7 +696,7 @@ def find_stops(points):
                and times[end + 1] - times[last] <= STILL_WINDOW and near(end + 1, last)):
             end += 1
         lon = (lon + 180.0) % 360.0 - 180.0
-        stops.append(Stop(times[start], times[end], lat, lon, elevation, start, end))
+        stops.append(Stop(times[start], times[end], lat, lon, elevation, start, end, steady))
     return stops
 
 
@@ -701,7 +705,8 @@ def stop_at(stops, t, lat, lon, elevation):
 
     lat, lon and elevation are the photo's position on the track from
     locate. The photo belongs to a stop when it was taken during the stop
-    and the track is then within PIN_RADIUS and PIN_HEIGHT of the stop.
+    and the track is then within PIN_RADIUS of the stop, and within
+    PIN_HEIGHT unless its elevations are too noisy to tell.
     """
     i = bisect.bisect_right(stops, t, key=lambda s: s.start) - 1
     if i < 0 or t > stops[i].end:
@@ -716,7 +721,7 @@ def stop_at(stops, t, lat, lon, elevation):
     dy = (lat - stop.lat) * _M_PER_DEGREE
     if dx * dx + dy * dy > PIN_RADIUS ** 2:
         return None
-    if elevation is not None and stop.elevation is not None:
+    if elevation is not None and stop.elevation is not None and stop.steady_height:
         if abs(elevation - stop.elevation) > PIN_HEIGHT:
             return None
     return stop

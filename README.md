@@ -153,8 +153,9 @@ which the track moves slower than 0.2 m/s and, when the track has
 barometric elevations, climbs or descends slower than 0.03 m/s, so that
 slow, steep climbing does not count. A break in recording whose two ends
 are within 10 m is a stop too. A photo taken during a stop, while the track
-is within 20 m and 5 m of height of it, gets the stop’s position, the
-median of its points, and its line shows the times of the stop. The
+is within 20 m of it, and within 5 m of height when the elevations are
+barometric, gets the stop’s position, the median of its points, and its
+line shows the times of the stop. The
 positions of other photos do not change. Pauses shorter than about a
 minute are usually not stops.
 

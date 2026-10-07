@@ -173,6 +173,24 @@ def test_noisy_gps_elevations_are_not_used():
     hike.points = [(t, lat, lon, ele + rng.gauss(0, 3)) for t, lat, lon, ele in hike.points]
     [stop] = find_stops(hike.points)
     assert stop.start == T0 + 112 and stop.end == T0 + 428
+    assert not stop.steady_height
+
+
+def test_photos_at_a_stop_with_noisy_gps_elevations_are_pinned():
+    # The elevations, 5 m off on average, cannot tell how far the photo
+    # was from the stop in height
+    hike = Hike().walk(120, east=1.2).stand(360, jitter=2.0).walk(120, east=1.2)
+    rng = random.Random(6)
+    points = [(t, lat, lon, ele + rng.gauss(0, 5)) for t, lat, lon, ele in hike.points]
+    times = [p[0] for p in points]
+    [stop] = find_stops(points)
+    inside = [t + 0.5 for t in range(int(stop.start), int(stop.end))]
+    assert all(place(points, times, [stop], t, 120)[4] == stop for t in inside)
+    # Steady elevations still count
+    steady = find_stops(hike.points)
+    assert steady[0].steady_height
+    assert stop_at(steady, T0 + 300, steady[0].lat, steady[0].lon,
+                   steady[0].elevation + PIN_HEIGHT + 1) is None
 
 
 def test_without_elevations_only_horizontal_movement_counts():
