@@ -37,7 +37,7 @@ pip install --user .
 ## Użycie
 
 ```
-gpxfoto ZDJĘCIE… -g PLIK [-g PLIK …] [opcje]
+gpxfoto ZDJĘCIE… -g TRASA [-g TRASA …] [opcje]
 ```
 
 Podgląd tego, co zostałoby zapisane:
@@ -54,7 +54,7 @@ gpxfoto ~/Obrazy/2026-10-06 -g activity.gpx --write
 
 | Opcja | Znaczenie |
 |---|---|
-| `-g`, `--gpx PLIK` | plik GPX z trasą; można podać wielokrotnie |
+| `-g`, `--gpx TRASA` | plik GPX z trasą lub katalog z plikami GPX; można podać wielokrotnie |
 | `--write` | zapisuje położenie; bez tej opcji wyświetlany jest tylko podgląd |
 | `--offset SEKUNDY` | poprawka zegara aparatu, dodawana do czasu wykonania zdjęcia |
 | `--timezone +GG:MM` | strefa czasowa aparatu dla wszystkich zdjęć (domyślnie: odczytywana z danych EXIF każdego zdjęcia) |
@@ -64,7 +64,7 @@ gpxfoto ~/Obrazy/2026-10-06 -g activity.gpx --write
 | `--no-stops` | nie wyszukuje postojów; każde zdjęcie otrzymuje położenie z trasy w chwili wykonania |
 | `--overwrite` | zmienia także zdjęcia, które mają już zapisane położenie |
 | `--backup` | zachowuje kopie oryginalnych plików w podkatalogu `originals` obok każdego zdjęcia; istniejąca kopia nigdy nie jest zastępowana |
-| `-r`, `--recursive` | wyszukuje zdjęcia także w podkatalogach |
+| `-r`, `--recursive` | wyszukuje zdjęcia i trasy także w podkatalogach |
 
 Strefa czasowa zdjęcia jest odczytywana z pola `OffsetTimeOriginal` (lub
 `OffsetTime`), które zapisują aparaty takie jak Panasonic LUMIX S5II. Opcja
@@ -117,6 +117,26 @@ punktu trasy więcej niż `--max-gap`: przed początkiem trasy, po jej
 zakończeniu albo w przerwie w zapisie trasy. Zdjęcie wykonane w czasie
 takiej przerwy otrzymuje jednak położenie, jeśli w trakcie przerwy zapisane
 położenie zmieniło się o mniej niż 100 m.
+
+### Kilka tras
+
+Pliki GPX podane w opcji `-g` tworzą razem jedną trasę, a wiersz trasy
+podaje nazwę pliku, jeśli jest tylko jeden. Przy kilku plikach wiersz
+każdego zdjęcia podaje plik, z którego pochodzi jego położenie.
+
+W opcji `-g` można też podać katalog, na przykład ten, w którym
+przechowywane są wszystkie aktywności. Każdy plik `.gpx` w tym katalogu,
+a z opcją `-r` także w jego podkatalogach, jest osobną trasą, a każde
+zdjęcie otrzymuje trasę obejmującą czas jego wykonania; położenie nigdy nie
+powstaje z dwóch różnych plików. Jeśli czas zdjęcia obejmuje kilka tras,
+wygrywa ta, której zapisane punkty leżą najbliżej tego czasu, potem plik
+podany z nazwy, a potem ten, który zapisuje punkty częściej. Jeśli dwie
+trasy z katalogu umieszczają zdjęcie w miejscach odległych o ponad 200 m,
+zdjęcie zostaje pominięte, podobnie jak zdjęcie z czasu pliku, którego nie
+można odczytać. Przy zdjęciu, którego czasu nie obejmuje żadna trasa,
+podana jest najbliższa trasa w ciągu doby. Aby przy wielu plikach
+pozostać szybkim, gpxfoto najpierw odczytuje z każdego pliku tylko czasy,
+a w całości czyta jedynie pliki potrzebne dla zdjęć.
 
 ### Postoje
 

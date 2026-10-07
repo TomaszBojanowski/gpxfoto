@@ -37,7 +37,7 @@ pip install --user .
 ## Usage
 
 ```
-gpxfoto PHOTO… -g FILE [-g FILE …] [options]
+gpxfoto PHOTO… -g TRACK [-g TRACK …] [options]
 ```
 
 Show what would be written:
@@ -54,7 +54,7 @@ gpxfoto ~/Pictures/2026-10-06 -g activity.gpx --write
 
 | Option | Meaning |
 |---|---|
-| `-g`, `--gpx FILE` | GPX file with the track; can be given more than once |
+| `-g`, `--gpx TRACK` | GPX file with the track, or a directory with GPX files; can be given more than once |
 | `--write` | write the locations; without it only a preview is shown |
 | `--offset SECONDS` | camera clock correction, added to the capture time |
 | `--timezone +HH:MM` | camera time zone for all photos (default: read from each photo’s EXIF data) |
@@ -64,7 +64,7 @@ gpxfoto ~/Pictures/2026-10-06 -g activity.gpx --write
 | `--no-stops` | do not look for stops; every photo gets the track’s position at its time |
 | `--overwrite` | also change photos that already have a location |
 | `--backup` | keep copies of the original files in an `originals` subdirectory next to each photo; an existing copy is never replaced |
-| `-r`, `--recursive` | also look for photos in subdirectories |
+| `-r`, `--recursive` | also look for photos and tracks in subdirectories |
 
 The time zone of a photo is read from `OffsetTimeOriginal` (or
 `OffsetTime`), which cameras such as the Panasonic LUMIX S5II record.
@@ -116,6 +116,24 @@ A photo is skipped when its capture time is more than `--max-gap` away from
 the nearest track point: before the track starts, after it ends, or in a
 break in recording. A photo taken during such a break still gets a location
 if the recorded position moved less than 100 m during the break.
+
+### Several tracks
+
+GPX files given with `-g` form one track together, and the track line
+names the file when there is only one. With several files, each photo’s
+line names the file its position comes from.
+
+`-g` can also be a directory, such as one where all activities are kept.
+Every `.gpx` file in it, and with `-r` in its subdirectories, is a track of
+its own, and each photo gets the track that covers its time; a position is
+never made up from two different files. If several tracks cover a photo,
+the one with recorded points closest to its time wins, then a file given
+by name, then the one that records more often. If two tracks from the
+directory put a photo more than 200 m apart, it is skipped, as is a photo
+within the time of a file that cannot be read. A photo that no track
+covers is shown with the nearest track within a day. To stay quick with
+many files, gpxfoto first scans each file for its times and reads in full
+only the files the photos need.
 
 ### Stops
 
