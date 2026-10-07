@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: gpxfoto 0.1.0\n"
 "Report-Msgid-Bugs-To: https://github.com/tomaszbojanowski/gpxfoto/issues\n"
-"POT-Creation-Date: 2026-10-07 07:38+0000\n"
+"POT-Creation-Date: 2026-10-07 08:03+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -71,114 +71,109 @@ msgstr ""
 
 #: gpxfoto/cli.py:40
 #, python-format
-msgid "ambiguous option: %(option)s could match %(matches)s"
-msgstr ""
-
-#: gpxfoto/cli.py:41
-#, python-format
 msgid "ignored explicit argument %r"
 msgstr ""
 
-#: gpxfoto/cli.py:42
+#: gpxfoto/cli.py:41
 msgid "expected one argument"
 msgstr ""
 
-#: gpxfoto/cli.py:43
+#: gpxfoto/cli.py:42
 #, python-format
 msgid "invalid %(type)s value: %(value)r"
 msgstr ""
 
-#: gpxfoto/cli.py:59
+#: gpxfoto/cli.py:58
 #, python-brace-format
 msgid "not a valid number of seconds: {value}"
 msgstr ""
 
-#: gpxfoto/cli.py:66
+#: gpxfoto/cli.py:65
 #, python-brace-format
 msgid "must not be negative: {value}"
 msgstr ""
 
-#: gpxfoto/cli.py:94
+#: gpxfoto/cli.py:95
 msgid ""
 "Adds locations from GPX tracks to photos without changing the image data."
 msgstr ""
 
 #. Translators: placeholder for arguments in the usage line of --help;
 #. keep it a single word
-#: gpxfoto/cli.py:98
+#: gpxfoto/cli.py:99
 msgid "PHOTO"
 msgstr ""
 
-#: gpxfoto/cli.py:99
+#: gpxfoto/cli.py:100
 msgid "JPEG files or directories with photos"
 msgstr ""
 
 #. Translators: placeholder for a file name in --help; keep it a single word
-#: gpxfoto/cli.py:101
+#: gpxfoto/cli.py:102
 msgid "FILE"
 msgstr ""
 
-#: gpxfoto/cli.py:102
+#: gpxfoto/cli.py:103
 msgid "GPX file with the track (can be given more than once)"
 msgstr ""
 
-#: gpxfoto/cli.py:104
+#: gpxfoto/cli.py:105
 msgid ""
 "write the locations to the files (without this option only a preview is "
 "shown)"
 msgstr ""
 
 #. Translators: placeholder for a number in --help; keep it a single word
-#: gpxfoto/cli.py:107 gpxfoto/cli.py:114
+#: gpxfoto/cli.py:108 gpxfoto/cli.py:115
 msgid "SECONDS"
 msgstr ""
 
-#: gpxfoto/cli.py:108
+#: gpxfoto/cli.py:109
 msgid "camera clock correction in seconds, added to the capture time"
 msgstr ""
 
 #. Translators: placeholder in --help; HH stands for hours, MM for minutes
-#: gpxfoto/cli.py:110
+#: gpxfoto/cli.py:111
 msgid "+HH:MM"
 msgstr ""
 
-#: gpxfoto/cli.py:111
+#: gpxfoto/cli.py:112
 msgid ""
 "camera time zone for all photos (default: read from each photo’s EXIF data)"
 msgstr ""
 
-#: gpxfoto/cli.py:115
+#: gpxfoto/cli.py:116
 #, python-brace-format
 msgid ""
 "largest allowed time between a photo and the nearest track point (default: "
 "{seconds} s)"
 msgstr ""
 
-#: gpxfoto/cli.py:118
+#: gpxfoto/cli.py:119
 msgid "also change photos that already have a location"
 msgstr ""
 
-#: gpxfoto/cli.py:121
+#: gpxfoto/cli.py:122
 #, python-brace-format
 msgid ""
 "keep copies of the original files in a “{directory}” subdirectory next to "
 "each photo; an existing copy is never replaced"
 msgstr ""
 
-#: gpxfoto/cli.py:125
+#: gpxfoto/cli.py:126
 msgid "also look for photos in subdirectories"
 msgstr ""
 
-#: gpxfoto/cli.py:134
+#: gpxfoto/cli.py:135
 #, python-brace-format
 msgid "exiftool is not installed. On Fedora, install it with: {command}"
 msgstr ""
 
-#: gpxfoto/cli.py:143
+#: gpxfoto/cli.py:144
 msgid "The time zone must be in the form +HH:MM, for example +02:00 or -05:00."
 msgstr ""
 
-#: gpxfoto/cli.py:150
+#: gpxfoto/cli.py:151
 msgid "The GPX file contains no track points with timestamps."
 msgid_plural "The GPX files contain no track points with timestamps."
 msgstr[0] ""
@@ -186,7 +181,7 @@ msgstr[1] ""
 
 #. Translators: {start} and {end} are the date and time of the first and the
 #. last track point
-#: gpxfoto/cli.py:158
+#: gpxfoto/cli.py:159
 #, python-brace-format
 msgid "Track: {count} point, {start} – {end} (this computer’s time zone)"
 msgid_plural ""
@@ -194,57 +189,57 @@ msgid_plural ""
 msgstr[0] ""
 msgstr[1] ""
 
-#: gpxfoto/cli.py:168
+#: gpxfoto/cli.py:169
 msgid "No JPEG photos found."
 msgstr ""
 
 #. Translators: reason why a photo was skipped
-#: gpxfoto/cli.py:188
+#: gpxfoto/cli.py:189
 msgid "already has a location"
 msgstr ""
 
 #. Translators: shown after the file name of a photo; {reason} says
 #. why the photo was skipped, e.g. “already has a location”
-#: gpxfoto/cli.py:191 gpxfoto/cli.py:196 gpxfoto/cli.py:204 gpxfoto/cli.py:210
+#: gpxfoto/cli.py:192 gpxfoto/cli.py:197 gpxfoto/cli.py:206 gpxfoto/cli.py:212
 #, python-brace-format
 msgid "skipped: {reason}"
 msgstr ""
 
 #. Translators: reason why a photo was skipped
-#: gpxfoto/cli.py:203
+#: gpxfoto/cli.py:205
 msgid "the corrected capture time is out of range"
 msgstr ""
 
 #. Translators: elevation in metres
-#: gpxfoto/cli.py:217
+#: gpxfoto/cli.py:219
 #, python-brace-format
 msgid "{elevation} m"
 msgstr ""
 
-#: gpxfoto/cli.py:226
+#: gpxfoto/cli.py:228
 #, python-brace-format
 msgid "Matched: {matched}, skipped: {skipped}"
 msgstr ""
 
 #. Translators: {option} is the command-line option --write
-#: gpxfoto/cli.py:231
+#: gpxfoto/cli.py:233
 #, python-brace-format
 msgid ""
 "This was a preview; no files were changed. Use {option} to write the "
 "locations."
 msgstr ""
 
-#: gpxfoto/cli.py:243
+#: gpxfoto/cli.py:245
 #, python-brace-format
 msgid "Could not write {name}: {error} (file unchanged)"
 msgstr ""
 
-#: gpxfoto/cli.py:245
+#: gpxfoto/cli.py:247
 #, python-brace-format
 msgid "Written: {written}, errors: {errors}"
 msgstr ""
 
-#: gpxfoto/cli.py:248
+#: gpxfoto/cli.py:250
 msgid "The image data of every written file was verified as unchanged."
 msgstr ""
 
@@ -280,104 +275,104 @@ msgid "no capture time in EXIF"
 msgstr ""
 
 #. Translators: reason why a photo was skipped; {value} is the text found
-#: gpxfoto/engine/photos.py:142
+#: gpxfoto/engine/photos.py:149
 #, python-brace-format
 msgid "invalid capture time in EXIF: {value}"
 msgstr ""
 
 #. Translators: {error} describes the problem, e.g. “No such file or directory”
-#: gpxfoto/engine/track.py:36
+#: gpxfoto/engine/track.py:44
 #, python-brace-format
 msgid "Cannot read the GPX file {path}: {error}"
 msgstr ""
 
 #. Translators: reason why a photo was skipped; {duration} is
 #. a time span such as “10 min”
-#: gpxfoto/engine/track.py:104
+#: gpxfoto/engine/track.py:114
 #, python-brace-format
 msgid "{duration} before the start of the track"
 msgstr ""
 
 #. Translators: reason why a photo was skipped; {duration} is
 #. a time span such as “10 min”
-#: gpxfoto/engine/track.py:108
+#: gpxfoto/engine/track.py:118
 #, python-brace-format
 msgid "{duration} after the end of the track"
 msgstr ""
 
 #. Translators: reason why a photo was skipped; {duration} is a time
 #. span such as “10 min”
-#: gpxfoto/engine/track.py:118
+#: gpxfoto/engine/track.py:128
 #, python-brace-format
 msgid "gap in the track recording, nearest point {duration} away"
 msgstr ""
 
-#: gpxfoto/engine/track.py:144
+#: gpxfoto/engine/track.py:154
 #, python-brace-format
 msgid "{seconds} s"
 msgstr ""
 
-#: gpxfoto/engine/track.py:146
+#: gpxfoto/engine/track.py:156
 #, python-brace-format
 msgid "{minutes} min"
 msgstr ""
 
-#: gpxfoto/engine/track.py:147
+#: gpxfoto/engine/track.py:157
 #, python-brace-format
 msgid "{hours} h {minutes} min"
 msgstr ""
 
-#: gpxfoto/engine/writer.py:36
+#: gpxfoto/engine/writer.py:37
 msgid "not a JPEG file"
 msgstr ""
 
-#: gpxfoto/engine/writer.py:40 gpxfoto/engine/writer.py:53
-#: gpxfoto/engine/writer.py:56
+#: gpxfoto/engine/writer.py:41 gpxfoto/engine/writer.py:54
+#: gpxfoto/engine/writer.py:57
 msgid "damaged JPEG structure"
 msgstr ""
 
-#: gpxfoto/engine/writer.py:76
+#: gpxfoto/engine/writer.py:78
 #, python-brace-format
 msgid "invalid location: {location}"
 msgstr ""
 
-#: gpxfoto/engine/writer.py:80
+#: gpxfoto/engine/writer.py:82
 msgid "this file is a backup copy made by gpxfoto, which is never changed"
 msgstr ""
 
-#: gpxfoto/engine/writer.py:86
+#: gpxfoto/engine/writer.py:88
 msgid "the file has several hard links; writing it would separate them"
 msgstr ""
 
-#: gpxfoto/engine/writer.py:88 gpxfoto/engine/writer.py:123
+#: gpxfoto/engine/writer.py:90 gpxfoto/engine/writer.py:130
 msgid "another program changed the photo in the meantime"
 msgstr ""
 
-#: gpxfoto/engine/writer.py:115
+#: gpxfoto/engine/writer.py:120
 msgid "exiftool did not write the file"
 msgstr ""
 
-#: gpxfoto/engine/writer.py:117
+#: gpxfoto/engine/writer.py:122
 msgid "exiftool changed the image data; the result was discarded"
 msgstr ""
 
-#: gpxfoto/engine/writer.py:169
+#: gpxfoto/engine/writer.py:210
 msgid ""
 "This directory holds copies of the photos next to it as they were before "
 "gpxfoto added locations to them. gpxfoto never changes or replaces these "
 "copies."
 msgstr ""
 
-#: gpxfoto/engine/writer.py:183
+#: gpxfoto/engine/writer.py:227
 #, python-brace-format
 msgid "“{path}” already exists and is not a backup directory of gpxfoto"
 msgstr ""
 
-#: gpxfoto/engine/writer.py:207
+#: gpxfoto/engine/writer.py:251
 msgid "the backup copy differs from the photo"
 msgstr ""
 
-#: gpxfoto/engine/writer.py:232
+#: gpxfoto/engine/writer.py:278
 #, python-brace-format
 msgid "“{path}” already exists and is not a copy of this photo"
 msgstr ""

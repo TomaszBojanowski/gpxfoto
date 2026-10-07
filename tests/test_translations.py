@@ -379,8 +379,6 @@ def test_help_is_polish(polish_cli, capsys):
 @pytest.mark.parametrize("args, message", [
     (["a.jpg"], "wymagane są następujące argumenty: -g/--gpx"),
     (["-g", "t.gpx", "a.jpg", "--bogus"], "nierozpoznane argumenty: --bogus"),
-    (["-g", "t.gpx", "a.jpg", "--o", "1"],
-     "niejednoznaczna opcja: --o może oznaczać --offset, --overwrite"),
     (["-g", "t.gpx", "a.jpg", "--offset", "abc"],
      "argument --offset: nieprawidłowa liczba sekund: abc"),
     (["a.jpg", "-g"], "argument -g/--gpx: oczekiwano jednego argumentu"),

@@ -37,7 +37,6 @@ ARGPARSE_MESSAGES = (
     N_("argument %(argument_name)s: %(message)s"),
     N_("the following arguments are required: %s"),
     N_("unrecognized arguments: %s"),
-    N_("ambiguous option: %(option)s could match %(matches)s"),
     N_("ignored explicit argument %r"),
     N_("expected one argument"),
     N_("invalid %(type)s value: %(value)r"),
@@ -89,8 +88,10 @@ def join_negative_time_zone(argv):
 
 
 def build_parser():
+    # Options must be given in full: an abbreviation such as --over would
+    # change files, and new options would change what abbreviations mean
     parser = argparse.ArgumentParser(
-        prog="gpxfoto",
+        prog="gpxfoto", allow_abbrev=False,
         description=_("Adds locations from GPX tracks to photos without changing the "
                       "image data."))
     # Translators: placeholder for arguments in the usage line of --help;

@@ -328,6 +328,21 @@ def test_invalid_timezone_exits_with_message(jpeg_file, gpx, value):
     assert result.stderr == "The time zone must be in the form +HH:MM, for example +02:00 or -05:00.\n"
 
 
+@pytest.mark.parametrize("option", [
+    ["--timez", "-05:00"], ["--timez", "+02:00"], ["--wri"], ["--over"], ["--back"],
+])
+def test_abbreviated_options_are_refused(jpeg_file, gpx, option):
+    path = jpeg_file()
+    before = path.read_bytes()
+
+    result = run_cli(path, "-g", gpx, "--write", *option)
+
+    assert result.returncode == 2
+    assert result.stdout == ""
+    assert result.stderr.endswith(
+        "gpxfoto: error: unrecognized arguments: " + " ".join(option) + "\n")
+    assert path.read_bytes() == before
+
 
 @pytest.mark.parametrize("argv, expected", [
     (["--timezone", "-05:00", "a.jpg"], ["--timezone=-05:00", "a.jpg"]),
@@ -340,6 +355,7 @@ def test_invalid_timezone_exits_with_message(jpeg_file, gpx, value):
 ])
 def test_join_negative_time_zone(argv, expected):
     assert cli.join_negative_time_zone(argv) == expected
+
 
 @needs_exiftool
 def test_max_gap(tmp_path, photo):
