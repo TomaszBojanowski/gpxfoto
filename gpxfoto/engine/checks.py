@@ -92,9 +92,10 @@ Jump = namedtuple("Jump", "first second clock_gap distance")
 Suspicion = namedtuple("Suspicion", "shift motion jumps")
 
 
-def suspicious_match(points, times, stops, shots, max_gap, pace_=None):
+def suspicious_match(points, times, stops, shots, max_gap, pace_=None, top=None):
     """All three checks of one track. pace_ is pace(points, stops), worked
-    out here when it is None."""
+    out here when it is None; top is the top speed for the jumps, by
+    default that of pace_ (see top_speed())."""
     if pace_ is None:
         pace_ = pace(points, stops)
     shift = whole_hour_shift(points, times, stops, shots, max_gap)
@@ -102,7 +103,23 @@ def suspicious_match(points, times, stops, shots, max_gap, pace_=None):
     # A whole-hour shift already says that the clock is off
     if shift is None and sum(s.lat is not None for s in shots) >= MOTION_MIN_MOMENTS:
         motion = photos_in_motion(pace_, shots)
-    return Suspicion(shift, motion, jumps(shots, pace_.top))
+    return Suspicion(shift, motion, jumps(shots, pace_.top if top is None else top))
+
+
+def top_speed(points, sources=None):
+    """The top speed of a track in m/s, as pace() measures it.
+
+    sources is, as in Track, the index of each point's file, or None for
+    one file. Each file counts on its own: two files recorded at the same
+    time in different places zigzag between them when used together,
+    which is no speed of anyone's.
+    """
+    if sources is None:
+        return pace(points, []).top
+    files = {}
+    for point, source in zip(points, sources):
+        files.setdefault(source, []).append(point)
+    return max(pace(part, []).top for part in files.values())
 
 
 def _distance_m(lat1, lon1, lat2, lon2):
@@ -168,7 +185,8 @@ def whole_hour_shift(points, times, stops, shots, max_gap):
             continue
         nearby = sum(grid[shift + d][0] for d in SHIFT_NEIGHBOURS) / len(SHIFT_NEIGHBOURS)
         null = [grid[d][0] for d in grid if d not in candidates
-                and 2 * SHIFT_STEP < abs(d - shift) <= SHIFT_NULL_WINDOW and abs(d) > 2 * SHIFT_STEP]
+                and 2 * SHIFT_STEP < abs(d - shift) <= SHIFT_NULL_WINDOW
+                and abs(d) > 2 * SHIFT_STEP]
         mean = sum(null) / len(null)
         spread = max(SHIFT_MIN_SPREAD, math.sqrt(sum((x - mean) ** 2 for x in null) / len(null)))
         z = (reached - mean) / spread
@@ -182,7 +200,8 @@ def whole_hour_shift(points, times, stops, shots, max_gap):
     shift = best[1]
     matched, pinned, reached = _exact(points, times, stops, ordered, shift, max_gap)
     pinned_now = _exact(points, times, stops, ordered, 0, max_gap)[1]
-    if not shift_stands_out(reached, 0.0, pinned, matched) or pinned < pinned_now + SHIFT_MORE_STOPS:
+    if (not shift_stands_out(reached, 0.0, pinned, matched)
+            or pinned < pinned_now + SHIFT_MORE_STOPS):
         return None
     return ShiftHint(shift, pinned, matched, reached, pinned_now)
 

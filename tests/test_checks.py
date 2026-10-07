@@ -13,8 +13,8 @@ from gpxfoto.engine import checks
 from gpxfoto.engine.checks import (
     JUMP_SPEED, MOTION_MIN_MOMENTS, SHIFT_MIN_PHOTOS, SHIFT_MIN_SHARE, Jump, Motion, ShiftHint,
     Shot, at_full_pace, clearly_more_stops, jumps, mostly_fast, pace, photos_in_motion,
-    shift_stands_out, suspicious_match, whole_hour_shift)
-from gpxfoto.engine.track import find_stops, load_gpx, place
+    shift_stands_out, suspicious_match, top_speed, whole_hour_shift)
+from gpxfoto.engine.track import find_stops, load_gpx, load_track, place
 from test_stops import T0, Hike, position
 
 ZONE = 2 * 3600          # the photos were taken at UTC+02:00
@@ -352,7 +352,8 @@ def test_two_tracks_recorded_at_the_same_time_jump(tmp_path):
             when = datetime.fromtimestamp(T0 + k, timezone.utc)
             result.append((when.strftime("%Y-%m-%dT%H:%M:%SZ"), lat, lon, None))
         return result
-    files = [write_gpx(tmp_path / "a.gpx", track(0.0)), write_gpx(tmp_path / "b.gpx", track(5000.0))]
+    files = [write_gpx(tmp_path / "a.gpx", track(0.0)),
+             write_gpx(tmp_path / "b.gpx", track(5000.0))]
     points = load_gpx(files)
     photo_times = [T0 + 600 + 7 * k for k in range(8)]
     assert len(jumps(shots(points, [], photo_times))) >= 1
@@ -364,3 +365,21 @@ def test_a_steady_track_never_jumps():
     points = Hike(seed=11).walk(3600, east=1.5, jitter=3.0).points
     photo_times = [T0 + 10 + 0.5 * k for k in range(2000)]
     assert jumps(shots(points, [], photo_times)) == []
+
+
+def test_the_top_speed_counts_each_file_on_its_own(tmp_path):
+    # Two files 5 km apart, one at even and one at odd seconds: used
+    # together, the track zigzags between them at kilometres a second
+    def track(name, east, parity):
+        points = []
+        for k in range(parity, 600, 2):
+            lat, lon = position(east + 1.2 * k, 0.0)
+            when = datetime.fromtimestamp(T0 + k, timezone.utc)
+            points.append((when.strftime("%Y-%m-%dT%H:%M:%SZ"), lat, lon, None))
+        return write_gpx(tmp_path / name, points)
+    both = load_track([track("a.gpx", 0.0, 0), track("b.gpx", 5000.0, 1)], stops=False)
+    assert pace(both.points, []).top > 400
+    assert top_speed(both.points, both.sources) == pytest.approx(1.2)
+    alone = load_track([tmp_path / "a.gpx"], stops=False)
+    assert alone.sources is None
+    assert top_speed(alone.points) == pace(alone.points, []).top == pytest.approx(1.2)
