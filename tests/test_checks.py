@@ -4,14 +4,18 @@ The thresholds were chosen on a real 5.5-hour mountain hike recorded
 once a second (see test_private.py); these tests spell each one out on
 small synthetic tracks.
 """
+from datetime import datetime, timezone
+
 import pytest
 
+from conftest import write_gpx
 from gpxfoto.engine import checks
 from gpxfoto.engine.checks import (
-    MOTION_MIN_MOMENTS, SHIFT_MIN_PHOTOS, SHIFT_MIN_SHARE, Motion, ShiftHint, Shot, at_full_pace,
-    clearly_more_stops, mostly_fast, pace, photos_in_motion, shift_stands_out, whole_hour_shift)
-from gpxfoto.engine.track import find_stops, place
-from test_stops import T0, Hike
+    JUMP_SPEED, MOTION_MIN_MOMENTS, SHIFT_MIN_PHOTOS, SHIFT_MIN_SHARE, Jump, Motion, ShiftHint,
+    Shot, at_full_pace, clearly_more_stops, jumps, mostly_fast, pace, photos_in_motion,
+    shift_stands_out, suspicious_match, whole_hour_shift)
+from gpxfoto.engine.track import find_stops, load_gpx, place
+from test_stops import T0, Hike, position
 
 ZONE = 2 * 3600          # the photos were taken at UTC+02:00
 MAX_GAP = 120.0
@@ -282,3 +286,81 @@ def test_a_photo_in_a_break_in_recording_is_not_at_full_pace():
     pace_ = pace(points, find_stops(points))
     assert not at_full_pace(pace_, T0 + 750)
     assert at_full_pace(pace_, T0 + 300)
+
+
+def test_no_motion_warning_next_to_a_shift(track):
+    points, times, stops = track
+    found = suspicious_match(points, times, stops, shots(points, stops, at_stops(-3600)), MAX_GAP)
+    assert found.shift.shift == 3600 and found.motion is None and found.jumps == []
+
+
+# --- implausible jumps ------------------------------------------------
+
+def shot_at(clock, east, north=0.0, zone=ZONE):
+    lat, lon = position(east, north)
+    return Shot(clock - zone, clock, lat, lon)
+
+
+def test_photos_with_different_time_zones_jump():
+    # Walking at 1.2 m/s. b.jpg was taken 4 s after a.jpg, but its EXIF
+    # time zone is an hour off, so it is placed an hour further on
+    points = Hike(seed=9).walk(7200, east=1.2).points
+    times = [p[0] for p in points]
+    a = T0 + 1000
+    photos = []
+    for t, zone in ((a, ZONE), (a + 4 + 3600, ZONE - 3600)):
+        lat, lon = place(points, times, [], t, MAX_GAP)[:2]
+        photos.append(Shot(t, t + zone, lat, lon))
+    found = jumps(photos)
+    assert [(j.first, j.second, j.clock_gap) for j in found] == [(0, 1, 4.0)]
+    assert found[0].distance == pytest.approx(1.2 * 3604, rel=1e-3)
+
+
+@pytest.mark.parametrize("gap, distance, expected", [
+    (2.0, 399.0, False),
+    (2.0, 401.0, True),        # JUMP_SPEED (100 m/s) * (2 s + 1 s) + 100 m = 400 m
+    (0.0, 201.0, True),        # a burst: 100 m/s * 1 s + 100 m
+    (60.0, 6201.0, True),
+    (60.5, 50000.0, False),    # more than a minute apart: not checked
+])
+def test_the_jump_limit(gap, distance, expected):
+    assert JUMP_SPEED == 100.0
+    photos = [shot_at(T0, 0.0), shot_at(T0 + gap, distance)]
+    assert bool(jumps(photos)) is expected
+
+
+def test_a_car_on_the_motorway_does_not_jump():
+    # 130 km/h, a photo every 5 s, and a high-speed train at 300 km/h
+    for speed in (36.1, 83.3):
+        points = Hike(seed=10).walk(600, east=speed).points
+        photo_times = [T0 + 5 * k for k in range(1, 100)]
+        assert jumps(shots(points, [], photo_times)) == []
+
+
+def test_photos_are_paired_in_camera_order_and_unmatched_ones_are_left_out():
+    photos = [shot_at(T0 + 10, 5000.0), shot_at(T0, 0.0),
+              Shot(T0 + 5 - ZONE, T0 + 5, None, None)]
+    assert jumps(photos) == [Jump(1, 0, 10.0, pytest.approx(5000.0, rel=1e-3))]
+
+
+def test_two_tracks_recorded_at_the_same_time_jump(tmp_path):
+    # Two GPX files cover the same hour 5 km apart; load_gpx merges them
+    def track(east):
+        result = []
+        for k in range(0, 3600, 5):
+            lat, lon = position(east + 1.2 * k, 0.0)
+            when = datetime.fromtimestamp(T0 + k, timezone.utc)
+            result.append((when.strftime("%Y-%m-%dT%H:%M:%SZ"), lat, lon, None))
+        return result
+    files = [write_gpx(tmp_path / "a.gpx", track(0.0)), write_gpx(tmp_path / "b.gpx", track(5000.0))]
+    points = load_gpx(files)
+    photo_times = [T0 + 600 + 7 * k for k in range(8)]
+    assert len(jumps(shots(points, [], photo_times))) >= 1
+
+
+def test_a_steady_track_never_jumps():
+    # Without a break in time zones or tracks, two photos are as far
+    # apart as the track moved between them
+    points = Hike(seed=11).walk(3600, east=1.5, jitter=3.0).points
+    photo_times = [T0 + 10 + 0.5 * k for k in range(2000)]
+    assert jumps(shots(points, [], photo_times)) == []

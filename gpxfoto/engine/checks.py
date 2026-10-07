@@ -64,6 +64,17 @@ MOTION_MARGIN = 0.0
 # photos at full pace" say anything about the clock
 MOTION_MIN_BASE = 0.6
 
+# Implausible jumps between photos taken one after the other. Faster
+# than any car or train, plus the step of EXIF times (one second) and
+# how far a matched position can be off: up to 100 m when locate
+# interpolates across a break in recording.
+JUMP_WINDOW = 60.0               # s of camera time between the two photos
+JUMP_SPEED = 100.0               # m/s (360 km/h)
+JUMP_CLOCK_STEP = 1.0            # s
+JUMP_ACCURACY = 100.0            # m
+# A track that itself moves faster (a plane) raises the limit
+JUMP_TRACK_FACTOR = 1.5
+
 # The track's speeds for the motion check, from pace(): times of its
 # points, slow as prefix counts of slow points (slow[j] - slow[i] slow
 # points among i..j-1), typical in m/s or None when the track barely moves
@@ -75,6 +86,23 @@ Pace = namedtuple("Pace", "times slow typical fast_share top")
 ShiftHint = namedtuple("ShiftHint", "shift pinned matched stops pinned_now")
 # fast of matched photos, and fast_moments of moments, at full pace
 Motion = namedtuple("Motion", "fast matched fast_moments moments")
+# first and second: indices into the shots, in camera order; clock_gap in
+# s, distance in m
+Jump = namedtuple("Jump", "first second clock_gap distance")
+Suspicion = namedtuple("Suspicion", "shift motion jumps")
+
+
+def suspicious_match(points, times, stops, shots, max_gap, pace_=None):
+    """All three checks of one track. pace_ is pace(points, stops), worked
+    out here when it is None."""
+    if pace_ is None:
+        pace_ = pace(points, stops)
+    shift = whole_hour_shift(points, times, stops, shots, max_gap)
+    motion = None
+    # A whole-hour shift already says that the clock is off
+    if shift is None and sum(s.lat is not None for s in shots) >= MOTION_MIN_MOMENTS:
+        motion = photos_in_motion(pace_, shots)
+    return Suspicion(shift, motion, jumps(shots, pace_.top))
 
 
 def _distance_m(lat1, lon1, lat2, lon2):
@@ -276,3 +304,23 @@ def photos_in_motion(pace_, shots):
 def mostly_fast(fast, matched, fast_moments, moments):
     """Whether more than half of the photos and of the moments are at full pace."""
     return moments >= MOTION_MIN_MOMENTS and 2 * fast > matched and 2 * fast_moments > moments
+
+
+# --- implausible jumps ------------------------------------------------
+
+def jumps(shots, top_speed=0.0):
+    """Pairs of matched photos, next to each other in camera time, that are
+    too far apart for the time between them."""
+    order = sorted((i for i, s in enumerate(shots) if s.lat is not None),
+                   key=lambda i: shots[i].clock)
+    found = []
+    for i, j in zip(order, order[1:]):
+        a, b = shots[i], shots[j]
+        gap = b.clock - a.clock
+        if gap > JUMP_WINDOW:
+            continue
+        distance = _distance_m(a.lat, a.lon, b.lat, b.lon)
+        speed = max(JUMP_SPEED, JUMP_TRACK_FACTOR * top_speed)
+        if distance > speed * (gap + JUMP_CLOCK_STEP) + JUMP_ACCURACY:
+            found.append(Jump(i, j, gap, distance))
+    return found
