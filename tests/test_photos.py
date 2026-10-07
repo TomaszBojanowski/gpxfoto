@@ -240,6 +240,22 @@ def test_capture_time_unreadable_date_does_not_fall_back_to_create_date():
     assert capture_time(meta, None) == (None, "invalid capture time in EXIF: 0000:00:00 00:00:00")
 
 
+# format_utc_offset
+
+@pytest.mark.parametrize("offset, text", [
+    (timedelta(0), "+00:00"),
+    (timedelta(hours=2), "+02:00"),
+    (timedelta(hours=-5), "-05:00"),
+    (timedelta(hours=5, minutes=45), "+05:45"),
+    (timedelta(hours=-3, minutes=-30), "-03:30"),
+    (timedelta(minutes=-30), "-00:30"),
+    (timedelta(hours=14), "+14:00"),
+])
+def test_format_utc_offset(offset, text):
+    assert photos.format_utc_offset(offset) == text
+    assert photos.parse_utc_offset(text).utcoffset(None) == offset
+
+
 # photo_from_metadata
 
 @pytest.mark.parametrize("meta, manual, expected", [

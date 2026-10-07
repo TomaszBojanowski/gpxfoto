@@ -134,6 +134,16 @@ def parse_utc_offset(text):
     return timezone(-offset if match[1] == "-" else offset)
 
 
+def format_utc_offset(offset):
+    """The text of a UTC offset given as a timedelta, e.g. "+02:00" or "-05:30".
+
+    parse_utc_offset() reads it back.
+    """
+    minutes = round(offset.total_seconds() / 60)
+    hours, minutes = divmod(abs(minutes), 60)
+    return f"{'-' if offset < timedelta(0) else '+'}{hours:02}:{minutes:02}"
+
+
 def photo_from_metadata(meta, manual_tz):
     """Return the Photo described by exiftool's metadata of one file."""
     taken, detail = capture_time(meta, manual_tz)

@@ -8,7 +8,7 @@ msgstr ""
 "Project-Id-Version: gpxfoto\n"
 "Report-Msgid-Bugs-To: "
 "https://github.com/tomaszbojanowski/gpxfoto/issues\n"
-"POT-Creation-Date: 2026-10-07 19:29+0000\n"
+"POT-Creation-Date: 2026-10-07 19:32+0000\n"
 "PO-Revision-Date: 2026-10-06 23:45+0200\n"
 "Last-Translator: Tomasz <t.bojanowski@protonmail.com>\n"
 "Language-Team: Polish\n"
@@ -275,6 +275,19 @@ msgstr ""
 "Sprawdzono, że dane obrazu w każdym zapisanym pliku pozostały bez "
 "zmian."
 
+#. Translators: {value} is what the user gave as the time on the clock;
+#. HH:MM:SS and HH:MM stand for hours, minutes and seconds
+#: gpxfoto/engine/clock.py:58
+#, python-brace-format
+msgid ""
+"not a valid time: {value} (use HH:MM:SS or HH:MM, optionally with a "
+"date and a UTC offset, for example 14:03:27, 2026-10-06T14:03:27 or "
+"14:03:27+02:00)"
+msgstr ""
+"nieprawidłowy czas: {value} (należy podać GG:MM:SS lub GG:MM, "
+"opcjonalnie z datą i przesunięciem względem UTC, na przykład "
+"14:03:27, 2026-10-06T14:03:27 lub 14:03:27+02:00)"
+
 #. Translators: reason why a photo was skipped
 #: gpxfoto/engine/matching.py:27
 msgid "already has a location"
@@ -308,18 +321,18 @@ msgid "exiftool could not read the file"
 msgstr "program exiftool nie mógł odczytać pliku"
 
 #. Translators: reason why a photo was skipped; {error} comes from exiftool
-#: gpxfoto/engine/photos.py:151
+#: gpxfoto/engine/photos.py:161
 #, python-brace-format
 msgid "cannot be read: {error}"
 msgstr "nie można odczytać pliku: {error}"
 
 #. Translators: reason why a photo was skipped
-#: gpxfoto/engine/photos.py:153
+#: gpxfoto/engine/photos.py:163
 msgid "no capture time in EXIF"
 msgstr "brak daty wykonania w EXIF"
 
 #. Translators: reason why a photo was skipped; {value} is the text found
-#: gpxfoto/engine/photos.py:165
+#: gpxfoto/engine/photos.py:175
 #, python-brace-format
 msgid "invalid capture time in EXIF: {value}"
 msgstr "nieprawidłowa data wykonania w EXIF: {value}"

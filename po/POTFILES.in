@@ -1,4 +1,5 @@
 gpxfoto/cli.py
+gpxfoto/engine/clock.py
 gpxfoto/engine/matching.py
 gpxfoto/engine/photos.py
 gpxfoto/engine/track.py
