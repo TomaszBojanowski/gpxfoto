@@ -186,10 +186,18 @@ def test_damaged_structure_raises(checksum, data):
     assert str(error.value) == "damaged JPEG structure"
 
 
+@pytest.mark.parametrize("marker", [b"\xff\xe0", b"\xff\xdb"])
 @pytest.mark.parametrize("length", [0, 1])
-def test_segment_length_below_two_raises(checksum, length):
-    with pytest.raises(ValueError):
-        checksum(ORIGINAL[:2] + b"\xff\xe0" + struct.pack(">H", length) + ORIGINAL[6:])
+def test_segment_length_below_two_raises(checksum, marker, length):
+    with pytest.raises(ValueError) as error:
+        checksum(ORIGINAL[:2] + marker + struct.pack(">H", length) + ORIGINAL[6:])
+    assert str(error.value) == "damaged JPEG structure"
+
+
+def test_segment_longer_than_the_file_raises(checksum):
+    with pytest.raises(ValueError) as error:
+        checksum(ORIGINAL[:2] + b"\xff\xe1" + struct.pack(">H", 60000) + b"Exif")
+    assert str(error.value) == "damaged JPEG structure"
 
 
 # Scans larger than one read block

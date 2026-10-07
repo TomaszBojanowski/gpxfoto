@@ -37,7 +37,12 @@ def image_checksum(path):
                     if not block:
                         return digest.hexdigest()
                     digest.update(block)
+            # The length includes its own two bytes
+            if length < 2:
+                raise ValueError(_("damaged JPEG structure"))
             data = f.read(length - 2)
+            if len(data) != length - 2:
+                raise ValueError(_("damaged JPEG structure"))
             if not metadata:
                 digest.update(header)
                 digest.update(data)
