@@ -331,6 +331,33 @@ def test_non_jpeg_photo_is_rejected_before_exiftool(tmp_path, fake_exiftool):
     assert os.listdir(tmp_path) == ["photo.jpg"]
 
 
+@pytest.mark.parametrize("lat, lon, ele, location", [
+    (float("nan"), 19.0, 200.0, "nan, 19.0, 200.0 m"),
+    (50.0, float("inf"), None, "50.0, inf"),
+    (90.5, 19.0, None, "90.5, 19.0"),
+    (50.0, -180.25, None, "50.0, -180.25"),
+    (50.0, 19.0, float("nan"), "50.0, 19.0, nan m"),
+    (50.0, 19.0, float("-inf"), "50.0, 19.0, -inf m"),
+])
+def test_invalid_location_is_refused_before_exiftool(tmp_path, photo, fake_exiftool,
+                                                     lat, lon, ele, location):
+    before = state(photo)
+    fake = fake_exiftool()
+    with pytest.raises(ValueError) as raised:
+        write_location(photo, lat, lon, ele, TIME, backup=True)
+    assert str(raised.value) == f"invalid location: {location}"
+    assert fake.commands == []
+    assert state(photo) == before
+    assert os.listdir(tmp_path) == ["photo.jpg"]
+
+
+@pytest.mark.parametrize("lat, lon", [(90.0, 180.0), (-90.0, -180.0)])
+def test_location_at_the_limits_is_written(photo, fake_exiftool, lat, lon):
+    fake = fake_exiftool()
+    write_location(photo, lat, lon, None, TIME, backup=False)
+    assert len(fake.commands) == 1
+
+
 def test_backup_is_copy_of_original(tmp_path, photo, fake_exiftool):
     before = state(photo)
     fake_exiftool()

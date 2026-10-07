@@ -8,7 +8,7 @@ msgstr ""
 "Project-Id-Version: gpxfoto\n"
 "Report-Msgid-Bugs-To: "
 "https://github.com/tomaszbojanowski/gpxfoto/issues\n"
-"POT-Creation-Date: 2026-10-07 06:31+0000\n"
+"POT-Creation-Date: 2026-10-07 06:33+0000\n"
 "PO-Revision-Date: 2026-10-06 23:45+0200\n"
 "Last-Translator: Tomasz <t.bojanowski@protonmail.com>\n"
 "Language-Team: Polish\n"
@@ -341,18 +341,23 @@ msgstr "{minutes} min"
 msgid "{hours} h {minutes} min"
 msgstr "{hours} h {minutes} min"
 
-#: gpxfoto/engine/writer.py:24
+#: gpxfoto/engine/writer.py:25
 msgid "not a JPEG file"
 msgstr "to nie jest plik JPEG"
 
-#: gpxfoto/engine/writer.py:28
+#: gpxfoto/engine/writer.py:29
 msgid "damaged JPEG structure"
 msgstr "uszkodzona struktura JPEG"
 
-#: gpxfoto/engine/writer.py:66
+#: gpxfoto/engine/writer.py:50
+#, python-brace-format
+msgid "invalid location: {location}"
+msgstr "nieprawidłowe położenie: {location}"
+
+#: gpxfoto/engine/writer.py:71
 msgid "exiftool did not write the file"
 msgstr "program exiftool nie zapisał pliku"
 
-#: gpxfoto/engine/writer.py:68
+#: gpxfoto/engine/writer.py:73
 msgid "exiftool changed the image data; the result was discarded"
 msgstr "program exiftool zmienił dane obrazu; wynik odrzucono"

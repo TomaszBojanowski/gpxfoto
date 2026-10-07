@@ -1,5 +1,6 @@
 """Writing the location with exiftool while checking that the image is untouched."""
 import hashlib
+import math
 import os
 import shutil
 import subprocess
@@ -43,6 +44,10 @@ def image_checksum(path):
 
 
 def write_location(path, lat, lon, ele, time_utc, backup):
+    # Comparisons with NaN are false, so this also rules out NaN and infinity
+    if not (-90 <= lat <= 90 and -180 <= lon <= 180 and (ele is None or math.isfinite(ele))):
+        location = f"{lat}, {lon}" if ele is None else f"{lat}, {lon}, {ele} m"
+        raise ValueError(_("invalid location: {location}").format(location=location))
     before = image_checksum(path)
     directory = os.path.dirname(os.path.abspath(path))
     fd, temp = tempfile.mkstemp(prefix=TEMP_PREFIX, suffix=".jpg", dir=directory)
