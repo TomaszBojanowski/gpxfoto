@@ -259,6 +259,21 @@ def test_track_files_no_photo_needs_are_not_read(photo, track_dir):
 
 
 @needs_exiftool
+def test_track_file_that_cannot_be_scanned_quickly_is_read(photo, tmp_path):
+    tracks = tmp_path / "tracks"
+    tracks.mkdir()
+    # A DOCTYPE could define what a time is, so the quick scan gives up
+    text = write_gpx(tracks / "day1.gpx", TRACK).read_text()
+    (tracks / "day1.gpx").write_text(text.replace("<gpx ", "<!DOCTYPE gpx>\n<gpx ", 1))
+    path = photo("a.jpg", taken("12:00:50"))
+
+    result = run_cli(path, "-g", tracks)
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.splitlines()[2] == MATCH_LINE + "  day1.gpx"
+
+
+@needs_exiftool
 def test_directory_without_tracks(photo, tmp_path):
     path = photo("a.jpg", taken("12:00:50"))
     (tmp_path / "empty").mkdir()

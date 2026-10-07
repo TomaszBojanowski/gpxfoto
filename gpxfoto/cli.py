@@ -424,7 +424,8 @@ def main():
 
     photos = [photo_from_metadata(meta, manual_tz) for meta in metadata]
     if found:
-        if not tracks and not any(spans.values()):
+        # Only when the scans are sure that no file has a time
+        if not tracks and all(span == () for span in spans.values()):
             sys.exit(no_points(len(named) + len(found)))
         times = corrected_times(photos, correction, args.overwrite)
         for path in tracks_needed(spans, times, args.max_gap):
