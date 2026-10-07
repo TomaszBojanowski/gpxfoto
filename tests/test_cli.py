@@ -7,7 +7,9 @@ import sys
 
 import pytest
 
-from conftest import make_jpeg, latin2_name, needs_exiftool, read_tags, run_cli, set_tags, write_gpx
+from conftest import (
+    latin2_name, make_jpeg, needs_exiftool, read_tags, run_cli, set_panasonic_time_stamp,
+    set_tags, write_gpx)
 from gpxfoto import cli, i18n
 from gpxfoto.engine.writer import image_checksum
 
@@ -376,6 +378,61 @@ def test_clock_options_are_checked_first(tmp_path, options, message):
     assert result.returncode == 2
     assert result.stdout == ""
     assert result.stderr.endswith(f"gpxfoto: error: {message}\n")
+
+
+@pytest.fixture
+def s5ii_photo(photo):
+    """A photo with the UTC time an S5II records in its maker note."""
+    def create(name, local_time, camera_utc, offset="+02:00"):
+        path = photo(name, taken(local_time, offset))
+        set_panasonic_time_stamp(path, f"2024:05:01 {camera_utc}")
+        os.utime(path, ns=(OLD_TIME_NS, OLD_TIME_NS))
+        return path
+    return create
+
+
+@needs_exiftool
+def test_capture_time_matching_the_camera_utc_time_changes_nothing(s5ii_photo, gpx):
+    path = s5ii_photo("a.jpg", "12:00:50", "10:00:50")
+
+    result = run_cli(path, "-g", gpx)
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.splitlines() == [
+        TRACK_LINE, MATCH_LINE, "Matched: 1, skipped: 0", PREVIEW_LINE]
+
+
+@needs_exiftool
+def test_capture_time_against_the_camera_utc_time_is_noted(s5ii_photo, gpx):
+    # The camera was at +02:00, but its photos have no offset in EXIF
+    first = s5ii_photo("a.jpg", "12:00:50", "10:00:50", offset=None)
+    s5ii_photo("b.jpg", "12:30:00", "10:30:00", offset=None)
+    s5ii_photo("c.jpg", "11:00:50", "09:00:50", offset=None)
+
+    result = run_cli(first.parent, "-g", gpx, "--timezone", "+01:00")
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.splitlines()[1:4] == [
+        "  a.jpg            12:00:50  skipped: 59 min after the end of the track"
+        "  [camera’s UTC time suggests +02:00]",
+        "  b.jpg            12:30:00  skipped: 88 min after the end of the track"
+        "  [camera’s UTC time suggests +02:00]",
+        "  c.jpg            11:00:50  50.000500, 20.001000    205 m"
+        "  [time zone from --timezone; camera’s UTC time suggests +02:00]",
+    ]
+
+
+@needs_exiftool
+def test_capture_time_changed_in_exif_is_noted(s5ii_photo, gpx):
+    # Another program moved the capture time in EXIF by an hour
+    path = s5ii_photo("a.jpg", "12:00:20", "09:00:20")
+
+    result = run_cli(path, "-g", gpx)
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.splitlines()[1] == (
+        "  a.jpg            12:00:20  50.000200, 20.000400    202 m"
+        "  [differs by 60 min from the camera’s UTC time]")
 
 
 @needs_exiftool

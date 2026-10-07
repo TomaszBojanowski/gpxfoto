@@ -162,24 +162,41 @@ def build_parser():
     return parser
 
 
+def time_check_note(check):
+    """The note on a photo whose capture time does not match the camera's UTC time."""
+    if check.suggested_tz is not None:
+        # Translators: a note on the line of a photo; {zone} is a UTC offset
+        # such as +02:00
+        return _("camera’s UTC time suggests {zone}").format(
+            zone=format_utc_offset(check.suggested_tz.utcoffset(None)))
+    # Translators: a note on the line of a photo; {duration} is a time span
+    # such as “10 min”
+    return _("differs by {duration} from the camera’s UTC time").format(
+        duration=i18n.duration(abs(check.difference)))
+
+
 def photo_line(result):
     """The preview line of one photo."""
     name = printable(os.path.basename(result.photo.path))
     time = "" if result.time is None else f"{result.time:%X}  "
+    notes = []
+    if result.reason is None and result.photo.tz_source in TZ_NOTES:
+        notes.append(_(TZ_NOTES[result.photo.tz_source]).format(option="--timezone"))
+    if result.time_check is not None:
+        notes.append(time_check_note(result.time_check))
+    notes = "  [" + "; ".join(notes) + "]" if notes else ""
     if result.reason is not None:
         # Translators: shown after the file name of a photo; {reason} says
         # why the photo was skipped, e.g. “already has a location”
-        return f"  {name:<16} {time}" + _("skipped: {reason}").format(reason=result.reason)
+        return (f"  {name:<16} {time}" + _("skipped: {reason}").format(reason=result.reason)
+                + notes)
     position = i18n.coordinates(result.lat, result.lon)
     if result.ele is not None:
         # Translators: elevation in metres
         ele_text = _("{elevation} m").format(elevation=i18n.number(result.ele, width=6))
     else:
         ele_text = "       —"
-    note = ""
-    if result.photo.tz_source in TZ_NOTES:
-        note = "  [" + _(TZ_NOTES[result.photo.tz_source]).format(option="--timezone") + "]"
-    return f"  {name:<16} {time}{position} {ele_text}{note}"
+    return f"  {name:<16} {time}{position} {ele_text}{notes}"
 
 
 def clock_lines(clock):

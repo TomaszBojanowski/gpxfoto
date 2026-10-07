@@ -3,15 +3,17 @@ from collections import namedtuple
 from datetime import timedelta, timezone
 from gettext import gettext as _
 
+from gpxfoto.engine.photos import check_against_camera_utc
 from gpxfoto.engine.track import match
 
 # The outcome for one photo. time is the corrected capture time in the
 # photo's own time zone and time_utc the same in UTC; both are None when
 # they were not worked out (the photo already has a location, has no
 # capture time, or the correction moves it out of range). reason is None
-# for a matched photo and otherwise says why it was skipped.
-PhotoResult = namedtuple("PhotoResult", "photo time time_utc lat lon ele gap reason",
-                         defaults=(None,) * 7)
+# for a matched photo and otherwise says why it was skipped. time_check
+# is a TimeCheck when the capture time does not match the camera's UTC time.
+PhotoResult = namedtuple("PhotoResult", "photo time time_utc lat lon ele gap reason time_check",
+                         defaults=(None,) * 8)
 
 Summary = namedtuple("Summary", "matched skipped")
 
@@ -27,16 +29,22 @@ def match_photo(photo, tracks, correction, max_gap, overwrite=False):
         return PhotoResult(photo, reason=_("already has a location"))
     if photo.taken is None:
         return PhotoResult(photo, reason=photo.reason)
+    time_check = None
+    if photo.camera_utc is not None:
+        time_check = check_against_camera_utc(photo.taken, photo.tz_source, photo.camera_utc,
+                                              correction)
     try:
         time = photo.taken + timedelta(seconds=correction)
         time_utc = time.astimezone(timezone.utc)
     except OverflowError:
         # Translators: reason why a photo was skipped
-        return PhotoResult(photo, reason=_("the corrected capture time is out of range"))
+        return PhotoResult(photo, reason=_("the corrected capture time is out of range"),
+                           time_check=time_check)
     found = match(tracks, time.timestamp(), max_gap)
     if found.reason is not None:
-        return PhotoResult(photo, time, time_utc, reason=found.reason)
-    return PhotoResult(photo, time, time_utc, found.lat, found.lon, found.ele, found.gap)
+        return PhotoResult(photo, time, time_utc, reason=found.reason, time_check=time_check)
+    return PhotoResult(photo, time, time_utc, found.lat, found.lon, found.ele, found.gap,
+                       time_check=time_check)
 
 
 def match_photos(photos, tracks, correction, max_gap, **options):
