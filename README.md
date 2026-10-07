@@ -153,6 +153,32 @@ were taken during stops. Photos are mostly taken while standing, so with a
 wrong camera clock this number is usually lower. `--no-stops` turns stops
 off.
 
+### Warnings
+
+In the preview, gpxfoto points out signs that the camera clock is off. It
+never changes anything by itself.
+
+- **A shift of whole hours.** If, with the photo times moved by half an
+  hour or by whole hours (up to 12), clearly more photos fall during stops,
+  at four or more different stops, gpxfoto proposes that shift with the
+  option that applies it: `--offset`; `--timezone` as well when no
+  correction was given and all photos have the same time zone; or
+  `--clock-time` with another UTC offset when the correction comes from a
+  clock photo. A difference of exactly one hour usually means a camera not
+  switched to or from summer time.
+- **Photos in motion.** If most photos fall where the track moves at its
+  full pace, not at stops or where it slows down, the camera clock may be
+  off by a few minutes.
+- **Implausible jumps.** Photos taken less than a minute apart but placed
+  farther apart than anything could travel in that time (100 m/s, more on
+  a faster track) usually have different time zones in EXIF, or come from
+  GPX files of different trips recorded at the same time.
+
+The first two need the stops and speeds of one track: they are left out
+when the matched photos come from several tracks, and with `--no-stops`.
+The thresholds were chosen on a real hike; with the right clock, they gave
+no warning for any of 900 modelled sets of photos.
+
 With `--backup`, a copy of each photo as it was before goes into an
 `originals` directory next to it. gpxfoto marks that directory with a
 `.gpxfoto` file, never changes the copies in it, and leaves it out when

@@ -157,6 +157,33 @@ zdjęć wykonano podczas postojów. Zdjęcia robi się przeważnie na postoju,
 więc przy źle ustawionym zegarze aparatu ta liczba jest zwykle mniejsza.
 Opcja `--no-stops` wyłącza postoje.
 
+### Ostrzeżenia
+
+W podglądzie gpxfoto wskazuje oznaki, że zegar aparatu jest źle ustawiony.
+Sam niczego nie zmienia.
+
+- **Przesunięcie o pełne godziny.** Jeśli po przesunięciu czasu zdjęć o pół
+  godziny lub o pełne godziny (do 12) wyraźnie więcej zdjęć wypada na
+  postojach, i to na co najmniej czterech różnych, gpxfoto proponuje takie
+  przesunięcie wraz z opcją, która je stosuje: `--offset`; także
+  `--timezone`, gdy nie podano poprawki, a wszystkie zdjęcia mają tę samą
+  strefę czasową; albo `--clock-time` z innym przesunięciem względem UTC,
+  gdy poprawka pochodzi ze zdjęcia zegara. Różnica dokładnie jednej godziny
+  zwykle oznacza, że w aparacie nie przestawiono czasu na letni lub zimowy.
+- **Zdjęcia w ruchu.** Jeśli większość zdjęć wypada w chwilach, gdy według
+  trasy poruszano się pełnym tempem, a nie na postojach ani przy
+  zwalnianiu, zegar aparatu może się mylić o kilka minut.
+- **Nieprawdopodobne przeskoki.** Zdjęcia zrobione w odstępie krótszym niż
+  minuta, ale umieszczone dalej od siebie, niż cokolwiek mogłoby w tym
+  czasie przebyć (100 m/s, na szybszej trasie więcej), zwykle mają w EXIF
+  różne strefy czasowe albo pochodzą z plików GPX różnych wycieczek
+  nagranych w tym samym czasie.
+
+Dwa pierwsze ostrzeżenia wymagają postojów i prędkości jednej trasy: nie
+pojawiają się, gdy dopasowane zdjęcia pochodzą z kilku tras, ani z opcją
+`--no-stops`. Progi dobrano na prawdziwej wycieczce; przy dobrze ustawionym
+zegarze nie dały żadnego ostrzeżenia w 900 modelowanych zestawach zdjęć.
+
 Z opcją `--backup` kopia każdego zdjęcia sprzed zapisu trafia do katalogu
 `originals` obok niego. gpxfoto oznacza ten katalog plikiem `.gpxfoto`,
 nigdy nie zmienia znajdujących się w nim kopii i pomija go przy
