@@ -356,14 +356,27 @@ HELP = {
 }
 
 
+def split_usage(output):
+    """Return the usage of argparse output as one line, and the lines after it.
+
+    argparse wraps a long usage onto indented lines; where it wraps
+    depends on the terminal width, so the lines are joined.
+    """
+    lines = output.splitlines()
+    end = next((i for i, line in enumerate(lines) if i and not line.startswith(" ")), len(lines))
+    return " ".join(line.strip() for line in lines[:end]), lines[end:]
+
+
 def test_help_is_polish(polish_cli, capsys):
     with pytest.raises(SystemExit) as exit_info:
         polish_cli("--help")
     assert exit_info.value.code == 0
     output = capsys.readouterr().out
+    usage, rest = split_usage(output)
+    assert usage == USAGE
+    assert rest[:2] == ["", "Dopisuje do zdjęć położenie na podstawie tras GPX, "
+                            "nie zmieniając danych obrazu."]
     lines = output.splitlines()
-    assert lines[:3] == [USAGE, "", "Dopisuje do zdjęć położenie na podstawie tras GPX, "
-                                    "nie zmieniając danych obrazu."]
     assert "argumenty pozycyjne:" in lines
     assert "opcje:" in lines
     # "-g GPX, --gpx GPX" before Python 3.13, "-g, --gpx GPX" since
@@ -394,7 +407,8 @@ def test_argparse_errors_are_polish(polish_cli, capsys, args, message):
     assert exit_info.value.code == 2
     captured = capsys.readouterr()
     assert captured.out == ""
-    assert captured.err == f"{USAGE}\ngpxfoto: błąd: {message}\n"
+    assert split_usage(captured.err) == (USAGE, [f"gpxfoto: błąd: {message}"])
+    assert captured.err.endswith("\n")
 
 
 def test_missing_exiftool_message_is_polish(polish_cli, monkeypatch):
