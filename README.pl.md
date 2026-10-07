@@ -173,7 +173,9 @@ Sam niczego nie zmienia.
   zwykle oznacza, że w aparacie nie przestawiono czasu na letni lub zimowy.
 - **Zdjęcia w ruchu.** Jeśli większość zdjęć wypada w chwilach, gdy według
   trasy poruszano się pełnym tempem, a nie na postojach ani przy
-  zwalnianiu, zegar aparatu może się mylić o kilka minut.
+  zwalnianiu, zegar aparatu może się mylić o kilka minut. Kto robi
+  większość zdjęć, nie zatrzymując się, może dostać to ostrzeżenie także
+  przy dobrze ustawionym zegarze.
 - **Nieprawdopodobne przeskoki.** Zdjęcia zrobione w odstępie krótszym niż
   minuta, ale umieszczone dalej od siebie, niż cokolwiek mogłoby w tym
   czasie przebyć (100 m/s, na szybszej trasie więcej), zwykle mają w EXIF
@@ -183,7 +185,8 @@ Sam niczego nie zmienia.
 Dwa pierwsze ostrzeżenia wymagają postojów i prędkości jednej trasy: nie
 pojawiają się, gdy dopasowane zdjęcia pochodzą z kilku tras, ani z opcją
 `--no-stops`. Progi dobrano na prawdziwej wycieczce; przy dobrze ustawionym
-zegarze nie dały żadnego ostrzeżenia w 900 modelowanych zestawach zdjęć.
+zegarze nie dały żadnego ostrzeżenia w 900 modelowanych zestawach zdjęć
+zrobionych głównie na postojach i krótkich przystankach.
 
 ### Kierunek ruchu
 

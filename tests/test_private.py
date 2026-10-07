@@ -219,6 +219,17 @@ def test_a_clock_off_by_minutes_gives_the_motion_warning(real_track, error):
 
 
 @needs_tracks
+def test_photos_taken_while_walking_on_can_give_the_motion_warning(real_track):
+    # The limit of the motion check: someone who takes 90% of the photos
+    # while walking on gets it with a right clock in 41 of 100 sets of 40
+    # photos on the hike, as most of the photos are at full pace
+    walker = (0.05, 0.05, 0.9)
+    warned = sum(real_track.warnings(real_track.shots(seed, 40, walker)).motion is not None
+                 for seed in range(100))
+    assert warned <= 50, f"warned {warned} of 100"
+
+
+@needs_tracks
 def test_checking_1000_photos_is_quick(real_track):
     shots = real_track.shots(7, 1000, PHOTOGRAPHERS["mixed"], 300)
     elapsed = []

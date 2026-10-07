@@ -169,7 +169,8 @@ never changes anything by itself.
   switched to or from summer time.
 - **Photos in motion.** If most photos fall where the track moves at its
   full pace, not at stops or where it slows down, the camera clock may be
-  off by a few minutes.
+  off by a few minutes. Someone who takes most photos while walking on can
+  get this warning with a right clock.
 - **Implausible jumps.** Photos taken less than a minute apart but placed
   farther apart than anything could travel in that time (100 m/s, more on
   a faster track) usually have different time zones in EXIF, or come from
@@ -178,7 +179,8 @@ never changes anything by itself.
 The first two need the stops and speeds of one track: they are left out
 when the matched photos come from several tracks, and with `--no-stops`.
 The thresholds were chosen on a real hike; with the right clock, they gave
-no warning for any of 900 modelled sets of photos.
+no warning for any of 900 modelled sets of photos taken mostly at stops and
+short pauses.
 
 ### Direction of travel
 
