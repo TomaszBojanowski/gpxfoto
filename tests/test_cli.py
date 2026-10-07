@@ -309,6 +309,23 @@ def test_time_zone_of_the_clock_photo_is_noted(photo, gpx, clock_photo, options,
 
 
 @needs_exiftool
+def test_clock_time_without_seconds_is_noted(photo, gpx, clock_photo):
+    watch = clock_photo()
+    path = photo("a.jpg", taken("11:58:38"))
+
+    result = run_cli(path, "-g", gpx, "--clock-photo", watch, "--clock-time", "12:00")
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.splitlines()[1:4] == [
+        "Clock correction: +1 min 52 s (equivalent to --offset=112)",
+        "Clock photo watch.jpg: camera 05/01/24 11:58:38 UTC+02:00, clock 05/01/24 12:00:30 "
+        "UTC+02:00",
+        "The time on the clock was given without seconds, so the middle of the minute was used; "
+        "the correction may be off by up to 30 s.",
+    ]
+
+
+@needs_exiftool
 def test_correction_that_could_be_wrong_changes_nothing(photo, gpx, clock_photo):
     # The camera was not switched to summer time, so its offset is +01:00
     watch = clock_photo(*taken("10:57:38", offset="+01:00"))

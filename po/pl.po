@@ -8,7 +8,7 @@ msgstr ""
 "Project-Id-Version: gpxfoto\n"
 "Report-Msgid-Bugs-To: "
 "https://github.com/tomaszbojanowski/gpxfoto/issues\n"
-"POT-Creation-Date: 2026-10-07 19:37+0000\n"
+"POT-Creation-Date: 2026-10-07 19:40+0000\n"
 "PO-Revision-Date: 2026-10-06 23:45+0200\n"
 "Last-Translator: Tomasz <t.bojanowski@protonmail.com>\n"
 "Language-Team: Polish\n"
@@ -248,26 +248,34 @@ msgstr "UTC{offset}"
 msgid "Clock photo {name}: camera {camera}, clock {clock}"
 msgstr "Zdjęcie zegara {name}: aparat {camera}, zegar {clock}"
 
+#: gpxfoto/cli.py:209
+msgid ""
+"The time on the clock was given without seconds, so the middle of the "
+"minute was used; the correction may be off by up to 30 s."
+msgstr ""
+"Czas na zegarze podano bez sekund, więc przyjęto środek minuty; "
+"poprawka może się różnić od właściwej o najwyżej 30 s."
+
 #. Translators: {option} and {other} are command-line options
-#: gpxfoto/cli.py:218
+#: gpxfoto/cli.py:222
 #, python-brace-format
 msgid "{option} must be used together with {other}"
 msgstr "opcji {option} należy użyć razem z opcją {other}"
 
 #. Translators: {option} and {other} are command-line options
-#: gpxfoto/cli.py:222
+#: gpxfoto/cli.py:226
 #, python-brace-format
 msgid "{option} cannot be used together with {other}"
 msgstr "opcji {option} nie można użyć razem z opcją {other}"
 
-#: gpxfoto/cli.py:226
+#: gpxfoto/cli.py:230
 #, python-brace-format
 msgid "exiftool is not installed. On Fedora, install it with: {command}"
 msgstr ""
 "Program exiftool nie jest zainstalowany. W systemie Fedora można go "
 "zainstalować poleceniem: {command}"
 
-#: gpxfoto/cli.py:235
+#: gpxfoto/cli.py:239
 msgid ""
 "The time zone must be in the form +HH:MM, for example +02:00 or "
 "-05:00."
@@ -275,7 +283,7 @@ msgstr ""
 "Strefę czasową należy podać w postaci +GG:MM, na przykład +02:00 lub "
 "-05:00."
 
-#: gpxfoto/cli.py:249
+#: gpxfoto/cli.py:253
 msgid "The GPX file contains no track points with timestamps."
 msgid_plural "The GPX files contain no track points with timestamps."
 msgstr[0] "Plik GPX nie zawiera punktów trasy ze znacznikami czasu."
@@ -284,7 +292,7 @@ msgstr[2] "Pliki GPX nie zawierają punktów trasy ze znacznikami czasu."
 
 #. Translators: {start} and {end} are the date and time of the first and the
 #. last track point
-#: gpxfoto/cli.py:256
+#: gpxfoto/cli.py:260
 #, python-brace-format
 msgid "Track: {count} point, {start} – {end} (this computer’s time zone)"
 msgid_plural "Track: {count} points, {start} – {end} (this computer’s time zone)"
@@ -294,22 +302,22 @@ msgstr[2] "Trasa: {count} punktów, {start} – {end} (strefa czasowa komputera)
 
 #. Translators: {correction} is a time span with a sign, such as
 #. “+2 min 12 s”, added to the capture time of every photo
-#: gpxfoto/cli.py:265
+#: gpxfoto/cli.py:269
 #, python-brace-format
 msgid "Clock correction: {correction}"
 msgstr "Poprawka zegara: {correction}"
 
-#: gpxfoto/cli.py:273
+#: gpxfoto/cli.py:277
 msgid "No JPEG photos found."
 msgstr "Nie znaleziono zdjęć JPEG."
 
-#: gpxfoto/cli.py:295
+#: gpxfoto/cli.py:299
 #, python-brace-format
 msgid "Matched: {matched}, skipped: {skipped}"
 msgstr "Dopasowano: {matched}, pominięto: {skipped}"
 
 #. Translators: {option} is the command-line option --write
-#: gpxfoto/cli.py:300
+#: gpxfoto/cli.py:304
 #, python-brace-format
 msgid ""
 "This was a preview; no files were changed. Use {option} to write the "
@@ -318,17 +326,17 @@ msgstr ""
 "To był podgląd, nie zmieniono żadnych plików. Aby zapisać położenie, "
 "należy użyć opcji {option}."
 
-#: gpxfoto/cli.py:314
+#: gpxfoto/cli.py:318
 #, python-brace-format
 msgid "Could not write {name}: {error} (file unchanged)"
 msgstr "Nie można zapisać pliku {name}: {error} (plik bez zmian)"
 
-#: gpxfoto/cli.py:316
+#: gpxfoto/cli.py:320
 #, python-brace-format
 msgid "Written: {written}, errors: {errors}"
 msgstr "Zapisano: {written}, błędy: {errors}"
 
-#: gpxfoto/cli.py:319
+#: gpxfoto/cli.py:323
 msgid "The image data of every written file was verified as unchanged."
 msgstr ""
 "Sprawdzono, że dane obrazu w każdym zapisanym pliku pozostały bez "

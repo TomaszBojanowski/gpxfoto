@@ -204,7 +204,11 @@ def clock_lines(clock):
         clock=moment(clock.clock_time))
     if clock.tz_source in TZ_NOTES:
         line += "  [" + _(TZ_NOTES[clock.tz_source]).format(option="--timezone") + "]"
-    return lines + [line]
+    lines.append(line)
+    if clock.uncertainty:
+        lines.append(_("The time on the clock was given without seconds, so the middle of the "
+                       "minute was used; the correction may be off by up to 30 s."))
+    return lines
 
 
 def main():
