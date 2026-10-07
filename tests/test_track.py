@@ -606,7 +606,64 @@ def test_match_gives_the_position_or_the_reason(tmp_path):
     assert track_module.match([loaded], T0 + 50, 120) == track_module.Match(
         50.5, 19.5, None, 50, loaded, files=("t.gpx",))
     assert track_module.match([loaded], T0 + 400, 120) == track_module.Match(
-        track=loaded, reason="5 min after the end of the track")
+        track=loaded, reason="5 min after the end of the track", covered=False)
+
+
+def straight(start, seconds, lat, step=1, named=False, files=None):
+    """A Track going east from (lat, 19.0) at about 7 m/s, one point every step seconds."""
+    points = [(start + i, lat, 19.0 + i * 1e-4, None) for i in range(0, seconds + 1, step)]
+    return track_module.Track(files or [f"{lat}.gpx"], named, points)
+
+
+def test_match_never_interpolates_between_tracks():
+    morning, evening = straight(T0, 100, 50.0), straight(T0 + 3600, 100, 51.0)
+    found = track_module.match([morning, evening], T0 + 1800, 120)
+    assert (found.lat, found.covered) == (None, False)
+    assert found.reason == "28 min after the end of the track"
+    assert track_module.match([morning, evening], T0 + 3650, 120).track is evening
+
+
+def test_match_prefers_a_position_between_two_close_points():
+    # The watch records every second; the phone stopped 60 s before
+    watch = straight(T0, 600, 50.0)
+    phone = straight(T0, 540, 50.0001, named=True)
+    assert track_module.match([phone, watch], T0 + 570, 120).track is watch
+    # Both place it between two points: the named track wins
+    assert track_module.match([watch, phone], T0 + 300, 120).track is phone
+
+
+def test_match_prefers_more_frequent_recording_then_the_earlier_start():
+    sparse = straight(T0, 600, 50.0, step=10)
+    dense = straight(T0 + 1, 599, 50.0001)
+    assert track_module.match([sparse, dense], T0 + 305, 120).track is dense
+    early, late = straight(T0, 600, 50.0), straight(T0 + 1, 599, 50.0001)
+    assert track_module.match([late, early], T0 + 305, 120).track is early
+
+
+def test_match_reports_a_gap_with_the_files_around_it():
+    points = [(T0, 50.0, 19.0, None), (T0 + 1000, 50.1, 19.0, None)]
+    loaded = track_module.Track(["a.gpx", "b.gpx"], True, points, sources=[0, 1])
+    found = track_module.match([loaded], T0 + 500, 120)
+    assert found.reason == "gap in the track recording, nearest point 8 min away"
+    assert (found.files, found.covered) == (("a.gpx", "b.gpx"), True)
+
+
+@pytest.mark.parametrize("times, interval", [
+    ([0, 1, 2, 3], 1), ([0, 5, 10, 12, 20], 5), ([0, 0.2, 0.4], 1), ([0], 1), ([0, 0, 0], 1)])
+def test_track_interval(times, interval):
+    points = [(T0 + t, 50.0, 19.0, None) for t in times]
+    assert track_module.Track(["a.gpx"], True, points).interval == interval
+
+
+@pytest.mark.parametrize("t, rank", [
+    (T0, track_module.INSIDE), (T0 + 50, track_module.INSIDE),
+    (T0 + 100, track_module.INSIDE), (T0 + 130, track_module.NEAR),
+    (T0 - 100, track_module.NEAR), (T0 + 500, track_module.ACROSS_BREAK)])
+def test_placement_rank(t, rank):
+    # Points 100 s apart, then a break of 1000 s
+    points = [(T0 + s, 50.0, 19.0, None) for s in (0, 100, 1100)]
+    loaded = track_module.Track(["a.gpx"], True, points)
+    assert track_module.placement_rank(loaded, t, 120) == rank
 
 
 def test_track_knows_the_file_of_each_point(tmp_path):

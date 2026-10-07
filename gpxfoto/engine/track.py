@@ -84,7 +84,7 @@ class Track:
     point, the index in files of the file it comes from, or None when
     there is one file.
     """
-    __slots__ = ("files", "named", "points", "times", "stops", "sources")
+    __slots__ = ("files", "named", "points", "times", "stops", "sources", "_interval")
 
     def __init__(self, files, named, points, stops=(), sources=None):
         self.files = tuple(files)
@@ -93,6 +93,7 @@ class Track:
         self.times = [p[0] for p in points]
         self.stops = list(stops)
         self.sources = sources
+        self._interval = None
 
     @property
     def first(self):
@@ -101,6 +102,14 @@ class Track:
     @property
     def last(self):
         return self.times[-1]
+
+    @property
+    def interval(self):
+        """The usual time between two points, in whole seconds, at least 1."""
+        if self._interval is None:
+            steps = [b - a for a, b in zip(self.times, self.times[1:]) if b > a]
+            self._interval = max(1, round(_median(steps))) if steps else 1
+        return self._interval
 
     def files_at(self, t):
         """The files of the points that the position at Unix time t comes from."""
@@ -129,20 +138,59 @@ def load_track(paths, named=True, stops=True):
 
 # Where a moment lies on the tracks: a position, or the reason there is
 # none; stop is the stop whose position it is, if any, and files the
-# track files the position comes from, or that leave a gap at that moment
-Match = namedtuple("Match", "lat lon ele gap track reason stop files",
-                   defaults=(None,) * 7 + ((),))
+# track files the position comes from, or that leave a gap at that moment.
+# covered is false when no track covers the moment, widened by --max-gap.
+Match = namedtuple("Match", "lat lon ele gap track reason stop files covered",
+                   defaults=(None,) * 7 + ((), True))
+
+# How well a track places a moment, best first: between two of its points
+# that are both within --max-gap, from one point within --max-gap, or
+# across a break in recording without movement
+INSIDE, NEAR, ACROSS_BREAK = 0, 1, 2
+
+
+def placement_rank(track, t, max_gap):
+    """How well track places Unix time t (INSIDE, NEAR or ACROSS_BREAK)."""
+    times = track.times
+    i = bisect.bisect_left(times, t)
+    if i < len(times) and times[i] == t:
+        return INSIDE
+    if 0 < i < len(times) and t - times[i - 1] <= max_gap and times[i] - t <= max_gap:
+        return INSIDE
+    nearest = min(abs(times[j] - t) for j in (i - 1, i) if 0 <= j < len(times))
+    return NEAR if nearest <= max_gap else ACROSS_BREAK
 
 
 def match(tracks, t, max_gap):
-    """Return the Match of Unix time t on tracks."""
-    track = tracks[0]
-    result = place(track.points, track.times, track.stops, t, max_gap)
-    if result[0] is None:
+    """Return the Match of Unix time t on tracks.
+
+    Each track that covers t, widened by max_gap, places it on its own;
+    positions are never interpolated between tracks. The best placement
+    wins (see placement_rank); among equal ones, a track the user named,
+    then the one recorded more often, then the one that started earlier.
+    """
+    placed, rejected = [], []
+    for track in tracks:
+        if not track.first - max_gap <= t <= track.last + max_gap:
+            continue
+        result = place(track.points, track.times, track.stops, t, max_gap)
+        if result[0] is None:
+            rejected.append(((not track.named, track.first, track.files), track, result[1]))
+        else:
+            rank = placement_rank(track, t, max_gap)
+            placed.append(((rank, not track.named, track.interval, track.first, track.files),
+                           track, result))
+    if placed:
+        _key, track, (lat, lon, ele, gap, stop) = min(placed, key=lambda p: p[0])
+        return Match(lat, lon, ele, gap, track, stop=stop, files=track.files_at(t))
+    if rejected:
+        _key, track, reason = min(rejected, key=lambda r: r[0])
         files = track.files_at(t) if track.first <= t <= track.last else ()
-        return Match(track=track, reason=result[1], files=files)
-    lat, lon, ele, gap, stop = result
-    return Match(lat, lon, ele, gap, track, stop=stop, files=track.files_at(t))
+        return Match(track=track, reason=reason, files=files)
+    # No track covers t: the reason the nearest one gives
+    track = min(tracks, key=lambda track: max(track.first - t, t - track.last))
+    return Match(track=track, reason=locate(track.points, track.times, t, max_gap)[1],
+                 covered=False)
 
 
 def load_gpx(paths):
