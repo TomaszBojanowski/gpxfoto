@@ -105,3 +105,10 @@ plik jeszcze raz:
 ```
 msgfmt --check -o gpxfoto/locale/pl/LC_MESSAGES/gpxfoto.mo po/pl.po
 ```
+
+## Licencja
+
+gpxfoto jest wolnym oprogramowaniem: można je rozpowszechniać i modyfikować
+na warunkach Powszechnej Licencji Publicznej GNU (GNU GPL), opublikowanej
+przez Free Software Foundation, w wersji 3 lub (według uznania) dowolnej
+późniejszej. Pełny tekst licencji znajduje się w pliku [LICENSE](LICENSE).

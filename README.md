@@ -103,3 +103,10 @@ An editable install compiles the translations once. To see changes to
 ```
 msgfmt --check -o gpxfoto/locale/pl/LC_MESSAGES/gpxfoto.mo po/pl.po
 ```
+
+## License
+
+gpxfoto is free software: you can redistribute it and/or modify it under
+the terms of the GNU General Public License as published by the Free
+Software Foundation, either version 3 of the License, or (at your option)
+any later version. See [LICENSE](LICENSE).
