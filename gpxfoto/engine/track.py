@@ -129,7 +129,7 @@ def locate(points, times, t, max_gap):
             duration=_format_duration(gap))
     span = after[0] - before[0]
     u = (t - before[0]) / span if span > 0 else 0.0
-    lat = before[1] + (after[1] - before[1]) * u
+    lat = _between(before[1], after[1], u)
     # The shorter way round, which crosses the 180° meridian when needed
     lon_change = after[2] - before[2]
     if lon_change > 180:
@@ -142,10 +142,15 @@ def locate(points, times, t, max_gap):
     elif lon < -180:
         lon += 360
     if before[3] is not None and after[3] is not None:
-        ele = before[3] + (after[3] - before[3]) * u
+        ele = _between(before[3], after[3], u)
     else:
         ele = before[3] if before[3] is not None else after[3]
     return lat, lon, ele, gap
+
+
+def _between(a, b, u):
+    """The value at fraction u of the way from a to b, kept between them despite rounding."""
+    return min(max(a + (b - a) * u, min(a, b)), max(a, b))
 
 
 def _format_duration(s):

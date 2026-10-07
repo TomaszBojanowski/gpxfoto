@@ -406,6 +406,16 @@ def test_locate_across_the_180th_meridian(first, second, offset, lon, gap):
     assert locate(points, times, T0 + offset, 120) == pytest.approx((-16.5, lon, None, gap))
 
 
+@pytest.mark.parametrize("first, last", [
+    ((50.0, 19.0, -97746.14903322658), (50.0, 19.0, 100000.0)),
+    ((-51.01210851648959, 19.0, None), (90.0, 19.0, None)),
+])
+def test_interpolation_never_goes_beyond_the_points(first, last):
+    # first + (last - first) * 1.0 is not exactly last for these values
+    points, times = track((T0, *first), (T0 + 1, *last))
+    assert locate(points, times, T0 + 1, 120) == (*last, 0)
+
+
 @pytest.mark.parametrize("before_ele, after_ele, expected", [
     (None, 200.0, 200.0),
     (100.0, None, 100.0),
