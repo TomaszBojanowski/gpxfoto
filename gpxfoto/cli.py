@@ -128,8 +128,8 @@ def main():
         sys.exit(_("exiftool is not installed. On Fedora, install it with: {command}").format(
             command="sudo dnf install perl-Image-ExifTool"))
     try:
-        manual_tz = parse_utc_offset(args.timezone) if args.timezone else None
-    except (ValueError, IndexError):
+        manual_tz = parse_utc_offset(args.timezone) if args.timezone is not None else None
+    except ValueError:
         sys.exit(_("The time zone must be in the form +HH:MM, for example +02:00 or -05:00."))
 
     try:

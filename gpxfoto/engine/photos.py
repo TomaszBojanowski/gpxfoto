@@ -1,6 +1,7 @@
 """Finding photos and reading their metadata and capture time."""
 import json
 import os
+import re
 import subprocess
 from datetime import datetime, timedelta, timezone
 from gettext import gettext as _
@@ -63,9 +64,18 @@ def read_metadata(files):
 
 
 def parse_utc_offset(text):
-    sign = -1 if text[0] == "-" else 1
-    hours, minutes = text.lstrip("+-").split(":")
-    return timezone(sign * timedelta(hours=int(hours), minutes=int(minutes)))
+    """Time zone from an offset such as "+02:00" or "-05:30".
+
+    Raises ValueError for anything else, including offsets of more than
+    14 hours, which no time zone on Earth uses.
+    """
+    match = re.fullmatch(r"([+-]?)([0-9]{2}):([0-5][0-9])", text)
+    if not match:
+        raise ValueError(f"not a UTC offset: {text!r}")
+    offset = timedelta(hours=int(match[2]), minutes=int(match[3]))
+    if offset > timedelta(hours=14):
+        raise ValueError(f"not a UTC offset: {text!r}")
+    return timezone(-offset if match[1] == "-" else offset)
 
 
 def capture_time(meta, manual_tz):
@@ -88,6 +98,6 @@ def capture_time(meta, manual_tz):
     if offset:
         try:
             return time.replace(tzinfo=parse_utc_offset(str(offset))), TZ_CAMERA
-        except (ValueError, IndexError):
+        except ValueError:
             pass
     return time.astimezone(), TZ_SYSTEM

@@ -283,7 +283,7 @@ def test_negative_timezone(photo, gpx, option):
 
 
 @needs_exiftool
-@pytest.mark.parametrize("value", ["0200", "+2", "+24:00"])
+@pytest.mark.parametrize("value", ["0200", "+2", "+24:00", "+02:75", "+-05:00", ""])
 def test_invalid_timezone_exits_with_message(jpeg_file, gpx, value):
     result = run_cli(jpeg_file(), "-g", gpx, "--timezone", value)
 

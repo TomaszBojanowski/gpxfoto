@@ -44,20 +44,22 @@ def system_tz():
     ("01:00", zone(1)),
     ("10:30", zone(10, 30)),
     ("+14:00", zone(14)),
+    ("-14:00", zone(-14)),
+    ("+05:59", zone(5, 59)),
 ])
 def test_parse_utc_offset(text, expected):
     assert parse_utc_offset(text) == expected
 
 
-@pytest.mark.parametrize("text", ["+0200", "Z", "UTC", "+ab:00", "+02:00:00", "+24:00", "-25:00"])
-def test_parse_utc_offset_rejects_malformed_text_with_value_error(text):
+@pytest.mark.parametrize("text", [
+    "+0200", "Z", "UTC", "+ab:00", "+02:00:00", "+24:00", "-25:00", "",
+    # Accepted before, with a wrong result
+    "+02:75", "+02:60", "+-05:00", "--02:00", "+2:00", "+05:-30", "+14:01", "-15:00",
+    " +02:00", "+02:00 ", "+٠٢:٠٠", "+٠٢:00", "+02.00",
+])
+def test_parse_utc_offset_rejects_anything_but_an_offset(text):
     with pytest.raises(ValueError):
         parse_utc_offset(text)
-
-
-def test_parse_utc_offset_rejects_empty_text_with_index_error():
-    with pytest.raises(IndexError):
-        parse_utc_offset("")
 
 
 # capture_time
