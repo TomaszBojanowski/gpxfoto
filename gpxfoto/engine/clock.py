@@ -137,7 +137,7 @@ def correction_from(camera_time, reading):
     if reading.utc_offset is None and abs(difference) >= OFFSET_REQUIRED_FROM:
         same = reading.text(utc_offset=timezone(camera_offset))
         if abs(difference) <= timedelta(hours=14):
-            near = reading.text(utc_offset=_suggested_offset(camera_offset, difference))
+            near = _suggested_reading(reading, camera_offset, difference).text()
             # Translators: {duration} is a time span such as “1 h 2 min 12 s”;
             # {near} and {same} are times such as “14:03:27+02:00”
             raise ClockError(_(
@@ -191,11 +191,20 @@ def measure(path, reading, manual_tz):
         path=path, reason=reason))
 
 
-def _suggested_offset(camera_offset, difference):
-    """The UTC offset that brings a clock reading closest to the camera's time."""
+def _suggested_reading(reading, camera_offset, difference):
+    """The reading with the UTC offset that brings it closest to the camera's time."""
     offset = camera_offset + round(difference / OFFSET_STEP) * OFFSET_STEP
+    days = 0
     while offset > timedelta(hours=14):
         offset -= timedelta(days=1)
+        days -= 1
     while offset < timedelta(hours=-12):
         offset += timedelta(days=1)
-    return timezone(offset)
+        days += 1
+    # A day less in the offset is a day earlier on the clock, for the same moment
+    if reading.day is not None and days:
+        try:
+            reading = reading._replace(day=reading.day + timedelta(days=days))
+        except OverflowError:
+            pass
+    return reading._replace(utc_offset=timezone(offset))

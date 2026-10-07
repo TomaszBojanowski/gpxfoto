@@ -161,6 +161,15 @@ def test_minutes_only_reading_at_the_threshold_is_refused():
      "The time on the clock is 1 h away from the capture time of the clock photo, so the clock "
      "may have shown a different time zone than the camera. Add the UTC offset of the time on the "
      "clock, for example “13:00:00-09:00” or “13:00:00+14:00”."),
+    # With a date, going round to the other side moves the date too
+    (camera(2026, 10, 6, 10, 0, 0, offset=12), "2026-10-06T13:00:00",
+     "The time on the clock is 3 h away from the capture time of the clock photo, so the clock "
+     "may have shown a different time zone than the camera. Add the UTC offset of the time on the "
+     "clock, for example “2026-10-05T13:00:00-09:00” or “2026-10-06T13:00:00+12:00”."),
+    (camera(2026, 10, 6, 10, 0, 0, offset=-11), "2026-10-06T08:00:00",
+     "The time on the clock is 2 h away from the capture time of the clock photo, so the clock "
+     "may have shown a different time zone than the camera. Add the UTC offset of the time on the "
+     "clock, for example “2026-10-07T08:00:00+11:00” or “2026-10-06T08:00:00-11:00”."),
     # Over 14 h only the camera's own offset is given as an example
     (camera(2019, 1, 1, 0, 0, 0), "2026-10-06T14:03:27",
      "The time on the clock is 68054 h 3 min 27 s away from the capture time of the clock photo. "
@@ -233,3 +242,16 @@ def test_measure_refuses_what_is_not_a_file(tmp_path):
         with pytest.raises(ClockError) as raised:
             measure(path, parse_reading("14:03:27"), None)
         assert str(raised.value) == f"Cannot use the clock photo {path}: {reason}"
+
+
+@pytest.mark.parametrize("camera_time, reading", [
+    (camera(2026, 10, 6, 10, 0, 0, offset=12), "2026-10-06T13:00:00"),
+    (camera(2026, 10, 6, 10, 0, 0, offset=-11), "2026-10-06T08:00:00"),
+    (camera(2026, 10, 6, 12, 0, 0, offset=14), "13:00:00"),
+    (camera(2026, 10, 6, 13, 1, 15, offset=1), "14:03:27"),
+])
+def test_the_suggested_offset_gives_the_nearest_correction(camera_time, reading):
+    with pytest.raises(ClockError) as raised:
+        correction_from(camera_time, parse_reading(reading))
+    near = str(raised.value).split("“")[1].split("”")[0]
+    assert abs(correction_from(camera_time, parse_reading(near)).seconds) < 15 * 60
