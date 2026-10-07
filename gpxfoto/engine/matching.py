@@ -13,9 +13,11 @@ from gpxfoto.engine.track import match
 # for a matched photo and otherwise says why it was skipped. time_check
 # is a TimeCheck when the capture time does not match the camera's UTC time.
 # stop is the Stop the photo was taken at, whose position it then has.
+# files are the track files its position comes from, or that leave a gap
+# at its time.
 PhotoResult = namedtuple("PhotoResult",
-                         "photo time time_utc lat lon ele gap reason time_check stop",
-                         defaults=(None,) * 9)
+                         "photo time time_utc lat lon ele gap reason time_check stop files",
+                         defaults=(None,) * 9 + ((),))
 
 # How many photos were matched and skipped, and how many of the matched
 # ones were taken during stops
@@ -46,9 +48,10 @@ def match_photo(photo, tracks, correction, max_gap, overwrite=False):
                            time_check=time_check)
     found = match(tracks, time.timestamp(), max_gap)
     if found.reason is not None:
-        return PhotoResult(photo, time, time_utc, reason=found.reason, time_check=time_check)
+        return PhotoResult(photo, time, time_utc, reason=found.reason, time_check=time_check,
+                           files=found.files)
     return PhotoResult(photo, time, time_utc, found.lat, found.lon, found.ele, found.gap,
-                       time_check=time_check, stop=found.stop)
+                       time_check=time_check, stop=found.stop, files=found.files)
 
 
 def match_photos(photos, tracks, correction, max_gap, **options):

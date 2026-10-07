@@ -128,8 +128,10 @@ def load_track(paths, named=True, stops=True):
 
 
 # Where a moment lies on the tracks: a position, or the reason there is
-# none; stop is the stop whose position it is, if any
-Match = namedtuple("Match", "lat lon ele gap track reason stop", defaults=(None,) * 7)
+# none; stop is the stop whose position it is, if any, and files the
+# track files the position comes from, or that leave a gap at that moment
+Match = namedtuple("Match", "lat lon ele gap track reason stop files",
+                   defaults=(None,) * 7 + ((),))
 
 
 def match(tracks, t, max_gap):
@@ -137,9 +139,10 @@ def match(tracks, t, max_gap):
     track = tracks[0]
     result = place(track.points, track.times, track.stops, t, max_gap)
     if result[0] is None:
-        return Match(track=track, reason=result[1])
+        files = track.files_at(t) if track.first <= t <= track.last else ()
+        return Match(track=track, reason=result[1], files=files)
     lat, lon, ele, gap, stop = result
-    return Match(lat, lon, ele, gap, track, stop=stop)
+    return Match(lat, lon, ele, gap, track, stop=stop, files=track.files_at(t))
 
 
 def load_gpx(paths):

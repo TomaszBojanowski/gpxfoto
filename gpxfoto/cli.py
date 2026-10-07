@@ -226,8 +226,20 @@ def stop_note(stop, zone):
     return _("stop {start} – {end}").format(start=start, end=end)
 
 
-def photo_line(result):
-    """The preview line of one photo."""
+def file_labels(paths):
+    """How files are named to the user: by base name, or by the whole path
+    where two of them have the same base name."""
+    names = [os.path.basename(path) for path in paths]
+    return {path: printable(path if names.count(name) > 1 else name)
+            for path, name in zip(paths, names)}
+
+
+def photo_line(result, labels=None, width=0):
+    """The preview line of one photo.
+
+    With labels, a dict of file labels, the line names the track files
+    its position comes from, in a column width characters wide.
+    """
     name = printable(os.path.basename(result.photo.path))
     time = "" if result.time is None else f"{result.time:%X}  "
     notes = []
@@ -238,18 +250,20 @@ def photo_line(result):
     if result.stop is not None:
         notes.append(stop_note(result.stop, result.time.tzinfo))
     notes = "  [" + "; ".join(notes) + "]" if notes else ""
+    files = ", ".join(labels[path] for path in result.files) if labels else ""
     if result.reason is not None:
         # Translators: shown after the file name of a photo; {reason} says
         # why the photo was skipped, e.g. “already has a location”
-        return (f"  {name:<16} {time}" + _("skipped: {reason}").format(reason=result.reason)
-                + notes)
+        line = f"  {name:<16} {time}" + _("skipped: {reason}").format(reason=result.reason)
+        return line + (f" ({files})" if files else "") + notes
     position = i18n.coordinates(result.lat, result.lon)
     if result.ele is not None:
         # Translators: elevation in metres
         ele_text = _("{elevation} m").format(elevation=i18n.number(result.ele, width=6))
     else:
         ele_text = "       —"
-    return f"  {name:<16} {time}{position} {ele_text}{notes}"
+    source = f"  {files:<{width}}" if labels else ""
+    return f"  {name:<16} {time}{position} {ele_text}{source}{notes}".rstrip()
 
 
 def clock_lines(clock):
@@ -325,12 +339,22 @@ def main():
                           len(args.gpx)))
     start = datetime.fromtimestamp(track.first).astimezone()
     end = datetime.fromtimestamp(track.last).astimezone()
-    # Translators: {start} and {end} are the date and time of the first and the
-    # last track point
-    print(ngettext("Track: {count} point, {start} – {end} (this computer’s time zone)",
-                   "Track: {count} points, {start} – {end} (this computer’s time zone)",
-                   len(track.points)).format(count=i18n.number(len(track.points)),
-                                       start=date_and_time(start), end=date_and_time(end)))
+    labels = file_labels(track.files)
+    if len(track.files) == 1:
+        # Translators: {name} is the file name of the track; {start} and {end}
+        # are the date and time of its first and last point
+        header = ngettext(
+            "Track {name}: {count} point, {start} – {end} (this computer’s time zone)",
+            "Track {name}: {count} points, {start} – {end} (this computer’s time zone)",
+            len(track.points))
+    else:
+        # Translators: {start} and {end} are the date and time of the first and the
+        # last track point
+        header = ngettext("Track: {count} point, {start} – {end} (this computer’s time zone)",
+                          "Track: {count} points, {start} – {end} (this computer’s time zone)",
+                          len(track.points))
+    print(header.format(name=labels[track.files[0]], count=i18n.number(len(track.points)),
+                        start=date_and_time(start), end=date_and_time(end)))
     if clock is not None:
         print("\n".join(clock_lines(clock)))
     elif correction:
@@ -361,8 +385,15 @@ def main():
     photos = [photo_from_metadata(meta, manual_tz) for meta in metadata]
     results = match_photos(photos, [track], correction, args.max_gap,
                            overwrite=args.overwrite)
-    for result in results:
-        print(photo_line(result))
+    # With several track files, each photo line names its own
+    if len(track.files) > 1:
+        width = max((len(", ".join(labels[path] for path in result.files))
+                     for result in results if result.reason is None), default=0)
+        for result in results:
+            print(photo_line(result, labels, width))
+    else:
+        for result in results:
+            print(photo_line(result))
     summary = summarize(results)
     plan = [result for result in results if result.reason is None]
 

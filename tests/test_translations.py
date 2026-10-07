@@ -460,7 +460,7 @@ def test_track_summary_uses_polish_plurals(polish_cli, exiftool_present, tmp_pat
     with pytest.raises(SystemExit) as exit_info:
         polish_cli("-g", gpx, tmp_path / "photos")
     assert exit_info.value.code == "Nie znaleziono zdjęć JPEG."
-    assert capsys.readouterr().out == (f"Trasa: {count} {word}, 1.05.2024 12:00:00 – "
+    assert capsys.readouterr().out == (f"Trasa track.gpx: {count} {word}, 1.05.2024 12:00:00 – "
                                        f"1.05.2024 12:00:{count - 1:02d} (strefa czasowa komputera)\n")
 
 
@@ -478,7 +478,8 @@ def test_polish_dates_do_not_depend_on_the_system(polish_cli, exiftool_present, 
     (tmp_path / "photos").mkdir()
     with pytest.raises(SystemExit):
         polish_cli("-g", gpx, tmp_path / "photos", LC_ALL=regional)
-    assert capsys.readouterr().out == ("Trasa: 2 punkty, 6.10.2026 09:28:09 – 16.10.2026 15:02:09 "
+    assert capsys.readouterr().out == ("Trasa track.gpx: 2 punkty, 6.10.2026 09:28:09 – "
+                                       "16.10.2026 15:02:09 "
                                        "(strefa czasowa komputera)\n")
 
 
@@ -516,7 +517,7 @@ TRACK = [
     ("2024-05-01T10:01:40Z", 50.001, 20.002, 210.0),
     ("2024-05-01T11:00:00Z", 50.1, 20.1, 300.0),
 ]
-TRACK_LINE = ("Trasa: 3 punkty, 1.05.2024 12:00:00 – 1.05.2024 13:00:00 "
+TRACK_LINE = ("Trasa track.gpx: 3 punkty, 1.05.2024 12:00:00 – 1.05.2024 13:00:00 "
               "(strefa czasowa komputera)")
 
 
@@ -698,7 +699,7 @@ def test_polish_locale_without_language_variable(polish_cli, tmp_path, capsys):
     polish_cli("-g", gpx, tmp_path / "photos", LC_ALL="pl_PL.UTF-8", LANGUAGE=None)
     thousands = locale.localeconv()["thousands_sep"]
     assert capsys.readouterr().out.splitlines() == [
-        f"Trasa: 1{thousands}803 punkty, 1.05.2024 12:00:00 – 1.05.2024 12:30:02 "
+        f"Trasa track.gpx: 1{thousands}803 punkty, 1.05.2024 12:00:00 – 1.05.2024 12:30:02 "
         "(strefa czasowa komputera)",
         "  a.jpg            12:00:50  50,000500; 20,001000    205 m",
         "Dopasowano: 1, pominięto: 0",

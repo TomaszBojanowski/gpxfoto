@@ -604,7 +604,7 @@ def test_match_gives_the_position_or_the_reason(tmp_path):
     loaded = track_module.Track(["t.gpx"], True, [(T0, 50.0, 19.0, None),
                                                   (T0 + 100, 51.0, 20.0, None)])
     assert track_module.match([loaded], T0 + 50, 120) == track_module.Match(
-        50.5, 19.5, None, 50, loaded)
+        50.5, 19.5, None, 50, loaded, files=("t.gpx",))
     assert track_module.match([loaded], T0 + 400, 120) == track_module.Match(
         track=loaded, reason="5 min after the end of the track")
 

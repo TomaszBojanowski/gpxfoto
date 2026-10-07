@@ -20,7 +20,8 @@ TRACK = [
     ("2024-05-01T10:00:00Z", 50.0, 20.0, 200.0),
     ("2024-05-01T10:01:40Z", 50.001, 20.002, 210.0),
 ]
-TRACK_LINE = "Track: 2 points, 05/01/24 12:00:00 – 05/01/24 12:01:40 (this computer’s time zone)"
+TRACK_LINE = ("Track track.gpx: 2 points, 05/01/24 12:00:00 – 05/01/24 12:01:40 "
+              "(this computer’s time zone)")
 PREVIEW_LINE = "This was a preview; no files were changed. Use --write to write the locations."
 VERIFIED_LINE = "The image data of every written file was verified as unchanged."
 # 50 s after the start of TRACK, halfway between its two points
@@ -147,8 +148,8 @@ def test_several_gpx_files_and_southern_western_positions(tmp_path, photo, gpx):
     assert result.returncode == 0, result.stderr
     assert result.stdout.splitlines() == [
         "Track: 4 points, 05/01/24 12:00:00 – 05/02/24 18:01:40 (this computer’s time zone)",
-        "  chile.jpg        12:00:50  -33.000500, -70.001000    -15 m",
-        "  poland.jpg       12:00:50  50.000500, 20.001000    205 m",
+        "  chile.jpg        12:00:50  -33.000500, -70.001000    -15 m  chile.gpx",
+        "  poland.jpg       12:00:50  50.000500, 20.001000    205 m  track.gpx",
         "Matched: 2, skipped: 0",
         *written(2, 0),
     ]
@@ -156,6 +157,36 @@ def test_several_gpx_files_and_southern_western_positions(tmp_path, photo, gpx):
                                                       "16:00:50")
     assert read_tags(poland, *GPS_TAGS) == gps_written(50.0005, 20.001, 205, "2024:05:01",
                                                        "10:00:50")
+
+
+@needs_exiftool
+def test_several_gpx_files_name_the_source_of_each_photo(tmp_path, photo):
+    morning = write_gpx(tmp_path / "morning.gpx", [("2024-05-01T10:00:00Z", 50.0, 20.0, None),
+                                                   ("2024-05-01T10:01:40Z", 50.0, 20.002, None)])
+    # In another directory, with the same file name
+    (tmp_path / "phone").mkdir()
+    afternoon = write_gpx(tmp_path / "phone" / "morning.gpx", [
+        ("2024-05-01T11:00:00Z", 50.1, 20.1, None), ("2024-05-01T11:01:40Z", 50.1, 20.102, None)])
+    a = photo("a.jpg", taken("12:00:50"))
+    photo("b.jpg", taken("12:30:00"))
+    photo("c.jpg", taken("13:00:50"))
+
+    result = run_cli(a.parent, "-g", morning, "-g", afternoon)
+
+    assert result.returncode == 0, result.stderr
+    second = f"{tmp_path}/phone/morning.gpx"
+    first = f"{tmp_path}/morning.gpx"
+    assert result.stdout.splitlines()[1:4] == [
+        f"  a.jpg            12:00:50  50.000000, 20.001000        —  {first}",
+        "  b.jpg            12:30:00  skipped: gap in the track recording, nearest point 28 min "
+        f"away ({first}, {second})",
+        f"  c.jpg            13:00:50  50.100000, 20.101000        —  {second}",
+    ]
+
+
+def test_file_labels():
+    assert cli.file_labels(["a/x.gpx", "b/y.gpx", "c/x.gpx"]) == {
+        "a/x.gpx": "a/x.gpx", "b/y.gpx": "y.gpx", "c/x.gpx": "c/x.gpx"}
 
 
 @needs_exiftool
@@ -196,7 +227,7 @@ def test_zero_latitude_and_elevation_are_values_not_missing_data(tmp_path, photo
 
     assert result.returncode == 0, result.stderr
     assert result.stdout.splitlines() == [
-        TRACK_LINE,
+        TRACK_LINE.replace("track.gpx", "equator.gpx"),
         "Clock correction: +50 s",
         "  a.jpg            12:00:50  0.000000, 9.001000      0 m",
         "  null-island.jpg  skipped: already has a location",
@@ -500,7 +531,7 @@ def stop_track():
     return points
 
 
-STOP_TRACK_LINE = ("Track: 420 points, 05/01/24 12:00:00 – 05/01/24 12:06:59 "
+STOP_TRACK_LINE = ("Track stop.gpx: 420 points, 05/01/24 12:00:00 – 05/01/24 12:06:59 "
                    "(this computer’s time zone)")
 # 10:03:30 UTC is 210 s into the track, while standing; the track says 2 m north
 AT_STOP = (f"  b.jpg            12:03:30  50.000000, {lon_at(STAND_EAST):.6f}    200 m"
@@ -600,8 +631,8 @@ def test_stop_over_a_night_shows_its_dates(tmp_path, photo):
 
 @needs_exiftool
 @pytest.mark.parametrize("zone, track_line", [
-    ("<+14>-14", "Track: 2 points, 01/03/01 14:00:00 – 12/30/99 13:59:59"),
-    ("<-1556>15:56", "Track: 2 points, 01/02/01 08:04:00 – 12/29/99 08:03:59"),
+    ("<+14>-14", "Track edges.gpx: 2 points, 01/03/01 14:00:00 – 12/30/99 13:59:59"),
+    ("<-1556>15:56", "Track edges.gpx: 2 points, 01/02/01 08:04:00 – 12/29/99 08:03:59"),
 ])
 def test_track_near_the_ends_of_the_calendar(tmp_path, photo, zone, track_line):
     gpx = write_gpx(tmp_path / "edges.gpx", [
@@ -743,7 +774,8 @@ def test_max_gap(tmp_path, photo):
     gpx = write_gpx(tmp_path / "gap.gpx", [("2024-05-01T10:00:00Z", 50.0, 20.0, None),
                                            ("2024-05-01T10:10:00Z", 50.01, 20.0, None)])
     path = photo("a.jpg", taken("12:03:00"))
-    track_line = "Track: 2 points, 05/01/24 12:00:00 – 05/01/24 12:10:00 (this computer’s time zone)"
+    track_line = ("Track gap.gpx: 2 points, 05/01/24 12:00:00 – 05/01/24 12:10:00 "
+                  "(this computer’s time zone)")
 
     default = run_cli(path, "-g", gpx)
     assert default.returncode == 0, default.stderr
@@ -774,7 +806,8 @@ def test_one_point_track_and_default_max_gap_of_120_s(tmp_path, photo):
 
     assert result.returncode == 0, result.stderr
     assert result.stdout.splitlines() == [
-        "Track: 1 point, 05/01/24 12:00:00 – 05/01/24 12:00:00 (this computer’s time zone)",
+        "Track point.gpx: 1 point, 05/01/24 12:00:00 – 05/01/24 12:00:00 "
+        "(this computer’s time zone)",
         "  a.jpg            11:57:59  skipped: 2 min before the start of the track",
         "  b.jpg            11:58:00  50.000000, 20.000000    200 m",
         "  c.jpg            12:02:00  50.000000, 20.000000    200 m",
@@ -1215,7 +1248,7 @@ def test_numbers_follow_the_system_locale(tmp_path, photo, numeric_locale):
 
     assert result.returncode == 0, result.stderr
     assert result.stdout.splitlines() == [
-        f"Track: 1{separator}000 points, 05/01/24 12:00:00 – 05/01/24 12:16:39 "
+        f"Track long.gpx: 1{separator}000 points, 05/01/24 12:00:00 – 05/01/24 12:16:39 "
         "(this computer’s time zone)",
         f"  a.jpg            12:00:05  50{point}000500{between}20{point}000000  1{separator}205 m",
         "Matched: 1, skipped: 0",
