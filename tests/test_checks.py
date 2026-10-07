@@ -8,10 +8,10 @@ import pytest
 
 from gpxfoto.engine import checks
 from gpxfoto.engine.checks import (
-    SHIFT_MIN_PHOTOS, SHIFT_MIN_SHARE, ShiftHint, Shot, clearly_more_stops, shift_stands_out,
-    whole_hour_shift)
+    MOTION_MIN_MOMENTS, SHIFT_MIN_PHOTOS, SHIFT_MIN_SHARE, Motion, ShiftHint, Shot, at_full_pace,
+    clearly_more_stops, mostly_fast, pace, photos_in_motion, shift_stands_out, whole_hour_shift)
 from gpxfoto.engine.track import find_stops, place
-from test_stops import LAT, LON, T0, Hike, position
+from test_stops import T0, Hike
 
 ZONE = 2 * 3600          # the photos were taken at UTC+02:00
 MAX_GAP = 120.0
@@ -184,3 +184,101 @@ def test_the_shift_takes_the_corrected_times(track):
     # The checks work on the times after the clock correction: with the
     # right correction already applied, nothing more is proposed
     assert shift_for(track, [t + 3600 for t in at_stops(-3600)]) is None
+
+
+# --- photos in motion -------------------------------------------------
+
+def pauses_hike(minutes=180, every=450, pause=20):
+    """Walking east at 1.2 m/s with a pause of pause s every every s."""
+    hike = Hike(seed=4)
+    while hike.t - T0 < minutes * 60:
+        hike.walk(every - pause, east=1.2).stand(pause)
+    return hike.points
+
+
+@pytest.fixture(scope="module")
+def walk():
+    points = pauses_hike()
+    return points, pace(points, find_stops(points))
+
+
+def in_pauses(count, error=0.0, every=450, pause=20):
+    """Photos in the middle of the first count pauses, from a clock error s ahead."""
+    return [T0 + every * (k + 1) - pause / 2 + error for k in range(count)]
+
+
+def test_the_track_s_own_speed_is_the_measure(walk):
+    points, pace_ = walk
+    assert pace_.typical == pytest.approx(1.2)
+    assert at_full_pace(pace_, T0 + 100)
+    assert not at_full_pace(pace_, T0 + 440)          # standing
+    assert not at_full_pace(pace_, T0 - 1)            # before the track
+
+
+def test_photos_where_the_walker_stopped_give_no_warning(walk):
+    points, pace_ = walk
+    assert photos_in_motion(pace_, shots(points, [], in_pauses(20))) is None
+
+
+def test_photos_at_full_pace_give_a_warning(walk):
+    # The clock is 90 s ahead: every photo lands while walking
+    points, pace_ = walk
+    assert photos_in_motion(pace_, shots(points, [], in_pauses(20, 90))) == Motion(
+        fast=20, matched=20, fast_moments=20, moments=20)
+
+
+@pytest.mark.parametrize("fast, matched, fast_moments, moments, expected", [
+    (8, 15, 8, 15, True),
+    (7, 15, 8, 15, False),       # half of the photos is not most of them
+    (8, 15, 7, 15, False),       # nor is half of the moments
+    (7, 14, 7, 14, False),       # fewer than MOTION_MIN_MOMENTS = 15 moments
+    (40, 60, 8, 15, True),       # a burst counts as one moment
+])
+def test_most_photos_and_moments_must_be_at_full_pace(fast, matched, fast_moments, moments,
+                                                      expected):
+    assert mostly_fast(fast, matched, fast_moments, moments) is expected
+    assert MOTION_MIN_MOMENTS == 15
+
+
+def test_photos_less_than_a_minute_apart_are_one_moment(walk):
+    points, pace_ = walk
+    # 14 moments of three photos each are fewer than 15 moments
+    photo_times = [t + d for t in in_pauses(14, 90) for d in (0, 20, 59)]
+    assert photos_in_motion(pace_, shots(points, [], photo_times)) is None
+    photo_times = [t + d for t in in_pauses(15, 90) for d in (0, 20, 59)]
+    assert photos_in_motion(pace_, shots(points, [], photo_times)).moments == 15
+
+
+def test_photos_at_rest_more_often_than_nearby_give_no_warning(walk):
+    # 9 of 16 photos at full pace is more than half, but moved by 1 to 5
+    # minutes every photo would be: those 7 photos at pauses are evidence
+    points, pace_ = walk
+    photo_times = in_pauses(9, 90) + [t + 9 * 450 for t in in_pauses(7)]
+    assert photos_in_motion(pace_, shots(points, [], photo_times)) is None
+
+
+def test_a_track_that_barely_moves_has_no_typical_speed():
+    # GPS jitter while standing is not movement
+    points = Hike(seed=5).stand(3600, jitter=1.0).points
+    stops = find_stops(points)
+    assert pace(points, stops).typical is None
+    photo_times = [T0 + 60 * k for k in range(1, 50)]
+    assert photos_in_motion(pace(points, stops), shots(points, stops, photo_times)) is None
+
+
+def test_full_pace_on_a_bicycle_and_on_a_steep_climb():
+    # 6 m/s with stretches at 3 m/s: half the typical speed is not full pace
+    bike = Hike(seed=6).walk(600, east=6.0).walk(120, east=3.0).walk(600, east=6.0).points
+    pace_ = pace(bike, find_stops(bike))
+    assert pace_.typical == pytest.approx(6.0)
+    assert at_full_pace(pace_, T0 + 300) and not at_full_pace(pace_, T0 + 660)
+    # 0.4 m/s all the way is the full pace of that track
+    climb = Hike(seed=7).walk(3600, east=0.4, up=0.1).points
+    assert at_full_pace(pace(climb, find_stops(climb)), T0 + 1800)
+
+
+def test_a_photo_in_a_break_in_recording_is_not_at_full_pace():
+    points = Hike(seed=8).walk(600, east=1.2).pause(300, east=360).walk(600, east=1.2).points
+    pace_ = pace(points, find_stops(points))
+    assert not at_full_pace(pace_, T0 + 750)
+    assert at_full_pace(pace_, T0 + 300)
