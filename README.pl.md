@@ -176,9 +176,10 @@ Sam niczego nie zmienia.
   godziny lub o pełne godziny (do 12) wyraźnie więcej zdjęć wypada na
   postojach, i to na co najmniej czterech różnych, gpxfoto proponuje takie
   przesunięcie wraz z opcją, która je stosuje: `--offset`; także
-  `--timezone`, gdy nie podano poprawki, a wszystkie zdjęcia mają tę samą
-  strefę czasową; albo `--clock-time` z innym przesunięciem względem UTC,
-  gdy poprawka pochodzi ze zdjęcia zegara. Różnica dokładnie jednej godziny
+  `--timezone`, gdy nie podano poprawki, wszystkie zdjęcia mają tę samą
+  strefę czasową i żadne nie pochodzi z aparatu zapisującego czas UTC, jak
+  S5II; albo `--clock-time` z innym przesunięciem względem UTC, gdy
+  poprawka pochodzi ze zdjęcia zegara. Różnica dokładnie jednej godziny
   zwykle oznacza, że w aparacie nie przestawiono czasu na letni lub zimowy.
 - **Zdjęcia w ruchu.** Jeśli większość zdjęć wypada w chwilach, gdy według
   trasy poruszano się pełnym tempem, a nie na postojach ani przy
@@ -192,8 +193,10 @@ Sam niczego nie zmienia.
   nagranych w tym samym czasie.
 
 Dwa pierwsze ostrzeżenia wymagają postojów i prędkości jednej trasy: nie
-pojawiają się, gdy dopasowane zdjęcia pochodzą z kilku tras, ani z opcją
-`--no-stops`. Progi dobrano na prawdziwej wycieczce; przy dobrze ustawionym
+pojawiają się, gdy dopasowane zdjęcia pochodzą z kilku tras, gdy zdjęcia
+pominięto z powodu innej trasy lub pliku, którego nie da się odczytać, ani
+z opcją `--no-stops`. Gdy żadna trasa z katalogu nie obejmuje zdjęć,
+sprawdzana jest najbliższa. Progi dobrano na prawdziwej wycieczce; przy dobrze ustawionym
 zegarze nie dały żadnego ostrzeżenia w 900 modelowanych zestawach zdjęć
 zrobionych głównie na postojach i krótkich przystankach.
 

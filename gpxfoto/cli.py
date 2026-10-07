@@ -364,7 +364,8 @@ def covering(tracks, results, max_gap):
 
 
 def with_nearest_tracks(results, tracks, spans, stops):
-    """results, where a photo no track covers names the nearest track file."""
+    """results, where a photo no track covers names the nearest track file,
+    and the tracks loaded for that."""
     loaded = {}
 
     def load(path):
@@ -392,7 +393,7 @@ def with_nearest_tracks(results, tracks, spans, stops):
                 result = result._replace(reason=reason.format(duration=i18n.duration(seconds)),
                                          files=(path,))
         changed.append(result)
-    return changed
+    return changed, [track for track in loaded.values() if track is not None]
 
 
 def usable_offset(offset):
@@ -413,20 +414,26 @@ def shots_of(results):
     return shots, names
 
 
-def suspicion(results, tracks, shots, args):
+def suspicion(results, tracks, shots, args, nearby=(), unreadable=()):
     """The signs of a suspicious match.
 
     The whole-hour shift and the photos in motion are looked for only on
-    the track that placed every matched photo (or the only track when
-    none was matched), as they need its stops and speeds.
+    the track that placed every matched photo, as they need its stops and
+    speeds. When no photo was matched, that is the only track loaded, or
+    the only one of nearby, the tracks loaded to name the nearest one.
+    Photos skipped for another track, or near a track file that cannot be
+    read (unreadable), would not move onto this track's stops with any
+    shift.
     """
     owner = {path: track for track in tracks for path in track.files}
     used = []
     for result in results:
         if result.reason is None and owner[result.files[0]] not in used:
             used.append(owner[result.files[0]])
-    one = used or tracks
-    if len(one) == 1 and not args.no_stops:
+    others = {owner.get(path) for result in results if result.reason is not None
+              and result.covered for path in result.files}
+    one = used or tracks + [track for track in nearby if track not in tracks]
+    if len(one) == 1 and others <= set(one) and not unreadable and not args.no_stops:
         track = one[0]
         top = None if track.sources is None else checks.top_speed(track.points, track.sources)
         return checks.suspicious_match(track.points, track.times, track.stops, shots,
@@ -435,8 +442,11 @@ def suspicion(results, tracks, shots, args):
     return checks.Suspicion(None, None, checks.jumps(shots, top))
 
 
-def shift_lines(hint, shots, correction, clock):
-    """The warning about a whole-hour shift, with the option that applies it."""
+def shift_lines(hint, shots, correction, clock, zone_option=True):
+    """The warning about a whole-hour shift, with the option that applies it.
+
+    zone_option offers --timezone as well, where it would do the same.
+    """
     # Translators: {shift} is a whole number of hours or half an hour with a
     # sign, such as “+1 h” or “-30 min”; {pinned}, {matched} and {now} are
     # numbers of photos
@@ -460,12 +470,19 @@ def shift_lines(hint, shots, correction, clock):
         # --offset cannot be used with --clock-photo: the clock's UTC offset
         # moves by the shift instead
         zone = clock.clock_time.utcoffset() - timedelta(seconds=hint.shift)
-        if usable_offset(zone):
-            reading = clock.reading
-            if reading.day is None and abs(shifted) > MAX_WITHOUT_DATE.total_seconds():
-                reading = reading._replace(day=clock.clock_time.date())
-            option = "--clock-time=" + reading.text(utc_offset=timezone(zone))
-    elif not correction:
+        if not usable_offset(zone):
+            # Translators: {option} is a command-line option with its value,
+            # such as --offset=3600; {photo} and {time} are the options
+            # --clock-photo and --clock-time
+            lines.append("  " + _("To apply this correction, run again with {option} instead "
+                                  "of {photo} and {time}.").format(
+                                      option=option, photo="--clock-photo", time="--clock-time"))
+            return lines
+        reading = clock.reading
+        if reading.day is None and abs(shifted) > MAX_WITHOUT_DATE.total_seconds():
+            reading = reading._replace(day=clock.clock_time.date())
+        option = "--clock-time=" + reading.text(utc_offset=timezone(zone))
+    elif not correction and zone_option:
         zones = {round(shot.clock - shot.time) for shot in shots}
         if len(zones) == 1:
             zone = timedelta(seconds=zones.pop() - hint.shift)
@@ -541,11 +558,11 @@ def jump_lines(jumps, shots, names):
     return lines
 
 
-def warning_lines(found, shots, names, correction, clock):
+def warning_lines(found, shots, names, correction, clock, zone_option=True):
     """The lines about the signs of a suspicious match; they change nothing."""
     lines = []
     if found.shift is not None:
-        lines += shift_lines(found.shift, shots, correction, clock)
+        lines += shift_lines(found.shift, shots, correction, clock, zone_option)
     if found.motion is not None:
         lines += motion_lines(found.motion, clock)
     if found.jumps:
@@ -673,8 +690,9 @@ def main():
         labels = file_labels(named + found)
     results = match_photos(photos, tracks, correction, args.max_gap, overwrite=args.overwrite,
                            label=labels.get, unreadable=unreadable)
+    nearby = []
     if found:
-        results = with_nearest_tracks(results, tracks, spans, not args.no_stops)
+        results, nearby = with_nearest_tracks(results, tracks, spans, not args.no_stops)
     if found:
         used = covering(tracks, results, args.max_gap)
         total = len(named) + len(found)
@@ -722,8 +740,10 @@ def main():
         print(line)
     if not args.write:
         shots, names = shots_of(results)
-        found = suspicion(results, tracks, shots, args)
-        for line in warning_lines(found, shots, names, correction, clock):
+        signs = suspicion(results, tracks, shots, args, nearby, unreadable)
+        # Photos whose camera records UTC would then disagree with it
+        zone_option = not any(result.photo.camera_utc is not None for result in results)
+        for line in warning_lines(signs, shots, names, correction, clock, zone_option):
             print(line)
         if plan:
             # Translators: {option} is the command-line option --write

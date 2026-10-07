@@ -204,7 +204,7 @@ def whole_hour_shift(points, times, stops, shots, max_gap):
     shift = best[1]
     matched, pinned, reached = _exact(points, times, stops, ordered, shift, max_gap)
     pinned_now = _exact(points, times, stops, ordered, 0, max_gap)[1]
-    if (not shift_stands_out(reached, 0.0, pinned, matched)
+    if (reached < SHIFT_MIN_STOPS or not shift_stands_out(reached, 0.0, pinned, matched)
             or pinned < pinned_now + SHIFT_MORE_STOPS):
         return None
     return ShiftHint(shift, pinned, matched, reached, pinned_now)

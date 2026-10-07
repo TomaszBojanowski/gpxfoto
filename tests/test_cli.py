@@ -1573,6 +1573,52 @@ def test_no_shift_without_stops(photo_series, hike):
     assert warnings(run_cli("photos", "-g", hike, "--no-stops").stdout) == []
 
 
+@needs_exiftool
+def test_no_timezone_proposed_for_photos_whose_camera_records_utc(photo_series, hike):
+    # With --timezone, the S5II's own UTC time would no longer match
+    times = at_stops(-3600)
+    photo_series(times)
+    utc = datetime.fromtimestamp(times[0], timezone.utc)
+    set_panasonic_time_stamp("photos/p01.jpg", f"{utc:%Y:%m:%d %H:%M:%S}")
+    lines = warnings(run_cli("photos", "-g", hike).stdout)
+    assert lines == [SHIFT_WARNING, ONE_HOUR,
+                     "  To apply this correction, run again with --offset=3600."]
+
+
+@needs_exiftool
+def test_shift_in_a_directory_of_tracks_that_cover_no_photo(photo_series, tmp_path, hike_points):
+    # Five hours off: no track covers the photos, but the nearest one,
+    # loaded to name it, shows the shift
+    tracks = tmp_path / "tracks"
+    tracks.mkdir()
+    hike_gpx(tracks / "hike.gpx", hike_points)
+    photo_series(at_stops(-5 * 3600))
+    result = run_cli("photos", "-g", tracks)
+    assert "Tracks covering the photos: 0 of 1 GPX file" in result.stdout.splitlines()
+    assert warnings(result.stdout)[0] == (
+        "Warning: with the photo times shifted by +5 h, clearly more photos fall during stops: "
+        "12 of 12 instead of 0.")
+    assert warnings(result.stdout)[-1] == (
+        "  To apply this correction, run again with --offset=18000 or --timezone=-03:00.")
+
+
+@needs_exiftool
+def test_no_shift_when_photos_are_skipped_for_a_track_that_cannot_be_read(
+        photo_series, tmp_path, hike_points):
+    # Next to the hike, a file that cannot be read covers its second half:
+    # photos there stay skipped whatever the shift, so the counts of the
+    # hike alone would be wrong
+    tracks = tmp_path / "tracks"
+    tracks.mkdir()
+    hike_gpx(tracks / "a.gpx", hike_points)
+    broken = hike_gpx(tracks / "b.gpx", [p for p in hike_points if p[0] >= T0 + 100 * 60])
+    broken.write_text(broken.read_text()[:-30])
+    photo_series(at_stops(-3600))
+    result = run_cli("photos", "-g", tracks)
+    assert "skipped: the track b.gpx cannot be read" in result.stdout
+    assert warnings(result.stdout) == []
+
+
 def shift_shots(zones=(7200,), count=12):
     zones = [zones[k % len(zones)] for k in range(count)]
     return [Shot(T0 + 60 * k, T0 + 60 * k + zone, 49.2, 20.0) for k, zone in enumerate(zones)]
@@ -1613,14 +1659,27 @@ CAMERA_TIME = datetime(2026, 6, 1, 12, 0, tzinfo=timezone(timedelta(hours=2)))
     ("2026-06-01T12:00:10+02:00", 3600, "--clock-time=2026-06-01T12:00:10+01:00"),
     # Beyond two hours, the date is needed
     ("12:00:10", 3 * 3600, "--clock-time=2026-06-01T12:00:10-01:00"),
-    ("23:30:00+14:00", -3600, "--offset=-3600"),
 ])
 def test_shift_with_a_clock_photo(reading, shift, option):
     clock = correction_from(CAMERA_TIME, parse_reading(reading))
     lines = shift_advice(ShiftHint(shift, 12, 12, 6, 0), shift_shots(), clock.seconds, clock)
-    if option.startswith("--offset"):
-        option = "--offset=" + cli.offset_value(clock.seconds + shift)
     assert lines[1] == f"  To apply this correction, run again with {option}."
+
+
+def test_shift_with_a_clock_photo_whose_offset_cannot_move():
+    # The clock was 14 h ahead of UTC; 15 h is no time zone, so --offset
+    # has to take the place of the clock options
+    clock = correction_from(CAMERA_TIME, parse_reading("23:30:00+14:00"))
+    lines = shift_advice(ShiftHint(-3600, 12, 12, 6, 0), shift_shots(), clock.seconds, clock)
+    offset = cli.offset_value(clock.seconds - 3600)
+    assert lines[1] == (f"  To apply this correction, run again with --offset={offset} instead of "
+                        "--clock-photo and --clock-time.")
+
+
+def test_no_timezone_proposed_when_it_is_not_wanted():
+    lines = cli.shift_lines(ShiftHint(3600, 12, 12, 6, 0), shift_shots(), 0.0, None,
+                            zone_option=False)
+    assert lines[2] == "  To apply this correction, run again with --offset=3600."
 
 
 MOTION_ADVICE = ("  Photos are usually taken at stops or while slowing down. Check the camera "

@@ -172,9 +172,9 @@ never changes anything by itself.
   hour or by whole hours (up to 12), clearly more photos fall during stops,
   at four or more different stops, gpxfoto proposes that shift with the
   option that applies it: `--offset`; `--timezone` as well when no
-  correction was given and all photos have the same time zone; or
-  `--clock-time` with another UTC offset when the correction comes from a
-  clock photo. A difference of exactly one hour usually means a camera not
+  correction was given, all photos have the same time zone and none comes
+  from a camera that records UTC, such as the S5II; or `--clock-time` with
+  another UTC offset when the correction comes from a clock photo. A difference of exactly one hour usually means a camera not
   switched to or from summer time.
 - **Photos in motion.** If most photos fall where the track moves at its
   full pace, not at stops or where it slows down, the camera clock may be
@@ -186,7 +186,10 @@ never changes anything by itself.
   GPX files of different trips recorded at the same time.
 
 The first two need the stops and speeds of one track: they are left out
-when the matched photos come from several tracks, and with `--no-stops`.
+when the matched photos come from several tracks, when photos are skipped
+for another track or for a file that cannot be read, and with
+`--no-stops`. When no track of a directory covers the photos, they look at
+the nearest one.
 The thresholds were chosen on a real hike; with the right clock, they gave
 no warning for any of 900 modelled sets of photos taken mostly at stops and
 short pauses.
