@@ -14,10 +14,10 @@ from conftest import (
     latin2_name, make_jpeg, needs_exiftool, read_tags, run_cli, set_panasonic_time_stamp,
     set_tags, write_gpx)
 from gpxfoto import cli, i18n
-from gpxfoto.engine.checks import ShiftHint, Shot
+from gpxfoto.engine.checks import Motion, ShiftHint, Shot
 from gpxfoto.engine.clock import correction_from, parse_reading
 from gpxfoto.engine.writer import image_checksum
-from test_checks import at_stops, stops_hike
+from test_checks import at_stops, in_pauses, pauses_hike, stops_hike
 from test_stops import T0
 
 # run_cli uses Europe/Warsaw, which is UTC+2 on these dates, and the C
@@ -1644,3 +1644,32 @@ def test_shift_with_a_clock_photo(reading, shift, option):
     if option.startswith("--offset"):
         option = "--offset=" + cli.offset_value(clock.seconds + shift)
     assert lines[1] == f"  To apply this correction, run again with {option}."
+
+
+MOTION_ADVICE = ("  Photos are usually taken at stops or while slowing down. Check the camera clock, "
+                 "for example with a photo of the watch that records the track and the options "
+                 "--clock-photo and --clock-time.")
+
+
+@needs_exiftool
+def test_photos_taken_while_walking_get_a_warning(photo_series, tmp_path):
+    # Walking at 1.2 m/s with a 20 s pause every 7.5 min; a photo in the
+    # middle of 20 pauses, by a camera clock 90 s behind: all of them land
+    # while walking
+    walk = hike_gpx(tmp_path / "walk.gpx", pauses_hike())
+    photo_series(in_pauses(20, -90))
+    result = run_cli("photos", "-g", walk)
+    assert warnings(result.stdout) == [
+        "Warning: the camera clock may be off. 20 of 20 matched photos were taken while the "
+        "track shows movement at full pace.", MOTION_ADVICE]
+    assert warnings(run_cli("photos", "-g", walk, "--offset=90").stdout) == []
+
+
+def test_motion_warning_with_a_clock_photo():
+    clock = correction_from(CAMERA_TIME, parse_reading("12:00:10"))
+    assert cli.motion_lines(Motion(1, 1, 1, 1), None) == [
+        "Warning: the camera clock may be off. 1 of 1 matched photo was taken while the track "
+        "shows movement at full pace.", MOTION_ADVICE]
+    assert cli.motion_lines(Motion(1, 1, 1, 1), clock)[1] == (
+        "  Photos are usually taken at stops or while slowing down. Check the time on the clock "
+        "given with --clock-time, and its UTC offset.")

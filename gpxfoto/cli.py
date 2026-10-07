@@ -464,11 +464,37 @@ def shift_lines(hint, shots, correction, clock):
     return lines
 
 
+def motion_lines(motion, clock):
+    """The warning about photos taken while the track moves at full pace."""
+    # Translators: {fast} and {matched} are numbers of photos
+    lines = [ngettext("Warning: the camera clock may be off. {fast} of {matched} matched photo "
+                      "was taken while the track shows movement at full pace.",
+                      "Warning: the camera clock may be off. {fast} of {matched} matched photos "
+                      "were taken while the track shows movement at full pace.",
+                      motion.matched).format(fast=i18n.number(motion.fast),
+                                             matched=i18n.number(motion.matched))]
+    if clock is None:
+        # Translators: {photo} and {time} are the command-line options
+        # --clock-photo and --clock-time
+        advice = _("Photos are usually taken at stops or while slowing down. Check the camera "
+                   "clock, for example with a photo of the watch that records the track and the "
+                   "options {photo} and {time}.").format(photo="--clock-photo",
+                                                         time="--clock-time")
+    else:
+        # Translators: {option} is the command-line option --clock-time
+        advice = _("Photos are usually taken at stops or while slowing down. Check the time on "
+                   "the clock given with {option}, and its UTC offset.").format(
+                       option="--clock-time")
+    return lines + ["  " + advice]
+
+
 def warning_lines(found, shots, names, correction, clock):
     """The lines about the signs of a suspicious match; they change nothing."""
     lines = []
     if found.shift is not None:
         lines += shift_lines(found.shift, shots, correction, clock)
+    if found.motion is not None:
+        lines += motion_lines(found.motion, clock)
     return lines
 
 

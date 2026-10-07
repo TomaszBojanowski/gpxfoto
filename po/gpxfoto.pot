@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: gpxfoto 0.1.0\n"
 "Report-Msgid-Bugs-To: https://github.com/tomaszbojanowski/gpxfoto/issues\n"
-"POT-Creation-Date: 2026-10-07 21:23+0000\n"
+"POT-Creation-Date: 2026-10-07 21:26+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -382,58 +382,88 @@ msgstr ""
 msgid "To apply this correction, run again with {option} or {other}."
 msgstr ""
 
-#: gpxfoto/cli.py:476
+#. Translators: {fast} and {matched} are numbers of photos
+#: gpxfoto/cli.py:470
+#, python-brace-format
+msgid ""
+"Warning: the camera clock may be off. {fast} of {matched} matched photo was "
+"taken while the track shows movement at full pace."
+msgid_plural ""
+"Warning: the camera clock may be off. {fast} of {matched} matched photos "
+"were taken while the track shows movement at full pace."
+msgstr[0] ""
+msgstr[1] ""
+
+#. Translators: {photo} and {time} are the command-line options
+#. --clock-photo and --clock-time
+#: gpxfoto/cli.py:479
+#, python-brace-format
+msgid ""
+"Photos are usually taken at stops or while slowing down. Check the camera "
+"clock, for example with a photo of the watch that records the track and the "
+"options {photo} and {time}."
+msgstr ""
+
+#. Translators: {option} is the command-line option --clock-time
+#: gpxfoto/cli.py:485
+#, python-brace-format
+msgid ""
+"Photos are usually taken at stops or while slowing down. Check the time on "
+"the clock given with {option}, and its UTC offset."
+msgstr ""
+
+#: gpxfoto/cli.py:502
 msgid "The GPX file contains no track points with timestamps."
 msgid_plural "The GPX files contain no track points with timestamps."
 msgstr[0] ""
 msgstr[1] ""
 
 #. Translators: {option} and {other} are command-line options
-#: gpxfoto/cli.py:488
+#: gpxfoto/cli.py:514
 #, python-brace-format
 msgid "{option} must be used together with {other}"
 msgstr ""
 
 #. Translators: {option} and {other} are command-line options
-#: gpxfoto/cli.py:492
+#: gpxfoto/cli.py:518
 #, python-brace-format
 msgid "{option} cannot be used together with {other}"
 msgstr ""
 
-#: gpxfoto/cli.py:496
+#: gpxfoto/cli.py:522
 #, python-brace-format
 msgid "exiftool is not installed. On Fedora, install it with: {command}"
 msgstr ""
 
-#: gpxfoto/cli.py:505
+#: gpxfoto/cli.py:531
 msgid "The time zone must be in the form +HH:MM, for example +02:00 or -05:00."
 msgstr ""
 
-#: gpxfoto/cli.py:516
+#: gpxfoto/cli.py:542
 msgid "No GPX files found."
 msgstr ""
 
-#: gpxfoto/cli.py:541
+#: gpxfoto/cli.py:567
 msgid "No JPEG photos found."
 msgstr ""
 
 #. Translators: {used} is how many of the {total} GPX files given or
 #. found have a track at the time of some photo
-#: gpxfoto/cli.py:584
+#: gpxfoto/cli.py:610
 #, python-brace-format
 msgid "Tracks covering the photos: {used} of {total} GPX file"
 msgid_plural "Tracks covering the photos: {used} of {total} GPX files"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gpxfoto/cli.py:604
+#: gpxfoto/cli.py:630
 #, python-brace-format
 msgid "Matched: {matched}, skipped: {skipped}"
 msgstr ""
 
 #. Translators: how many of the matched photos were taken during stops;
 #. a wrong camera clock puts fewer of them there
-#: gpxfoto/cli.py:609
+#: gpxfoto/cli.py:635
 #, python-brace-format
 msgid "During stops: {count} of {matched} matched photo"
 msgid_plural "During stops: {count} of {matched} matched photos"
@@ -441,24 +471,24 @@ msgstr[0] ""
 msgstr[1] ""
 
 #. Translators: {option} is the command-line option --write
-#: gpxfoto/cli.py:622
+#: gpxfoto/cli.py:648
 #, python-brace-format
 msgid ""
 "This was a preview; no files were changed. Use {option} to write the "
 "locations."
 msgstr ""
 
-#: gpxfoto/cli.py:638
+#: gpxfoto/cli.py:664
 #, python-brace-format
 msgid "Could not write {name}: {error} (file unchanged)"
 msgstr ""
 
-#: gpxfoto/cli.py:640
+#: gpxfoto/cli.py:666
 #, python-brace-format
 msgid "Written: {written}, errors: {errors}"
 msgstr ""
 
-#: gpxfoto/cli.py:643
+#: gpxfoto/cli.py:669
 msgid "The image data of every written file was verified as unchanged."
 msgstr ""
 
