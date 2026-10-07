@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="data/icons/hicolor/scalable/apps/io.github.tomaszbojanowski.Gpxfoto.svg" width="128" alt="gpxfoto icon">
+</p>
+
 # gpxfoto
 
 [Polski](README.pl.md)
