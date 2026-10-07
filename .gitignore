@@ -1,0 +1,12 @@
+__pycache__/
+*.py[cod]
+/build/
+/dist/
+*.egg-info/
+.pytest_cache/
+
+# Private photos and tracks used for local testing only
+/tests/prywatne/
+
+# Translations compiled by an editable install
+/gpxfoto/locale/
