@@ -8,6 +8,10 @@ from gettext import gettext as _
 # Elevations further from sea level, in metres, are errors in the track:
 # balloons rise to about 40 km, and the deepest sea is 11 km deep
 MAX_ELEVATION = 100_000.0
+# Track times within two days of the ends of the calendar are errors in
+# the track; Python cannot show them in every local time zone
+EARLIEST = datetime(1, 1, 3, tzinfo=timezone.utc).timestamp()
+LATEST = datetime(9999, 12, 30, tzinfo=timezone.utc).timestamp()
 
 
 def _local_name(tag):
@@ -63,7 +67,8 @@ def _read_points(path):
                 pass
             else:
                 # Also false for NaN; rules out infinity
-                if -90 <= point[1] <= 90 and -180 <= point[2] <= 180:
+                if (-90 <= point[1] <= 90 and -180 <= point[2] <= 180
+                        and EARLIEST <= point[0] < LATEST):
                     points.append(point)
         el.clear()
     return points

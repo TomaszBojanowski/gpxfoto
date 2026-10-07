@@ -176,6 +176,8 @@ def test_naive_time_is_utc_not_local(tmp_path, local_zone):
 @pytest.mark.parametrize("time_text", [
     None, "", "   ", "yesterday", "2026-13-01T10:00:00Z", "2026-06-01T25:00:00Z",
     "9999-12-31T23:59:59-01:00", "0001-01-01T00:00:00+01:00",
+    # Too close to the ends of the calendar to be shown in local time
+    "0001-01-02T23:59:59Z", "9999-12-30T00:00:00Z",
 ])
 def test_points_without_usable_time_are_skipped(tmp_path, time_text):
     path = write_gpx(tmp_path / "track.gpx", [
@@ -184,6 +186,15 @@ def test_points_without_usable_time_are_skipped(tmp_path, time_text):
         ("2026-06-01T10:00:10Z", 51.0, 20.0, 3.0),
     ])
     assert load_gpx([path]) == [(T0, 50.0, 19.0, 1.0), (T0 + 10, 51.0, 20.0, 3.0)]
+
+
+@pytest.mark.parametrize("time_text, expected", [
+    ("0001-01-03T00:00:00Z", utc(1, 1, 3, 0, 0, 0)),
+    ("9999-12-29T23:59:59Z", utc(9999, 12, 29, 23, 59, 59)),
+])
+def test_points_near_the_ends_of_the_calendar_are_kept(tmp_path, time_text, expected):
+    path = write_gpx(tmp_path / "track.gpx", [(time_text, 50.0, 19.0, None)])
+    assert load_gpx([path]) == [(expected, 50.0, 19.0, None)]
 
 
 @pytest.mark.parametrize("lat, lon", [("north", 19.5), (50.5, ""), ("", 19.5)])

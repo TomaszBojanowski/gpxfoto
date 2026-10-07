@@ -220,6 +220,27 @@ def test_offset_shifts_capture_time(photo, gpx, offset, local_time, match_line):
         TRACK_LINE, match_line, "Matched: 1, skipped: 0", PREVIEW_LINE]
 
 
+@needs_exiftool
+@pytest.mark.parametrize("zone, track_line", [
+    ("<+14>-14", "Track: 2 points, 01/03/01 14:00:00 – 12/30/99 13:59:59"),
+    ("<-1556>15:56", "Track: 2 points, 01/02/01 08:04:00 – 12/29/99 08:03:59"),
+])
+def test_track_near_the_ends_of_the_calendar(tmp_path, photo, zone, track_line):
+    gpx = write_gpx(tmp_path / "edges.gpx", [
+        (time_text, 50.0, 20.0, None) for time_text in (
+            "0001-01-02T23:59:59Z", "0001-01-03T00:00:00Z",
+            "9999-12-29T23:59:59Z", "9999-12-30T00:00:00Z")])
+    path = photo("a.jpg")
+
+    result = run_cli(path, "-g", gpx, env={"TZ": zone})
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.splitlines() == [
+        track_line + " (this computer’s time zone)",
+        "  a.jpg            skipped: no capture time in EXIF",
+        "Matched: 0, skipped: 1",
+    ]
+
 
 @needs_exiftool
 def test_offset_beyond_the_calendar_skips_the_photo(photo, gpx):
