@@ -5,6 +5,8 @@ import subprocess
 from datetime import datetime, timedelta, timezone
 from gettext import gettext as _
 
+from gpxfoto.engine.writer import BACKUP_DIR, TEMP_PREFIX
+
 EXTENSIONS = {".jpg", ".jpeg"}
 
 # Where the time zone of a capture time comes from
@@ -14,12 +16,20 @@ TZ_SYSTEM = "system"     # missing in EXIF, the computer's time zone is used
 
 
 def find_photos(paths, recursive):
+    """Return the photos in paths; directories are searched for JPEG files.
+
+    The search skips backup directories and temporary files of gpxfoto, so
+    that backups are never geotagged; paths given explicitly are taken as
+    they are.
+    """
     found = []
     for path in paths:
         if os.path.isdir(path):
             for directory, subdirs, files in os.walk(path):
-                subdirs.sort()
+                subdirs[:] = sorted(d for d in subdirs if d != BACKUP_DIR)
                 for name in sorted(files):
+                    if name.startswith(TEMP_PREFIX):
+                        continue
                     if os.path.splitext(name)[1].lower() in EXTENSIONS:
                         found.append(os.path.join(directory, name))
                 if not recursive:

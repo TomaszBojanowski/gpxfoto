@@ -8,6 +8,8 @@ from gettext import gettext as _
 
 # Subdirectory for copies of the original files
 BACKUP_DIR = "originals"
+# Name prefix of temporary files, which a crash could leave behind
+TEMP_PREFIX = ".gpxfoto-"
 
 
 def image_checksum(path):
@@ -43,7 +45,7 @@ def image_checksum(path):
 def write_location(path, lat, lon, ele, time_utc, backup):
     before = image_checksum(path)
     directory = os.path.dirname(os.path.abspath(path))
-    fd, temp = tempfile.mkstemp(prefix=".gpxfoto-", suffix=".jpg", dir=directory)
+    fd, temp = tempfile.mkstemp(prefix=TEMP_PREFIX, suffix=".jpg", dir=directory)
     os.close(fd)
     os.unlink(temp)                  # exiftool -o requires that the file does not exist
     try:
@@ -85,7 +87,7 @@ def _back_up(path, directory):
     if os.path.lexists(target):
         return
     os.makedirs(target_dir, exist_ok=True)
-    fd, temp = tempfile.mkstemp(prefix=".gpxfoto-", suffix=".jpg", dir=target_dir)
+    fd, temp = tempfile.mkstemp(prefix=TEMP_PREFIX, suffix=".jpg", dir=target_dir)
     os.close(fd)
     try:
         shutil.copy2(path, temp)

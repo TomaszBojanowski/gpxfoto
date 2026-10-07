@@ -238,6 +238,28 @@ def test_find_photos_recursive_walks_sorted_subdirectories_after_files(photo_tre
     assert found == [os.path.join(root, *n.split("/")) for n in RECURSIVE_ORDER]
 
 
+@pytest.mark.parametrize("recursive", [False, True])
+def test_find_photos_skips_backups_and_temporary_files(photo_tree, recursive):
+    for name in ["originals/z.jpg", "a_dir/originals/m.jpg", ".gpxfoto-k2j4.jpg",
+                 "b_dir/.gpxfoto-x1.jpg", "originals/.gpxfoto-c.jpg"]:
+        (photo_tree / name).parent.mkdir(parents=True, exist_ok=True)
+        (photo_tree / name).write_bytes(b"")
+    root = str(photo_tree)
+    expected = RECURSIVE_ORDER if recursive else RECURSIVE_ORDER[:4]
+    assert find_photos([root], recursive=recursive) == [
+        os.path.join(root, *n.split("/")) for n in expected]
+
+
+def test_find_photos_searches_a_backup_directory_given_explicitly(tmp_path):
+    backups = tmp_path / "originals"
+    backups.mkdir()
+    (backups / "a.jpg").write_bytes(b"")
+    temp = tmp_path / ".gpxfoto-left.jpg"
+    temp.write_bytes(b"")
+    assert find_photos([str(backups), str(temp)], recursive=True) == [
+        str(backups / "a.jpg"), str(temp)]
+
+
 def test_find_photos_sorts_whatever_order_the_file_system_lists(photo_tree, monkeypatch):
     walk = os.walk
 

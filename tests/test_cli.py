@@ -361,6 +361,21 @@ def test_second_run_keeps_the_first_backup(tmp_path, photo, gpx):
     assert read_tags(path, "GPS:GPSLatitude") == {
         "GPSLatitude": pytest.approx(51.0005, abs=1e-7)}
 
+
+@needs_exiftool
+def test_recursive_run_leaves_backups_alone(photo, gpx):
+    path = photo("a.jpg", taken("12:00:50"))
+    original = path.read_bytes()
+
+    first = run_cli(path.parent, "-g", gpx, "--write", "--backup")
+    second = run_cli(path.parent, "-g", gpx, "--write", "--backup", "--overwrite", "-r")
+
+    assert first.returncode == second.returncode == 0, first.stderr + second.stderr
+    # The backup would be a second photo without a location
+    assert second.stdout.splitlines()[-3] == "Matched: 1, skipped: 0"
+    assert os.listdir(path.parent / "originals") == ["a.jpg"]
+    assert (path.parent / "originals" / "a.jpg").read_bytes() == original
+
 @needs_exiftool
 @needs_posix_shell
 def test_failed_write_is_reported_and_exits_with_status_1(tmp_path, photo, gpx):
