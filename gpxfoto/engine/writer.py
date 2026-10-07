@@ -118,12 +118,15 @@ def write_location(path, lat, lon, ele, time_utc, backup, replace=False, seen=No
         if image_checksum(temp) != before:
             raise RuntimeError(_("exiftool changed the image data; the result was discarded"))
         _copy_attributes(path, original, access_ns, temp)
+        # After a power cut, the photo must be either the old or the new one
+        _sync(temp)
         if backup:
             _back_up(path, directory, original, access_ns, before)
         if _changed(original, os.stat(path)):
             # Replacing the photo would undo that change
             raise RuntimeError(_("another program changed the photo in the meantime"))
         os.replace(temp, path)       # atomic replacement
+        _sync_directory(directory)
     finally:
         if os.path.exists(temp):
             os.unlink(temp)
@@ -133,6 +136,23 @@ def _changed(before, now):
     """Whether os.stat() results show that a file changed in between."""
     return ((before.st_dev, before.st_ino, before.st_size, before.st_mtime_ns, before.st_ctime_ns)
             != (now.st_dev, now.st_ino, now.st_size, now.st_mtime_ns, now.st_ctime_ns))
+
+
+def _sync(path):
+    """Wait until what was written to the file at path is on the disk."""
+    fd = os.open(path, os.O_RDONLY)
+    try:
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+
+
+def _sync_directory(directory):
+    """Wait until the names in directory are on the disk, where the system allows it."""
+    try:
+        _sync(directory)
+    except OSError:
+        pass                    # not every system and file system can sync a directory
 
 
 def _copy_attributes(path, original, access_ns, target):
@@ -190,10 +210,13 @@ def _backup_dir(directory):
             parent = os.stat(directory)
             _copy_owner(parent, temp)
             os.chmod(temp, stat.S_IMODE(parent.st_mode))
+            _sync_directory(temp)
             try:
                 os.rename(temp, target_dir)
             except OSError:
                 pass                        # made meanwhile by another run; checked below
+            else:
+                _sync_directory(directory)
         finally:
             if os.path.lexists(temp):
                 shutil.rmtree(temp, ignore_errors=True)
@@ -224,6 +247,7 @@ def _back_up(path, directory, original, access_ns, checksum):
         if image_checksum(temp) != checksum:
             raise RuntimeError(_("the backup copy differs from the photo"))
         _copy_attributes(path, original, access_ns, temp)
+        _sync(temp)
         try:
             os.link(temp, target)       # unlike a rename, never replaces a file
         except FileExistsError:
@@ -234,6 +258,7 @@ def _back_up(path, directory, original, access_ns, checksum):
                 _check_backup(target, checksum)
             else:
                 os.replace(temp, target)
+        _sync_directory(target_dir)
     finally:
         if os.path.exists(temp):
             os.unlink(temp)

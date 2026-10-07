@@ -463,6 +463,88 @@ def test_owner_that_cannot_be_set_does_not_stop_writing(photo, fake_exiftool, mo
     assert state(photo) == (expected, MTIME_NS, 0o640)
 
 
+@pytest.fixture
+def disk_events(tmp_path, monkeypatch):
+    """Records fsync, link and replace calls, with temporary names shown as TEMP."""
+    if not os.path.isdir("/proc/self/fd"):
+        pytest.skip("needs /proc to tell which file is synced")
+    events = []
+    real_fsync, real_link, real_replace = os.fsync, os.link, os.replace
+
+    def name(path):
+        parts = os.path.relpath(path, tmp_path).split(os.sep)
+        return "/".join("TEMP" if part.startswith(".gpxfoto-") else part for part in parts)
+
+    def fsync(fd):
+        events.append(("sync", name(os.readlink(f"/proc/self/fd/{fd}"))))
+        real_fsync(fd)
+
+    def link(source, target):
+        events.append(("link", name(source), name(target)))
+        real_link(source, target)
+
+    def replace(source, target):
+        events.append(("replace", name(source), name(target)))
+        real_replace(source, target)
+
+    monkeypatch.setattr(writer.os, "fsync", fsync)
+    monkeypatch.setattr(writer.os, "link", link)
+    monkeypatch.setattr(writer.os, "replace", replace)
+    return events
+
+
+def test_everything_reaches_the_disk_before_the_photo_is_replaced(photo, fake_exiftool,
+                                                                  disk_events):
+    fake_exiftool()
+    write_location(photo, 50.0, 19.0, 200.0, TIME, backup=True)
+    assert disk_events == [
+        ("sync", "TEMP"),                       # the result
+        ("sync", "TEMP"),                       # the new backup directory with its marker
+        ("sync", "."),                          # its name
+        ("sync", "originals/TEMP"),             # the backup copy
+        ("link", "originals/TEMP", "originals/photo.jpg"),
+        ("sync", "originals"),                  # its name
+        ("replace", "TEMP", "photo.jpg"),
+        ("sync", "."),                          # the photo's new file
+    ]
+
+
+def test_without_backup_the_result_is_synced_before_the_replacement(photo, fake_exiftool,
+                                                                    disk_events):
+    fake_exiftool()
+    write_location(photo, 50.0, 19.0, 200.0, TIME, backup=False)
+    assert disk_events == [("sync", "TEMP"), ("replace", "TEMP", "photo.jpg"), ("sync", ".")]
+
+
+def test_failed_sync_of_the_result_keeps_the_photo(tmp_path, photo, fake_exiftool, monkeypatch):
+    def fail(fd):
+        raise OSError(5, "Input/output error")
+
+    before = state(photo)
+    fake_exiftool()
+    monkeypatch.setattr(writer.os, "fsync", fail)
+    with pytest.raises(OSError, match="Input/output error"):
+        write_location(photo, 50.0, 19.0, 200.0, TIME, backup=False)
+    assert state(photo) == before
+    assert os.listdir(tmp_path) == ["photo.jpg"]
+
+
+def test_directory_that_cannot_be_synced_does_not_stop_writing(photo, fake_exiftool,
+                                                               monkeypatch):
+    real = os.fsync
+
+    def files_only(fd):
+        if stat.S_ISDIR(os.fstat(fd).st_mode):
+            raise OSError(22, "Invalid argument")
+        real(fd)
+
+    expected = add_comment(photo.read_bytes())
+    fake_exiftool()
+    monkeypatch.setattr(writer.os, "fsync", files_only)
+    write_location(photo, 50.0, 19.0, 200.0, TIME, backup=True)
+    assert state(photo) == (expected, MTIME_NS, 0o640)
+
+
 def test_non_jpeg_photo_is_rejected_before_exiftool(tmp_path, fake_exiftool):
     path = tmp_path / "photo.jpg"
     path.write_bytes(b"not an image")
