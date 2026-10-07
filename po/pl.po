@@ -8,7 +8,7 @@ msgstr ""
 "Project-Id-Version: gpxfoto\n"
 "Report-Msgid-Bugs-To: "
 "https://github.com/tomaszbojanowski/gpxfoto/issues\n"
-"POT-Creation-Date: 2026-10-07 19:32+0000\n"
+"POT-Creation-Date: 2026-10-07 19:34+0000\n"
 "PO-Revision-Date: 2026-10-06 23:45+0200\n"
 "Last-Translator: Tomasz <t.bojanowski@protonmail.com>\n"
 "Language-Team: Polish\n"
@@ -277,7 +277,7 @@ msgstr ""
 
 #. Translators: {value} is what the user gave as the time on the clock;
 #. HH:MM:SS and HH:MM stand for hours, minutes and seconds
-#: gpxfoto/engine/clock.py:58
+#: gpxfoto/engine/clock.py:96
 #, python-brace-format
 msgid ""
 "not a valid time: {value} (use HH:MM:SS or HH:MM, optionally with a "
@@ -287,6 +287,69 @@ msgstr ""
 "nieprawidłowy czas: {value} (należy podać GG:MM:SS lub GG:MM, "
 "opcjonalnie z datą i przesunięciem względem UTC, na przykład "
 "14:03:27, 2026-10-06T14:03:27 lub 14:03:27+02:00)"
+
+#. Translators: {value} is the time on the clock given by the user
+#: gpxfoto/engine/clock.py:133
+#, python-brace-format
+msgid "The time on the clock is out of range: {value}"
+msgstr "Czas na zegarze wykracza poza dopuszczalny zakres: {value}"
+
+#: gpxfoto/engine/clock.py:144
+#, python-brace-format
+msgid ""
+"The time on the clock is {duration} away from the capture time of the "
+"clock photo, so the clock may have shown a different time zone than "
+"the camera. Add the UTC offset of the time on the clock, for example "
+"“{near}” or “{same}”."
+msgstr ""
+"Czas na zegarze różni się od czasu wykonania zdjęcia zegara o "
+"{duration}, więc zegar mógł pokazywać czas innej strefy czasowej niż "
+"aparat. Należy dopisać przesunięcie względem UTC czasu na zegarze, na "
+"przykład „{near}” lub „{same}”."
+
+#: gpxfoto/engine/clock.py:151
+#, python-brace-format
+msgid ""
+"The time on the clock is {duration} away from the capture time of the "
+"clock photo. Add the UTC offset of the time on the clock as well, for "
+"example “{same}”."
+msgstr ""
+"Czas na zegarze różni się od czasu wykonania zdjęcia zegara o "
+"{duration}. Należy dopisać także przesunięcie względem UTC czasu na "
+"zegarze, na przykład „{same}”."
+
+#. Translators: a form of a date, shown to the user in an example of
+#. the time on the clock; Y is a digit of the year, M of the month and
+#. D of the day
+#: gpxfoto/engine/clock.py:158
+msgid "YYYY-MM-DD"
+msgstr "RRRR-MM-DD"
+
+#: gpxfoto/engine/clock.py:162
+#, python-brace-format
+msgid ""
+"The time on the clock is {duration} away from the capture time of the "
+"clock photo. If the camera’s clock really is that far off, give the "
+"date shown on the clock as well, in the form “{form}”."
+msgstr ""
+"Czas na zegarze różni się od czasu wykonania zdjęcia zegara o "
+"{duration}. Jeśli zegar aparatu rzeczywiście tak bardzo się myli, "
+"należy podać także datę widoczną na zegarze w postaci „{form}”."
+
+#: gpxfoto/engine/clock.py:176
+msgid "no such file or directory"
+msgstr "nie ma takiego pliku ani katalogu"
+
+#: gpxfoto/engine/clock.py:178
+msgid "not a regular file"
+msgstr "nie jest zwykłym plikiem"
+
+#. Translators: {path} is the file given as the clock photo; {reason} says
+#. what is wrong with it
+#: gpxfoto/engine/clock.py:190
+#, python-brace-format
+msgid "Cannot use the clock photo {path}: {reason}"
+msgstr "Nie można użyć zdjęcia zegara {path}: {reason}"
 
 #. Translators: reason why a photo was skipped
 #: gpxfoto/engine/matching.py:27
