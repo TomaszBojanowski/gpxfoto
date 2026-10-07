@@ -620,7 +620,13 @@ def main():
     except ValueError:
         sys.exit(_("The time zone must be in the form +HH:MM, for example +02:00 or -05:00."))
     clock = None
+    clock_seen = None
     if args.clock_photo is not None:
+        # Taken before exiftool reads it, in case it is also among the photos
+        try:
+            clock_seen = os.path.realpath(args.clock_photo), os.stat(args.clock_photo)
+        except OSError:
+            pass
         try:
             clock = measure(args.clock_photo, args.clock_time, manual_tz)
         except ClockError as e:
@@ -660,7 +666,10 @@ def main():
     seen = {}
     for path in files:
         try:
-            seen[path] = os.stat(path)
+            if clock_seen is not None and os.path.realpath(path) == clock_seen[0]:
+                seen[path] = clock_seen[1]
+            else:
+                seen[path] = os.stat(path)
         except OSError:
             pass
     try:

@@ -489,6 +489,19 @@ def test_clock_photo_among_the_photos_gets_the_clock_time(photo, gpx):
 
 
 @needs_exiftool
+def test_clock_photo_among_the_photos_keeps_its_access_time(photo, gpx):
+    # The clock photo is read before the other photos
+    watch = photo("watch.jpg", taken("11:58:38"))
+    atime = OLD_TIME_NS - 86400 * 10**9
+    os.utime(watch, ns=(atime, OLD_TIME_NS))
+    result = run_cli(watch, "-g", gpx, "--clock-photo", watch, "--clock-time", "12:00:50",
+                     "--write")
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.splitlines()[-2:] == written(1, 0)
+    assert (watch.stat().st_atime_ns, watch.stat().st_mtime_ns) == (atime, OLD_TIME_NS)
+
+
+@needs_exiftool
 @pytest.mark.parametrize("options, note", [
     ((), "  [computer’s time zone (not in EXIF)]"),
     (("--timezone", "+02:00"), "  [time zone from --timezone]"),
