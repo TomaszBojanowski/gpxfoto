@@ -810,3 +810,12 @@ def test_tracks_needed():
     assert track_module.tracks_needed(spans, [39.0, 2061.0], 60) == ["d"]
     assert track_module.tracks_needed(spans, [], 60) == ["d"]
     assert track_module.tracks_needed(spans, [150.0], 0) == ["a", "d"]
+
+
+def test_photo_in_the_time_of_an_unreadable_track_is_not_placed():
+    mine = straight(T0, 600, 50.0)
+    unreadable = [("/t/broken.gpx", (T0 + 1000, T0 + 2000))]
+    found = track_module.match([mine], T0 + 940, 60, unreadable=unreadable)
+    assert (found.lat, found.reason) == (None, "the track broken.gpx cannot be read")
+    found = track_module.match([mine], T0 + 300, 60, unreadable=unreadable)
+    assert (found.track, found.reason) == (mine, None)

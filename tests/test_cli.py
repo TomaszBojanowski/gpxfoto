@@ -274,6 +274,43 @@ def test_track_file_that_cannot_be_scanned_quickly_is_read(photo, tmp_path):
 
 
 @needs_exiftool
+@pytest.mark.parametrize("write", [False, True])
+def test_track_file_that_cannot_be_read_leaves_only_its_photos(photo, track_dir, write):
+    # Its times can be scanned, but the file is cut off
+    text = (track_dir / "day2.GPX").read_text()
+    (track_dir / "day2.GPX").write_text(text[:text.rindex("</trkpt>")])
+    a = photo("a.jpg", taken("12:00:50"))
+    chile = photo("chile.jpg", taken("12:00:50", "-04:00", date="2024:05:02"))
+    before = chile.read_bytes()
+
+    result = run_cli(a.parent, "-g", track_dir, *(["--write"] if write else []))
+
+    assert result.returncode == 1
+    assert result.stderr.startswith(f"Cannot read the GPX file {track_dir / 'day2.GPX'}: ")
+    assert result.stdout.splitlines()[2:5] == [
+        MATCH_LINE + "  day1.gpx",
+        "  chile.jpg        12:00:50  skipped: the track day2.GPX cannot be read",
+        "Matched: 1, skipped: 1"]
+    assert chile.read_bytes() == before
+    if write:
+        assert read_tags(a, "GPSLatitude")["GPSLatitude"] == pytest.approx(50.0005)
+
+
+@needs_exiftool
+def test_track_file_of_unknown_time_that_cannot_be_read_stops_the_run(photo, track_dir):
+    (track_dir / "broken.gpx").write_text("<!DOCTYPE gpx>\n<gpx><trk>")
+    path = photo("a.jpg", taken("12:00:50"))
+    before = path.read_bytes()
+
+    result = run_cli(path, "-g", track_dir, "--write")
+
+    assert result.returncode == 1
+    assert result.stdout == ""
+    assert result.stderr.startswith(f"Cannot read the GPX file {track_dir / 'broken.gpx'}: ")
+    assert path.read_bytes() == before
+
+
+@needs_exiftool
 def test_directory_without_tracks(photo, tmp_path):
     path = photo("a.jpg", taken("12:00:50"))
     (tmp_path / "empty").mkdir()

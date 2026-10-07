@@ -305,7 +305,7 @@ def placement_rank(track, t, max_gap):
     return NEAR if nearest <= max_gap else ACROSS_BREAK
 
 
-def match(tracks, t, max_gap, label=os.path.basename):
+def match(tracks, t, max_gap, label=os.path.basename, unreadable=()):
     """Return the Match of Unix time t on tracks.
 
     Each track that covers t, widened by max_gap, places it on its own;
@@ -314,8 +314,14 @@ def match(tracks, t, max_gap, label=os.path.basename):
     then the one recorded more often, then the one that started earlier.
     When the winner was found in a directory and another track places t
     as well but more than DISAGREEMENT away, nothing is placed. label
-    gives the name of a track file in reasons.
+    gives the name of a track file in reasons. unreadable holds (path,
+    span) of the track files that could not be read: where their span,
+    widened by max_gap, holds t, nothing is placed either.
     """
+    for path, (first, last) in unreadable:
+        if first - max_gap <= t <= last + max_gap:
+            # Translators: reason why a photo was skipped; {name} is a GPX file
+            return Match(reason=_("the track {name} cannot be read").format(name=label(path)))
     if not tracks:
         # Translators: reason why a photo was skipped
         return Match(reason=_("no track covers this time"), covered=False)

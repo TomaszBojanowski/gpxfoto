@@ -423,6 +423,7 @@ def main():
         sys.exit(str(e))
 
     photos = [photo_from_metadata(meta, manual_tz) for meta in metadata]
+    unreadable = []
     if found:
         # Only when the scans are sure that no file has a time
         if not tracks and all(span == () for span in spans.values()):
@@ -432,12 +433,18 @@ def main():
             try:
                 track = load_track([path], named=False, stops=not args.no_stops)
             except ValueError as e:
-                sys.exit(str(e))
+                if spans[path] is None:
+                    sys.exit(str(e))        # which photos it would cover is not known
+                # Only the photos within its time are left without a location
+                print(str(e), file=sys.stderr)
+                unreadable.append((path, spans[path]))
+                continue
             if track is not None:
                 tracks.append(track)
-        labels = file_labels([path for track in tracks for path in track.files])
+        labels = file_labels([path for track in tracks for path in track.files]
+                             + [path for path, _span in unreadable])
     results = match_photos(photos, tracks, correction, args.max_gap, overwrite=args.overwrite,
-                           label=labels.get)
+                           label=labels.get, unreadable=unreadable)
     if found:
         used = covering(tracks, results, args.max_gap)
         total = len(named) + len(found)
@@ -479,6 +486,8 @@ def main():
             # Translators: {option} is the command-line option --write
             print(_("This was a preview; no files were changed. "
                     "Use {option} to write the locations.").format(option="--write"))
+        if unreadable:
+            sys.exit(1)
         return
 
     written = errors = 0
@@ -497,7 +506,7 @@ def main():
         written=i18n.number(written), errors=i18n.number(errors)))
     if written:
         print(_("The image data of every written file was verified as unchanged."))
-    if errors:
+    if errors or unreadable:
         sys.exit(1)
 
 

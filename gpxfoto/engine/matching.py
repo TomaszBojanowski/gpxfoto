@@ -25,12 +25,13 @@ PhotoResult = namedtuple("PhotoResult",
 Summary = namedtuple("Summary", "matched skipped at_stops")
 
 
-def match_photo(photo, tracks, correction, max_gap, overwrite=False, label=os.path.basename):
+def match_photo(photo, tracks, correction, max_gap, overwrite=False, label=os.path.basename,
+                unreadable=()):
     """Return the PhotoResult of photo on tracks.
 
     correction is added to the capture time, in seconds. A photo that
-    already has a location is skipped unless overwrite is set. label
-    gives the name of a track file in reasons.
+    already has a location is skipped unless overwrite is set. label and
+    unreadable are as for track.match().
     """
     if photo.has_location and not overwrite:
         # Translators: reason why a photo was skipped
@@ -48,7 +49,7 @@ def match_photo(photo, tracks, correction, max_gap, overwrite=False, label=os.pa
         # Translators: reason why a photo was skipped
         return PhotoResult(photo, reason=_("the corrected capture time is out of range"),
                            time_check=time_check)
-    found = match(tracks, time.timestamp(), max_gap, label)
+    found = match(tracks, time.timestamp(), max_gap, label, unreadable)
     if found.reason is not None:
         return PhotoResult(photo, time, time_utc, reason=found.reason, time_check=time_check,
                            files=found.files)

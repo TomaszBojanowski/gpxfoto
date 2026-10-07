@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: gpxfoto 0.1.0\n"
 "Report-Msgid-Bugs-To: https://github.com/tomaszbojanowski/gpxfoto/issues\n"
-"POT-Creation-Date: 2026-10-07 20:49+0000\n"
+"POT-Creation-Date: 2026-10-07 20:56+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -368,21 +368,21 @@ msgstr ""
 
 #. Translators: {used} is how many of the {total} GPX files given or
 #. found have a track at the time of some photo
-#: gpxfoto/cli.py:445
+#: gpxfoto/cli.py:453
 #, python-brace-format
 msgid "Tracks covering the photos: {used} of {total} GPX file"
 msgid_plural "Tracks covering the photos: {used} of {total} GPX files"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gpxfoto/cli.py:465
+#: gpxfoto/cli.py:473
 #, python-brace-format
 msgid "Matched: {matched}, skipped: {skipped}"
 msgstr ""
 
 #. Translators: how many of the matched photos were taken during stops;
 #. a wrong camera clock puts fewer of them there
-#: gpxfoto/cli.py:470
+#: gpxfoto/cli.py:478
 #, python-brace-format
 msgid "During stops: {count} of {matched} matched photo"
 msgid_plural "During stops: {count} of {matched} matched photos"
@@ -390,24 +390,24 @@ msgstr[0] ""
 msgstr[1] ""
 
 #. Translators: {option} is the command-line option --write
-#: gpxfoto/cli.py:479
+#: gpxfoto/cli.py:487
 #, python-brace-format
 msgid ""
 "This was a preview; no files were changed. Use {option} to write the "
 "locations."
 msgstr ""
 
-#: gpxfoto/cli.py:493
+#: gpxfoto/cli.py:503
 #, python-brace-format
 msgid "Could not write {name}: {error} (file unchanged)"
 msgstr ""
 
-#: gpxfoto/cli.py:495
+#: gpxfoto/cli.py:505
 #, python-brace-format
 msgid "Written: {written}, errors: {errors}"
 msgstr ""
 
-#: gpxfoto/cli.py:498
+#: gpxfoto/cli.py:508
 msgid "The image data of every written file was verified as unchanged."
 msgstr ""
 
@@ -474,12 +474,12 @@ msgid "Cannot use the clock photo {path}: {reason}"
 msgstr ""
 
 #. Translators: reason why a photo was skipped
-#: gpxfoto/engine/matching.py:37
+#: gpxfoto/engine/matching.py:38
 msgid "already has a location"
 msgstr ""
 
 #. Translators: reason why a photo was skipped
-#: gpxfoto/engine/matching.py:49
+#: gpxfoto/engine/matching.py:50
 msgid "the corrected capture time is out of range"
 msgstr ""
 
@@ -520,41 +520,47 @@ msgstr ""
 msgid "invalid capture time in EXIF: {value}"
 msgstr ""
 
+#. Translators: reason why a photo was skipped; {name} is a GPX file
+#: gpxfoto/engine/track.py:324
+#, python-brace-format
+msgid "the track {name} cannot be read"
+msgstr ""
+
 #. Translators: reason why a photo was skipped
-#: gpxfoto/engine/track.py:321
+#: gpxfoto/engine/track.py:327
 msgid "no track covers this time"
 msgstr ""
 
 #. Translators: reason why a photo was skipped; {first} and
 #. {second} are track files, {distance} is such as “1.8 km”
-#: gpxfoto/engine/track.py:344
+#: gpxfoto/engine/track.py:350
 #, python-brace-format
 msgid "the tracks {first} and {second} put this photo {distance} apart"
 msgstr ""
 
 #. Translators: {error} describes the problem, e.g. “No such file or directory”
-#: gpxfoto/engine/track.py:378
+#: gpxfoto/engine/track.py:384
 #, python-brace-format
 msgid "Cannot read the GPX file {path}: {error}"
 msgstr ""
 
 #. Translators: reason why a photo was skipped; {duration} is
 #. a time span such as “10 min”
-#: gpxfoto/engine/track.py:453
+#: gpxfoto/engine/track.py:459
 #, python-brace-format
 msgid "{duration} before the start of the track"
 msgstr ""
 
 #. Translators: reason why a photo was skipped; {duration} is
 #. a time span such as “10 min”
-#: gpxfoto/engine/track.py:457
+#: gpxfoto/engine/track.py:463
 #, python-brace-format
 msgid "{duration} after the end of the track"
 msgstr ""
 
 #. Translators: reason why a photo was skipped; {duration} is a time
 #. span such as “10 min”
-#: gpxfoto/engine/track.py:467
+#: gpxfoto/engine/track.py:473
 #, python-brace-format
 msgid "gap in the track recording, nearest point {duration} away"
 msgstr ""
