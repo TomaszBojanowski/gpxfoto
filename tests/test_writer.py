@@ -5,6 +5,7 @@ import stat
 import struct
 import subprocess
 import time
+import types
 from datetime import datetime, timezone
 
 import pytest
@@ -650,6 +651,50 @@ def test_backup_made_meanwhile_by_another_run_is_kept(tmp_path, photo, fake_exif
     assert (tmp_path / BACKUP_DIR / "photo.jpg").read_bytes() == theirs
     assert backups(tmp_path) == ["photo.jpg"]
 
+
+
+@pytest.mark.parametrize("backup", [False, True])
+def test_change_by_another_program_during_writing_is_not_undone(tmp_path, photo, fake_exiftool,
+                                                               monkeypatch, backup):
+    fake = fake_exiftool()
+    edited = make_jpeg(quantization=range(2, 66))
+    run = fake.__call__
+
+    def edit_while_exiftool_runs(command, **kwargs):
+        result = run(command, **kwargs)
+        photo.write_bytes(edited)
+        return result
+
+    monkeypatch.setattr(writer.subprocess, "run", edit_while_exiftool_runs)
+    with pytest.raises(RuntimeError, match="^(another program changed the photo in the meantime|"
+                                           "the backup copy differs from the photo)$"):
+        write_location(photo, 50.0, 19.0, 200.0, TIME, backup=backup)
+    assert photo.read_bytes() == edited
+    assert [n for n in os.listdir(tmp_path) if n.startswith(".gpxfoto-")] == []
+
+
+def test_photo_changed_since_its_metadata_was_read_is_refused(photo, fake_exiftool):
+    seen = os.stat(photo)
+    photo.write_bytes(add_comment(photo.read_bytes()))      # e.g. another program adds GPS
+    changed = state(photo)
+    fake = fake_exiftool()
+    with pytest.raises(RuntimeError, match="^another program changed the photo in the meantime$"):
+        write_location(photo, 50.0, 19.0, 200.0, TIME, backup=True, seen=seen)
+    assert state(photo) == changed
+    assert fake.commands == []
+
+
+def test_access_time_from_before_the_metadata_was_read_is_kept(tmp_path, photo, fake_exiftool):
+    # Reading updates only the access time; os.utime would also change ctime
+    now = os.stat(photo)
+    seen = types.SimpleNamespace(
+        st_dev=now.st_dev, st_ino=now.st_ino, st_size=now.st_size, st_mtime_ns=now.st_mtime_ns,
+        st_ctime_ns=now.st_ctime_ns, st_atime_ns=now.st_atime_ns - 86400 * 10**9)
+    fake_exiftool()
+    write_location(photo, 50.0, 19.0, 200.0, TIME, backup=True, seen=seen)
+    for path in (photo, tmp_path / BACKUP_DIR / "photo.jpg"):
+        info = os.stat(path)
+        assert (info.st_atime_ns, info.st_mtime_ns) == (seen.st_atime_ns, seen.st_mtime_ns)
 
 def test_backup_without_hard_links(tmp_path, photo, fake_exiftool, monkeypatch):
     def no_links(source, target):

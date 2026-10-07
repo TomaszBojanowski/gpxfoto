@@ -166,6 +166,14 @@ def main():
         sys.exit(str(e))
     if not files:
         sys.exit(_("No JPEG photos found."))
+    # Taken before exiftool reads the photos: for their access times, and
+    # to find photos that another program changes before they are written
+    seen = {}
+    for path in files:
+        try:
+            seen[path] = os.stat(path)
+        except OSError:
+            pass
     try:
         metadata = read_metadata(files)
     except RuntimeError as e:
@@ -227,7 +235,8 @@ def main():
     written = errors = 0
     for path, lat, lon, ele, time_utc, had_location in plan:
         try:
-            write_location(path, lat, lon, ele, time_utc, args.backup, replace=had_location)
+            write_location(path, lat, lon, ele, time_utc, args.backup, replace=had_location,
+                           seen=seen.get(path))
             written += 1
         except (RuntimeError, ValueError, OSError) as e:
             errors += 1

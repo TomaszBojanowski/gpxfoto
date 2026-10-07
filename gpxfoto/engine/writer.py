@@ -59,13 +59,16 @@ def image_checksum(path):
                 digest.update(data)
 
 
-def write_location(path, lat, lon, ele, time_utc, backup, replace=False):
+def write_location(path, lat, lon, ele, time_utc, backup, replace=False, seen=None):
     """Write a location into the photo at path, changing nothing else.
 
     replace means the photo already has a location. All its GPS data, also
     in XMP, then belongs to the old location and is removed. Otherwise only
     the fields of a location are written anew, and other GPS data, such as
     a compass direction, is kept.
+
+    seen is os.stat() of the photo from before its metadata was read: the
+    photo must not have changed since, and its access time is kept.
     """
     # Comparisons with NaN are false, so this also rules out NaN and infinity
     if not (-90 <= lat <= 90 and -180 <= lon <= 180 and (ele is None or math.isfinite(ele))):
@@ -81,6 +84,9 @@ def write_location(path, lat, lon, ele, time_utc, backup, replace=False):
     if original.st_nlink > 1:
         # A new file replaces the photo, which would separate the links
         raise RuntimeError(_("the file has several hard links; writing it would separate them"))
+    if seen is not None and _changed(seen, original):
+        raise RuntimeError(_("another program changed the photo in the meantime"))
+    access_ns = (seen or original).st_atime_ns
     before = image_checksum(path)
     directory = os.path.dirname(path)
     fd, temp = tempfile.mkstemp(prefix=TEMP_PREFIX, suffix=".jpg", dir=directory)
@@ -109,16 +115,25 @@ def write_location(path, lat, lon, ele, time_utc, backup, replace=False):
             raise RuntimeError(process.stderr.strip() or _("exiftool did not write the file"))
         if image_checksum(temp) != before:
             raise RuntimeError(_("exiftool changed the image data; the result was discarded"))
-        _copy_attributes(path, original, temp)
+        _copy_attributes(path, original, access_ns, temp)
         if backup:
-            _back_up(path, directory, original, before)
+            _back_up(path, directory, original, access_ns, before)
+        if _changed(original, os.stat(path)):
+            # Replacing the photo would undo that change
+            raise RuntimeError(_("another program changed the photo in the meantime"))
         os.replace(temp, path)       # atomic replacement
     finally:
         if os.path.exists(temp):
             os.unlink(temp)
 
 
-def _copy_attributes(path, original, target):
+def _changed(before, now):
+    """Whether os.stat() results show that a file changed in between."""
+    return ((before.st_dev, before.st_ino, before.st_size, before.st_mtime_ns, before.st_ctime_ns)
+            != (now.st_dev, now.st_ino, now.st_size, now.st_mtime_ns, now.st_ctime_ns))
+
+
+def _copy_attributes(path, original, access_ns, target):
     """Give target the owner, permissions, extended attributes and times of the photo.
 
     Extended attributes include access control lists. The owner and group
@@ -126,7 +141,7 @@ def _copy_attributes(path, original, target):
     """
     _copy_owner(original, target)
     shutil.copystat(path, target)
-    os.utime(target, ns=(original.st_atime_ns, original.st_mtime_ns))
+    os.utime(target, ns=(access_ns, original.st_mtime_ns))
 
 
 def _copy_owner(original, target):
@@ -170,7 +185,7 @@ def _backup_dir(directory):
     return target_dir
 
 
-def _back_up(path, directory, original, checksum):
+def _back_up(path, directory, original, access_ns, checksum):
     """Make sure BACKUP_DIR holds a copy of the photo as it is now.
 
     The first copy is the true original, so it is never replaced. As
@@ -190,7 +205,7 @@ def _back_up(path, directory, original, checksum):
         shutil.copyfile(path, temp)
         if image_checksum(temp) != checksum:
             raise RuntimeError(_("the backup copy differs from the photo"))
-        _copy_attributes(path, original, temp)
+        _copy_attributes(path, original, access_ns, temp)
         try:
             os.link(temp, target)       # unlike a rename, never replaces a file
         except FileExistsError:

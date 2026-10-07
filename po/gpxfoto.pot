@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: gpxfoto 0.1.0\n"
 "Report-Msgid-Bugs-To: https://github.com/tomaszbojanowski/gpxfoto/issues\n"
-"POT-Creation-Date: 2026-10-07 07:33+0000\n"
+"POT-Creation-Date: 2026-10-07 07:38+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -199,52 +199,52 @@ msgid "No JPEG photos found."
 msgstr ""
 
 #. Translators: reason why a photo was skipped
-#: gpxfoto/cli.py:180
+#: gpxfoto/cli.py:188
 msgid "already has a location"
 msgstr ""
 
 #. Translators: shown after the file name of a photo; {reason} says
 #. why the photo was skipped, e.g. “already has a location”
-#: gpxfoto/cli.py:183 gpxfoto/cli.py:188 gpxfoto/cli.py:196 gpxfoto/cli.py:202
+#: gpxfoto/cli.py:191 gpxfoto/cli.py:196 gpxfoto/cli.py:204 gpxfoto/cli.py:210
 #, python-brace-format
 msgid "skipped: {reason}"
 msgstr ""
 
 #. Translators: reason why a photo was skipped
-#: gpxfoto/cli.py:195
+#: gpxfoto/cli.py:203
 msgid "the corrected capture time is out of range"
 msgstr ""
 
 #. Translators: elevation in metres
-#: gpxfoto/cli.py:209
+#: gpxfoto/cli.py:217
 #, python-brace-format
 msgid "{elevation} m"
 msgstr ""
 
-#: gpxfoto/cli.py:218
+#: gpxfoto/cli.py:226
 #, python-brace-format
 msgid "Matched: {matched}, skipped: {skipped}"
 msgstr ""
 
 #. Translators: {option} is the command-line option --write
-#: gpxfoto/cli.py:223
+#: gpxfoto/cli.py:231
 #, python-brace-format
 msgid ""
 "This was a preview; no files were changed. Use {option} to write the "
 "locations."
 msgstr ""
 
-#: gpxfoto/cli.py:234
+#: gpxfoto/cli.py:243
 #, python-brace-format
 msgid "Could not write {name}: {error} (file unchanged)"
 msgstr ""
 
-#: gpxfoto/cli.py:236
+#: gpxfoto/cli.py:245
 #, python-brace-format
 msgid "Written: {written}, errors: {errors}"
 msgstr ""
 
-#: gpxfoto/cli.py:239
+#: gpxfoto/cli.py:248
 msgid "The image data of every written file was verified as unchanged."
 msgstr ""
 
@@ -336,44 +336,48 @@ msgstr ""
 msgid "damaged JPEG structure"
 msgstr ""
 
-#: gpxfoto/engine/writer.py:73
+#: gpxfoto/engine/writer.py:76
 #, python-brace-format
 msgid "invalid location: {location}"
 msgstr ""
 
-#: gpxfoto/engine/writer.py:77
+#: gpxfoto/engine/writer.py:80
 msgid "this file is a backup copy made by gpxfoto, which is never changed"
 msgstr ""
 
-#: gpxfoto/engine/writer.py:83
+#: gpxfoto/engine/writer.py:86
 msgid "the file has several hard links; writing it would separate them"
 msgstr ""
 
-#: gpxfoto/engine/writer.py:109
+#: gpxfoto/engine/writer.py:88 gpxfoto/engine/writer.py:123
+msgid "another program changed the photo in the meantime"
+msgstr ""
+
+#: gpxfoto/engine/writer.py:115
 msgid "exiftool did not write the file"
 msgstr ""
 
-#: gpxfoto/engine/writer.py:111
+#: gpxfoto/engine/writer.py:117
 msgid "exiftool changed the image data; the result was discarded"
 msgstr ""
 
-#: gpxfoto/engine/writer.py:154
+#: gpxfoto/engine/writer.py:169
 msgid ""
 "This directory holds copies of the photos next to it as they were before "
 "gpxfoto added locations to them. gpxfoto never changes or replaces these "
 "copies."
 msgstr ""
 
-#: gpxfoto/engine/writer.py:168
+#: gpxfoto/engine/writer.py:183
 #, python-brace-format
 msgid "“{path}” already exists and is not a backup directory of gpxfoto"
 msgstr ""
 
-#: gpxfoto/engine/writer.py:192
+#: gpxfoto/engine/writer.py:207
 msgid "the backup copy differs from the photo"
 msgstr ""
 
-#: gpxfoto/engine/writer.py:208
+#: gpxfoto/engine/writer.py:232
 #, python-brace-format
 msgid "“{path}” already exists and is not a copy of this photo"
 msgstr ""

@@ -535,6 +535,21 @@ def test_reused_file_name_does_not_lose_the_backup(photo, gpx):
         "this photo (file unchanged)", "Written: 0, errors: 1"]
     assert path.read_bytes() == other
 
+
+@needs_exiftool
+def test_access_time_is_kept_end_to_end(photo, gpx):
+    """exiftool reads the photo before it is written; the access time from
+    before that is kept (relatime updates an access time older than mtime)."""
+    path = photo("a.jpg", taken("12:00:50"))
+    atime = OLD_TIME_NS - 86400 * 10**9
+    os.utime(path, ns=(atime, OLD_TIME_NS))
+
+    result = run_cli(path, "-g", gpx, "--write", "--backup")
+
+    assert result.returncode == 0, result.stderr
+    for f in (path, path.parent / "originals" / "a.jpg"):
+        assert (f.stat().st_atime_ns, f.stat().st_mtime_ns) == (atime, OLD_TIME_NS)
+
 @needs_exiftool
 @needs_posix_shell
 def test_failed_write_is_reported_and_exits_with_status_1(tmp_path, photo, gpx):
