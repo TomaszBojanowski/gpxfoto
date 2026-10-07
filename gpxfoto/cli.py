@@ -1,6 +1,7 @@
 """Command-line tool."""
 import argparse
 import os
+import re
 import shutil
 import sys
 from datetime import datetime, timedelta, timezone
@@ -60,6 +61,27 @@ def non_negative_seconds(text):
     return value
 
 
+def join_negative_time_zone(argv):
+    """Let "--timezone -05:00" work like "--timezone=-05:00".
+
+    argparse takes a value that starts with "-" and is not a plain number
+    for an option.
+    """
+    result = []
+    i = 0
+    while i < len(argv):
+        if argv[i] == "--":
+            return result + argv[i:]
+        if (argv[i] == "--timezone" and i + 1 < len(argv)
+                and re.match(r"-\d", argv[i + 1])):
+            result.append("--timezone=" + argv[i + 1])
+            i += 2
+        else:
+            result.append(argv[i])
+            i += 1
+    return result
+
+
 def build_parser():
     parser = argparse.ArgumentParser(
         prog="gpxfoto",
@@ -100,7 +122,7 @@ def build_parser():
 
 def main():
     i18n.setup()
-    args = build_parser().parse_args()
+    args = build_parser().parse_args(join_negative_time_zone(sys.argv[1:]))
 
     if shutil.which("exiftool") is None:
         sys.exit(_("exiftool is not installed. On Fedora, install it with: {command}").format(

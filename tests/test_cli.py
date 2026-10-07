@@ -271,10 +271,11 @@ def test_timezone_overrides_the_one_from_exif(photo, gpx):
 
 
 @needs_exiftool
-def test_negative_timezone_given_with_equals_sign(photo, gpx):
+@pytest.mark.parametrize("option", [["--timezone=-03:00"], ["--timezone", "-03:00"]])
+def test_negative_timezone(photo, gpx, option):
     path = photo("a.jpg", taken("07:00:50", None))
 
-    result = run_cli(path, "-g", gpx, "--timezone=-03:00")
+    result = run_cli(path, "-g", gpx, *option)
 
     assert result.returncode == 0, result.stderr
     assert result.stdout.splitlines()[1] == (
@@ -290,6 +291,19 @@ def test_invalid_timezone_exits_with_message(jpeg_file, gpx, value):
     assert result.stdout == ""
     assert result.stderr == "The time zone must be in the form +HH:MM, for example +02:00 or -05:00.\n"
 
+
+
+@pytest.mark.parametrize("argv, expected", [
+    (["--timezone", "-05:00", "a.jpg"], ["--timezone=-05:00", "a.jpg"]),
+    (["a.jpg", "--timezone", "-5"], ["a.jpg", "--timezone=-5"]),
+    (["--timezone", "+05:00"], ["--timezone", "+05:00"]),
+    (["--timezone", "-g", "t.gpx"], ["--timezone", "-g", "t.gpx"]),
+    (["--timezone"], ["--timezone"]),
+    (["--offset", "-50", "--timezone=-01:00"], ["--offset", "-50", "--timezone=-01:00"]),
+    (["--", "--timezone", "-05:00"], ["--", "--timezone", "-05:00"]),
+])
+def test_join_negative_time_zone(argv, expected):
+    assert cli.join_negative_time_zone(argv) == expected
 
 @needs_exiftool
 def test_max_gap(tmp_path, photo):
