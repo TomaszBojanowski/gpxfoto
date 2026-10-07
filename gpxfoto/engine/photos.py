@@ -18,6 +18,14 @@ TZ_SYSTEM = "system"     # missing in EXIF, the computer's time zone is used
 
 # Camera models known to record the UTC time in Panasonic:TimeStamp
 CAMERA_UTC_MODELS = frozenset({"DC-S5M2"})
+# A capture time and the camera's UTC time this far apart still agree: the
+# sub-seconds, and a long exposure followed by an equally long dark frame
+# for noise reduction, can part them by up to about two minutes
+TIME_CHECK_TOLERANCE = 120
+# Every time zone in use is a whole number of quarter hours from UTC
+ZONE_STEP = 900
+# The time zones in use that are not a whole number of half hours from UTC
+_QUARTER_HOUR_ZONES = frozenset(timedelta(hours=h, minutes=45) for h in (5, 8, 12, 13))
 _CAMERA_UTC = re.compile(r"([0-9]{4}):([0-9]{2}):([0-9]{2}) ([0-9]{2}):([0-9]{2}):([0-9]{2})"
                          r"(\.[0-9]+)?")
 
@@ -163,6 +171,68 @@ def photo_from_metadata(meta, manual_tz):
                      camera_utc_time(meta))
     return Photo(meta["SourceFile"], taken, detail, None, "GPSLatitude" in meta,
                  camera_utc_time(meta))
+
+
+# A capture time that does not match the camera's UTC time: difference is
+# how many seconds the capture time is later, and suggested_tz the time
+# zone in use that would make them match, or None
+TimeCheck = namedtuple("TimeCheck", "difference suggested_tz")
+# The time checks of one source of time zones (TZ_*): how many photos, and
+# the time zone that would make all of them match, or None
+TimeCheckSummary = namedtuple("TimeCheckSummary", "source count suggested_tz")
+
+
+def is_real_utc_offset(offset):
+    """Whether some time zone in use is offset (a timedelta) from UTC."""
+    return (abs(offset) <= timedelta(hours=14)
+            and (offset % timedelta(minutes=30) == timedelta(0) or offset in _QUARTER_HOUR_ZONES))
+
+
+def check_against_camera_utc(taken, source, camera_utc, correction=0.0):
+    """Compare a capture time with the UTC time the camera recorded.
+
+    taken is the capture time from capture_time(), before any correction,
+    with its time zone from source (TZ_*); both times come from the same
+    camera clock, so a difference comes from the time zone. Returns None
+    when they match, or when correction (in seconds) makes up for the
+    difference; otherwise a TimeCheck. A time zone is suggested only when
+    it was given by the user or taken from the computer: when it comes from
+    EXIF, a difference means that another program changed EXIF, and which
+    value is right is not known.
+    """
+    difference = (taken - camera_utc).total_seconds()
+    if abs(difference) <= TIME_CHECK_TOLERANCE:
+        return None
+    # The correction moves the time used to within half a step of the camera's UTC time
+    if correction and abs(difference + correction) < ZONE_STEP / 2:
+        return None
+    suggested = None
+    steps = round(difference / ZONE_STEP)
+    whole_steps = abs(difference - steps * ZONE_STEP) <= TIME_CHECK_TOLERANCE
+    if source != TZ_CAMERA and steps and whole_steps:
+        offset = taken.utcoffset() + timedelta(seconds=steps * ZONE_STEP)
+        if is_real_utc_offset(offset):
+            suggested = timezone(offset)
+    return TimeCheck(difference, suggested)
+
+
+def summarize_time_checks(checks):
+    """Return a TimeCheckSummary per source of time zones, for (source, TimeCheck) pairs.
+
+    The order is TZ_MANUAL, TZ_SYSTEM, TZ_CAMERA, without sources that have
+    no checks.
+    """
+    groups = {}
+    for source, check in checks:
+        groups.setdefault(source, []).append(check)
+    summaries = []
+    for source in (TZ_MANUAL, TZ_SYSTEM, TZ_CAMERA):
+        group = groups.get(source)
+        if group:
+            zones = {check.suggested_tz for check in group}
+            summaries.append(TimeCheckSummary(source, len(group),
+                                              zones.pop() if len(zones) == 1 else None))
+    return summaries
 
 
 def camera_utc_time(meta):

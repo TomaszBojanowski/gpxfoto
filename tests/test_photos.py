@@ -310,6 +310,86 @@ def test_camera_utc_time_is_read_from_the_maker_note_only(tmp_path):
         datetime(2026, 10, 6, 8, 0, 0, tzinfo=UTC), None]
 
 
+# is_real_utc_offset, check_against_camera_utc, summarize_time_checks
+
+@pytest.mark.parametrize("minutes", range(-14 * 60, 14 * 60 + 1, 30))
+def test_every_half_hour_offset_is_real(minutes):
+    assert photos.is_real_utc_offset(timedelta(minutes=minutes))
+
+
+@pytest.mark.parametrize("offset, real", [
+    (zone(5, 45).utcoffset(None), True), (zone(8, 45).utcoffset(None), True),
+    (zone(12, 45).utcoffset(None), True), (zone(13, 45).utcoffset(None), True),
+    (timedelta(hours=1, minutes=15), False), (timedelta(hours=2, minutes=45), False),
+    (-timedelta(hours=3, minutes=15), False), (timedelta(hours=1, minutes=24), False),
+    (timedelta(hours=14, minutes=30), False), (-timedelta(hours=14, minutes=30), False),
+    (-timedelta(hours=5, minutes=45), False),
+])
+def test_is_real_utc_offset(offset, real):
+    assert photos.is_real_utc_offset(offset) is real
+
+
+CAMERA_UTC = datetime(2026, 10, 6, 8, 0, 0, tzinfo=timezone.utc)
+
+
+def later(seconds, offset):
+    """The camera's UTC time plus seconds, shown in the time zone offset (hours, minutes)."""
+    return (CAMERA_UTC + timedelta(seconds=seconds)).astimezone(zone(*offset))
+
+
+@pytest.mark.parametrize("taken, source, correction, expected", [
+    (later(0, (2,)), TZ_CAMERA, 0, None),
+    (later(120, (2,)), TZ_CAMERA, 0, None),
+    (later(-120, (2,)), TZ_MANUAL, 0, None),
+    (later(120.000001, (2,)), TZ_CAMERA, 0, photos.TimeCheck(120.000001, None)),
+    # --timezone +03:00 for a camera at +02:00
+    (later(-3600, (3,)), TZ_MANUAL, 0, photos.TimeCheck(-3600, zone(2))),
+    (later(-3600, (3,)), TZ_SYSTEM, 0, photos.TimeCheck(-3600, zone(2))),
+    (later(-3605, (3,)), TZ_MANUAL, 0, photos.TimeCheck(-3605, zone(2))),
+    # Another program changed EXIF: which value is right is not known
+    (later(3600, (2,)), TZ_CAMERA, 0, photos.TimeCheck(3600, None)),
+    # Nepal
+    (later(900, (5, 30)), TZ_MANUAL, 0, photos.TimeCheck(900, zone(5, 45))),
+    # No time zone in use fits
+    (later(900, (1,)), TZ_MANUAL, 0, photos.TimeCheck(900, None)),
+    (later(2700, (1,)), TZ_MANUAL, 0, photos.TimeCheck(2700, None)),
+    (later(3600, (14,)), TZ_MANUAL, 0, photos.TimeCheck(3600, None)),
+    (later(2 * 86400, (2,)), TZ_MANUAL, 0, photos.TimeCheck(2 * 86400, None)),
+    # Not a whole number of quarter hours
+    (later(180, (2,)), TZ_MANUAL, 0, photos.TimeCheck(180, None)),
+    (later(450, (2,)), TZ_MANUAL, 0, photos.TimeCheck(450, None)),
+    (later(1200, (2,)), TZ_MANUAL, 0, photos.TimeCheck(1200, None)),
+    # A correction that makes up for the difference
+    (later(-3600, (3,)), TZ_MANUAL, 3570, None),
+    (later(-3600, (3,)), TZ_MANUAL, 3300, None),
+    (later(-3600, (3,)), TZ_MANUAL, 30, photos.TimeCheck(-3600, zone(2))),
+    (later(-3600, (3,)), TZ_MANUAL, -3600, photos.TimeCheck(-3600, zone(2))),
+])
+def test_check_against_camera_utc(taken, source, correction, expected):
+    check = photos.check_against_camera_utc(taken, source, CAMERA_UTC, correction)
+    if expected is None:
+        assert check is None
+    else:
+        assert check.difference == pytest.approx(expected.difference, abs=1e-6)
+        assert check.suggested_tz == expected.suggested_tz
+
+
+def test_summarize_time_checks():
+    plus_two = photos.TimeCheck(-3600, zone(2))
+    plus_three = photos.TimeCheck(-7200, zone(3))
+    unknown = photos.TimeCheck(180, None)
+    checks = [(TZ_CAMERA, unknown), (TZ_SYSTEM, plus_two), (TZ_MANUAL, plus_two),
+              (TZ_SYSTEM, plus_three), (TZ_MANUAL, plus_two)]
+    assert photos.summarize_time_checks(checks) == [
+        photos.TimeCheckSummary(TZ_MANUAL, 2, zone(2)),
+        photos.TimeCheckSummary(TZ_SYSTEM, 2, None),
+        photos.TimeCheckSummary(TZ_CAMERA, 1, None),
+    ]
+    assert photos.summarize_time_checks([(TZ_MANUAL, unknown), (TZ_MANUAL, plus_two)]) == [
+        photos.TimeCheckSummary(TZ_MANUAL, 2, None)]
+    assert photos.summarize_time_checks([]) == []
+
+
 # photo_from_metadata
 
 @pytest.mark.parametrize("meta, manual, expected", [
