@@ -73,7 +73,8 @@ def build_parser():
     # Translators: {directory} is the name of the directory, which is not translated
     parser.add_argument("--backup", action="store_true",
                         help=_("keep copies of the original files in a “{directory}” "
-                               "subdirectory next to each photo").format(directory=BACKUP_DIR))
+                               "subdirectory next to each photo; an existing copy is never "
+                               "replaced").format(directory=BACKUP_DIR))
     parser.add_argument("-r", "--recursive", action="store_true",
                         help=_("also look for photos in subdirectories"))
     return parser

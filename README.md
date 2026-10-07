@@ -56,7 +56,7 @@ gpxfoto ~/Pictures/2026-10-06 -g activity.gpx --write
 | `--timezone +HH:MM` | camera time zone for all photos (default: read from each photo’s EXIF data) |
 | `--max-gap SECONDS` | largest allowed time between a photo and the nearest track point (default: 120 s) |
 | `--overwrite` | also change photos that already have a location |
-| `--backup` | keep copies of the original files in an `originals` subdirectory next to each photo |
+| `--backup` | keep copies of the original files in an `originals` subdirectory next to each photo; an existing copy is never replaced |
 | `-r`, `--recursive` | also look for photos in subdirectories |
 
 The time zone of a photo is read from `OffsetTimeOriginal` (or

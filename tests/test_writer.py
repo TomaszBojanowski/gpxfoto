@@ -364,6 +364,43 @@ def test_failed_backup_keeps_original(tmp_path, photo, fake_exiftool):
     assert sorted(os.listdir(tmp_path)) == ["originals", "photo.jpg"]
 
 
+def test_existing_backup_is_never_replaced(tmp_path, photo, fake_exiftool):
+    backup = tmp_path / "originals" / "photo.jpg"
+    backup.parent.mkdir()
+    backup.write_bytes(b"the real original")
+    expected = add_comment(photo.read_bytes())
+    fake_exiftool()
+    write_location(photo, 50.0, 19.0, 200.0, TIME, backup=True)
+    assert backup.read_bytes() == b"the real original"
+    assert os.listdir(backup.parent) == ["photo.jpg"]
+    assert photo.read_bytes() == expected
+
+
+def test_repeated_writes_keep_the_first_backup(tmp_path, photo, fake_exiftool):
+    original = state(photo)
+    fake_exiftool()
+    write_location(photo, 50.0, 19.0, 200.0, TIME, backup=True)
+    write_location(photo, 51.0, 20.0, 300.0, TIME, backup=True)
+    assert state(tmp_path / "originals" / "photo.jpg") == original
+    assert os.listdir(tmp_path / "originals") == ["photo.jpg"]
+
+
+def test_interrupted_backup_leaves_no_partial_copy(tmp_path, photo, fake_exiftool, monkeypatch):
+    def broken_copy(source, target):
+        with open(source, "rb") as f, open(target, "wb") as out:
+            out.write(f.read(10))
+        raise OSError(28, "No space left on device")
+
+    before = state(photo)
+    fake_exiftool()
+    monkeypatch.setattr(writer.shutil, "copy2", broken_copy)
+    with pytest.raises(OSError, match="No space left on device"):
+        write_location(photo, 50.0, 19.0, 200.0, TIME, backup=True)
+    assert state(photo) == before
+    assert os.listdir(tmp_path / "originals") == []
+    assert sorted(os.listdir(tmp_path)) == ["originals", "photo.jpg"]
+
+
 # With the real exiftool
 
 def gps_tags(path):

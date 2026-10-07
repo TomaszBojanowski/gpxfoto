@@ -348,7 +348,7 @@ HELP = {
                  "trasy (domyślnie: 120 s)",
     "--overwrite": "zmienia także zdjęcia, które mają już zapisane położenie",
     "--backup": "zachowuje kopie oryginalnych plików w podkatalogu „originals” obok każdego "
-                "zdjęcia",
+                "zdjęcia; istniejąca kopia nigdy nie jest zastępowana",
     "--recursive": "wyszukuje zdjęcia także w podkatalogach",
 }
 

@@ -343,6 +343,24 @@ def test_backup_keeps_identical_copy_of_original(photo, gpx):
         "GPSLatitude": pytest.approx(50.0005, abs=1e-7)}
 
 
+
+@needs_exiftool
+def test_second_run_keeps_the_first_backup(tmp_path, photo, gpx):
+    path = photo("a.jpg", taken("12:00:50"))
+    original = path.read_bytes()
+    other = write_gpx(tmp_path / "other.gpx", [
+        ("2024-05-01T10:00:00Z", 51.0, 21.0, 300.0),
+        ("2024-05-01T10:01:40Z", 51.001, 21.002, 310.0),
+    ])
+
+    first = run_cli(path, "-g", gpx, "--write", "--backup")
+    second = run_cli(path, "-g", other, "--write", "--backup", "--overwrite")
+
+    assert first.returncode == second.returncode == 0, first.stderr + second.stderr
+    assert (path.parent / "originals" / "a.jpg").read_bytes() == original
+    assert read_tags(path, "GPS:GPSLatitude") == {
+        "GPSLatitude": pytest.approx(51.0005, abs=1e-7)}
+
 @needs_exiftool
 @needs_posix_shell
 def test_failed_write_is_reported_and_exits_with_status_1(tmp_path, photo, gpx):

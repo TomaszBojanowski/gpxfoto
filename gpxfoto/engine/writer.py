@@ -66,10 +66,30 @@ def write_location(path, lat, lon, ele, time_utc, backup):
         shutil.copymode(path, temp)
         os.utime(temp, ns=(stat.st_atime_ns, stat.st_mtime_ns))
         if backup:
-            target = os.path.join(directory, BACKUP_DIR)
-            os.makedirs(target, exist_ok=True)
-            shutil.copy2(path, os.path.join(target, os.path.basename(path)))
+            _back_up(path, directory)
         os.replace(temp, path)       # atomic replacement
+    finally:
+        if os.path.exists(temp):
+            os.unlink(temp)
+
+
+def _back_up(path, directory):
+    """Copy the photo into BACKUP_DIR unless a copy is already there.
+
+    The first copy is the true original, so it is never replaced. The copy
+    gets its final name only once complete, so an interrupted copy never
+    looks like a finished one.
+    """
+    target_dir = os.path.join(directory, BACKUP_DIR)
+    target = os.path.join(target_dir, os.path.basename(path))
+    if os.path.lexists(target):
+        return
+    os.makedirs(target_dir, exist_ok=True)
+    fd, temp = tempfile.mkstemp(prefix=".gpxfoto-", suffix=".jpg", dir=target_dir)
+    os.close(fd)
+    try:
+        shutil.copy2(path, temp)
+        os.replace(temp, target)
     finally:
         if os.path.exists(temp):
             os.unlink(temp)

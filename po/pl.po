@@ -8,7 +8,7 @@ msgstr ""
 "Project-Id-Version: gpxfoto\n"
 "Report-Msgid-Bugs-To: "
 "https://github.com/tomaszbojanowski/gpxfoto/issues\n"
-"POT-Creation-Date: 2026-10-06 23:22+0000\n"
+"POT-Creation-Date: 2026-10-07 06:22+0000\n"
 "PO-Revision-Date: 2026-10-06 23:45+0200\n"
 "Last-Translator: Tomasz <t.bojanowski@protonmail.com>\n"
 "Language-Team: Polish\n"
@@ -165,23 +165,23 @@ msgstr "zmienia także zdjęcia, które mają już zapisane położenie"
 #, python-brace-format
 msgid ""
 "keep copies of the original files in a “{directory}” subdirectory "
-"next to each photo"
+"next to each photo; an existing copy is never replaced"
 msgstr ""
 "zachowuje kopie oryginalnych plików w podkatalogu „{directory}” obok "
-"każdego zdjęcia"
+"każdego zdjęcia; istniejąca kopia nigdy nie jest zastępowana"
 
-#: gpxfoto/cli.py:78
+#: gpxfoto/cli.py:79
 msgid "also look for photos in subdirectories"
 msgstr "wyszukuje zdjęcia także w podkatalogach"
 
-#: gpxfoto/cli.py:87
+#: gpxfoto/cli.py:88
 #, python-brace-format
 msgid "exiftool is not installed. On Fedora, install it with: {command}"
 msgstr ""
 "Program exiftool nie jest zainstalowany. W systemie Fedora można go "
 "zainstalować poleceniem: {command}"
 
-#: gpxfoto/cli.py:92
+#: gpxfoto/cli.py:93
 msgid ""
 "The time zone must be in the form +HH:MM, for example +02:00 or "
 "-05:00."
@@ -189,7 +189,7 @@ msgstr ""
 "Strefę czasową należy podać w postaci +GG:MM, na przykład +02:00 lub "
 "-05:00."
 
-#: gpxfoto/cli.py:99
+#: gpxfoto/cli.py:100
 msgid "The GPX file contains no track points with timestamps."
 msgid_plural "The GPX files contain no track points with timestamps."
 msgstr[0] "Plik GPX nie zawiera punktów trasy ze znacznikami czasu."
@@ -198,7 +198,7 @@ msgstr[2] "Pliki GPX nie zawierają punktów trasy ze znacznikami czasu."
 
 #. Translators: {start} and {end} are the date and time of the first and the
 #. last track point
-#: gpxfoto/cli.py:107
+#: gpxfoto/cli.py:108
 #, python-brace-format
 msgid "Track: {count} point, {start} – {end} (this computer’s time zone)"
 msgid_plural "Track: {count} points, {start} – {end} (this computer’s time zone)"
@@ -206,35 +206,35 @@ msgstr[0] "Trasa: {count} punkt, {start} – {end} (strefa czasowa komputera)"
 msgstr[1] "Trasa: {count} punkty, {start} – {end} (strefa czasowa komputera)"
 msgstr[2] "Trasa: {count} punktów, {start} – {end} (strefa czasowa komputera)"
 
-#: gpxfoto/cli.py:117
+#: gpxfoto/cli.py:118
 msgid "No JPEG photos found."
 msgstr "Nie znaleziono zdjęć JPEG."
 
 #. Translators: reason why a photo was skipped
-#: gpxfoto/cli.py:129
+#: gpxfoto/cli.py:130
 msgid "already has a location"
 msgstr "ma już zapisane położenie"
 
 #. Translators: shown after the file name of a photo; {reason} says
 #. why the photo was skipped, e.g. “already has a location”
-#: gpxfoto/cli.py:132 gpxfoto/cli.py:137 gpxfoto/cli.py:144
+#: gpxfoto/cli.py:133 gpxfoto/cli.py:138 gpxfoto/cli.py:145
 #, python-brace-format
 msgid "skipped: {reason}"
 msgstr "pominięte: {reason}"
 
 #. Translators: elevation in metres
-#: gpxfoto/cli.py:151
+#: gpxfoto/cli.py:152
 #, python-brace-format
 msgid "{elevation} m"
 msgstr "{elevation} m"
 
-#: gpxfoto/cli.py:160
+#: gpxfoto/cli.py:161
 #, python-brace-format
 msgid "Matched: {matched}, skipped: {skipped}"
 msgstr "Dopasowano: {matched}, pominięto: {skipped}"
 
 #. Translators: {option} is the command-line option --write
-#: gpxfoto/cli.py:165
+#: gpxfoto/cli.py:166
 #, python-brace-format
 msgid ""
 "This was a preview; no files were changed. Use {option} to write the "
@@ -243,17 +243,17 @@ msgstr ""
 "To był podgląd, nie zmieniono żadnych plików. Aby zapisać położenie, "
 "należy użyć opcji {option}."
 
-#: gpxfoto/cli.py:176
+#: gpxfoto/cli.py:177
 #, python-brace-format
 msgid "Could not write {name}: {error} (file unchanged)"
 msgstr "Nie można zapisać pliku {name}: {error} (plik bez zmian)"
 
-#: gpxfoto/cli.py:178
+#: gpxfoto/cli.py:179
 #, python-brace-format
 msgid "Written: {written}, errors: {errors}"
 msgstr "Zapisano: {written}, błędy: {errors}"
 
-#: gpxfoto/cli.py:181
+#: gpxfoto/cli.py:182
 msgid "The image data of every written file was verified as unchanged."
 msgstr ""
 "Sprawdzono, że dane obrazu w każdym zapisanym pliku pozostały bez "

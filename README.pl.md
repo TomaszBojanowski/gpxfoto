@@ -56,7 +56,7 @@ gpxfoto ~/Obrazy/2026-10-06 -g activity.gpx --write
 | `--timezone +GG:MM` | strefa czasowa aparatu dla wszystkich zdjęć (domyślnie: odczytywana z danych EXIF każdego zdjęcia) |
 | `--max-gap SEKUNDY` | największy dopuszczalny odstęp czasu między zdjęciem a najbliższym punktem trasy (domyślnie: 120 s) |
 | `--overwrite` | zmienia także zdjęcia, które mają już zapisane położenie |
-| `--backup` | zachowuje kopie oryginalnych plików w podkatalogu `originals` obok każdego zdjęcia |
+| `--backup` | zachowuje kopie oryginalnych plików w podkatalogu `originals` obok każdego zdjęcia; istniejąca kopia nigdy nie jest zastępowana |
 | `-r`, `--recursive` | wyszukuje zdjęcia także w podkatalogach |
 
 Strefa czasowa zdjęcia jest odczytywana z pola `OffsetTimeOriginal` (lub
