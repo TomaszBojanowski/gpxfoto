@@ -8,7 +8,7 @@ msgstr ""
 "Project-Id-Version: gpxfoto\n"
 "Report-Msgid-Bugs-To: "
 "https://github.com/tomaszbojanowski/gpxfoto/issues\n"
-"POT-Creation-Date: 2026-10-07 08:03+0000\n"
+"POT-Creation-Date: 2026-10-07 08:26+0000\n"
 "PO-Revision-Date: 2026-10-06 23:45+0200\n"
 "Last-Translator: Tomasz <t.bojanowski@protonmail.com>\n"
 "Language-Team: Polish\n"
@@ -269,12 +269,12 @@ msgstr ""
 "Sprawdzono, że dane obrazu w każdym zapisanym pliku pozostały bez "
 "zmian."
 
-#: gpxfoto/engine/photos.py:51
+#: gpxfoto/engine/photos.py:52
 #, python-brace-format
 msgid "No such file or directory: {path}"
 msgstr "Nie ma takiego pliku ani katalogu: {path}"
 
-#: gpxfoto/engine/photos.py:60
+#: gpxfoto/engine/photos.py:61
 #, python-brace-format
 msgid ""
 "exiftool does not work:\n"
@@ -283,27 +283,27 @@ msgstr ""
 "Program exiftool nie działa:\n"
 "{errors}"
 
-#: gpxfoto/engine/photos.py:89
+#: gpxfoto/engine/photos.py:90
 msgid "exiftool returned data that cannot be read"
 msgstr "Program exiftool zwrócił dane, których nie można odczytać"
 
-#: gpxfoto/engine/photos.py:107
+#: gpxfoto/engine/photos.py:108
 msgid "exiftool could not read the file"
 msgstr "program exiftool nie mógł odczytać pliku"
 
 #. Translators: reason why a photo was skipped; {error} comes from exiftool
-#: gpxfoto/engine/photos.py:135
+#: gpxfoto/engine/photos.py:136
 #, python-brace-format
 msgid "cannot be read: {error}"
 msgstr "nie można odczytać pliku: {error}"
 
 #. Translators: reason why a photo was skipped
-#: gpxfoto/engine/photos.py:137
+#: gpxfoto/engine/photos.py:138
 msgid "no capture time in EXIF"
 msgstr "brak daty wykonania w EXIF"
 
 #. Translators: reason why a photo was skipped; {value} is the text found
-#: gpxfoto/engine/photos.py:149
+#: gpxfoto/engine/photos.py:150
 #, python-brace-format
 msgid "invalid capture time in EXIF: {value}"
 msgstr "nieprawidłowa data wykonania w EXIF: {value}"
@@ -335,58 +335,58 @@ msgstr "{duration} po zakończeniu trasy"
 msgid "gap in the track recording, nearest point {duration} away"
 msgstr "przerwa w zapisie trasy, najbliższy punkt oddalony o {duration}"
 
-#: gpxfoto/engine/track.py:154
+#: gpxfoto/engine/track.py:159
 #, python-brace-format
 msgid "{seconds} s"
 msgstr "{seconds} s"
 
-#: gpxfoto/engine/track.py:156
+#: gpxfoto/engine/track.py:161
 #, python-brace-format
 msgid "{minutes} min"
 msgstr "{minutes} min"
 
-#: gpxfoto/engine/track.py:157
+#: gpxfoto/engine/track.py:162
 #, python-brace-format
 msgid "{hours} h {minutes} min"
 msgstr "{hours} h {minutes} min"
 
-#: gpxfoto/engine/writer.py:37
+#: gpxfoto/engine/writer.py:38
 msgid "not a JPEG file"
 msgstr "to nie jest plik JPEG"
 
-#: gpxfoto/engine/writer.py:41 gpxfoto/engine/writer.py:54
-#: gpxfoto/engine/writer.py:57
+#: gpxfoto/engine/writer.py:42 gpxfoto/engine/writer.py:55
+#: gpxfoto/engine/writer.py:58
 msgid "damaged JPEG structure"
 msgstr "uszkodzona struktura JPEG"
 
-#: gpxfoto/engine/writer.py:78
+#: gpxfoto/engine/writer.py:79
 #, python-brace-format
 msgid "invalid location: {location}"
 msgstr "nieprawidłowe położenie: {location}"
 
-#: gpxfoto/engine/writer.py:82
+#: gpxfoto/engine/writer.py:83
 msgid "this file is a backup copy made by gpxfoto, which is never changed"
 msgstr ""
 "ten plik jest kopią zapasową utworzoną przez gpxfoto, która nigdy nie "
 "jest zmieniana"
 
-#: gpxfoto/engine/writer.py:88
+#: gpxfoto/engine/writer.py:89
 msgid "the file has several hard links; writing it would separate them"
 msgstr "plik ma kilka dowiązań twardych; zapis by je rozdzielił"
 
-#: gpxfoto/engine/writer.py:90 gpxfoto/engine/writer.py:130
+#: gpxfoto/engine/writer.py:91 gpxfoto/engine/writer.py:133
 msgid "another program changed the photo in the meantime"
 msgstr "inny program zmienił w międzyczasie zdjęcie"
 
-#: gpxfoto/engine/writer.py:120
+#: gpxfoto/engine/writer.py:123
 msgid "exiftool did not write the file"
 msgstr "program exiftool nie zapisał pliku"
 
-#: gpxfoto/engine/writer.py:122
+#: gpxfoto/engine/writer.py:125
 msgid "exiftool changed the image data; the result was discarded"
 msgstr "program exiftool zmienił dane obrazu; wynik odrzucono"
 
-#: gpxfoto/engine/writer.py:210
+#: gpxfoto/engine/writer.py:219
 msgid ""
 "This directory holds copies of the photos next to it as they were "
 "before gpxfoto added locations to them. gpxfoto never changes or "
@@ -396,18 +396,18 @@ msgstr ""
 "sprzed dopisania do nich położenia przez program gpxfoto. Program "
 "gpxfoto nigdy nie zmienia ani nie zastępuje tych kopii."
 
-#: gpxfoto/engine/writer.py:227
+#: gpxfoto/engine/writer.py:236
 #, python-brace-format
 msgid "“{path}” already exists and is not a backup directory of gpxfoto"
 msgstr ""
 "„{path}” już istnieje i nie jest katalogiem kopii zapasowych programu "
 "gpxfoto"
 
-#: gpxfoto/engine/writer.py:251
+#: gpxfoto/engine/writer.py:260
 msgid "the backup copy differs from the photo"
 msgstr "kopia zapasowa różni się od zdjęcia"
 
-#: gpxfoto/engine/writer.py:278
+#: gpxfoto/engine/writer.py:287
 #, python-brace-format
 msgid "“{path}” already exists and is not a copy of this photo"
 msgstr "„{path}” już istnieje i nie jest kopią tego zdjęcia"
