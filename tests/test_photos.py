@@ -260,6 +260,17 @@ def test_find_photos_searches_a_backup_directory_given_explicitly(tmp_path):
         str(backups / "a.jpg"), str(temp)]
 
 
+def test_find_photos_returns_each_photo_once(photo_tree, monkeypatch):
+    monkeypatch.chdir(photo_tree)
+    os.symlink("z.jpg", "link.jpg")
+    os.symlink("b_dir", "b_link")
+    found = find_photos(["z.jpg", ".", "./z.jpg", "link.jpg", "b_dir/y.jpg", "b_link", "b_dir"],
+                        recursive=False)
+    assert found == ["z.jpg", os.path.join(".", "B.JPG"), os.path.join(".", "a.jpeg"),
+                     os.path.join(".", "c.JpEg"), "b_dir/y.jpg",
+                     os.path.join("b_link", "x.JPEG")]
+
+
 def test_find_photos_sorts_whatever_order_the_file_system_lists(photo_tree, monkeypatch):
     walk = os.walk
 

@@ -20,9 +20,16 @@ def find_photos(paths, recursive):
 
     The search skips backup directories and temporary files of gpxfoto, so
     that backups are never geotagged; paths given explicitly are taken as
-    they are.
+    they are. A photo reached in several ways is returned only once.
     """
-    found = []
+    found, seen = [], set()
+
+    def add(photo):
+        real = os.path.realpath(photo)
+        if real not in seen:
+            seen.add(real)
+            found.append(photo)
+
     for path in paths:
         if os.path.isdir(path):
             for directory, subdirs, files in os.walk(path):
@@ -31,11 +38,11 @@ def find_photos(paths, recursive):
                     if name.startswith(TEMP_PREFIX):
                         continue
                     if os.path.splitext(name)[1].lower() in EXTENSIONS:
-                        found.append(os.path.join(directory, name))
+                        add(os.path.join(directory, name))
                 if not recursive:
                     break
         elif os.path.isfile(path):
-            found.append(path)
+            add(path)
         else:
             raise FileNotFoundError(_("No such file or directory: {path}").format(path=path))
     return found

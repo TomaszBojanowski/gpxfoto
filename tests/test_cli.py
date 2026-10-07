@@ -376,6 +376,19 @@ def test_recursive_run_leaves_backups_alone(photo, gpx):
     assert os.listdir(path.parent / "originals") == ["a.jpg"]
     assert (path.parent / "originals" / "a.jpg").read_bytes() == original
 
+
+@needs_exiftool
+def test_photo_given_twice_is_written_once(photo, gpx):
+    path = photo("a.jpg", taken("12:00:50"))
+    original = path.read_bytes()
+
+    result = run_cli(path.parent, path, "-g", gpx, "--write", "--backup")
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.splitlines() == [
+        TRACK_LINE, MATCH_LINE, "Matched: 1, skipped: 0", *written(1, 0)]
+    assert (path.parent / "originals" / "a.jpg").read_bytes() == original
+
 @needs_exiftool
 @needs_posix_shell
 def test_failed_write_is_reported_and_exits_with_status_1(tmp_path, photo, gpx):
