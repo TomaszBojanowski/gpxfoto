@@ -234,6 +234,133 @@ def test_zero_offset_shows_no_correction(photo, gpx, offset):
         TRACK_LINE, MATCH_LINE, "Matched: 1, skipped: 0", PREVIEW_LINE]
 
 
+@pytest.fixture
+def clock_photo(jpeg_file):
+    """A photo of a watch, outside the photos directory, taken at 11:58:38+02:00."""
+    def create(*tags, name="watch.jpg"):
+        path = jpeg_file(name)
+        set_tags(path, *(tags or taken("11:58:38")))
+        return path
+    return create
+
+
+CLOCK_LINES = [
+    "Clock correction: +2 min 12 s (equivalent to --offset=132)",
+    "Clock photo watch.jpg: camera 05/01/24 11:58:38 UTC+02:00, clock 05/01/24 12:00:50 UTC+02:00",
+]
+
+
+@needs_exiftool
+def test_clock_photo_corrects_all_photos(photo, gpx, clock_photo):
+    watch = clock_photo()
+    path = photo("a.jpg", taken("11:58:38"))
+    before = {f: f.read_bytes() for f in (watch, path)}
+
+    result = run_cli(path.parent, "-g", gpx, "--clock-photo", watch, "--clock-time", "12:00:50")
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.splitlines() == [
+        TRACK_LINE, *CLOCK_LINES, MATCH_LINE, "Matched: 1, skipped: 0", PREVIEW_LINE]
+    assert {f: f.read_bytes() for f in before} == before
+
+
+@needs_exiftool
+def test_clock_correction_is_written_into_the_gps_time(photo, gpx, clock_photo):
+    watch = clock_photo()
+    path = photo("a.jpg", taken("11:58:38"))
+    checksum = image_checksum(path)
+
+    result = run_cli(path.parent, "-g", gpx, "--clock-photo", watch, "--clock-time",
+                     "12:00:50+02:00", "--write")
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.splitlines() == [
+        TRACK_LINE, *CLOCK_LINES, MATCH_LINE, "Matched: 1, skipped: 0", *written(1, 0)]
+    assert read_tags(path, *GPS_TAGS) == gps_written(50.0005, 20.001, 205.0, "2024:05:01",
+                                                     "10:00:50")
+    assert image_checksum(path) == checksum
+
+
+@needs_exiftool
+def test_clock_photo_among_the_photos_gets_the_clock_time(photo, gpx):
+    watch = photo("watch.jpg", taken("11:58:38"))
+
+    result = run_cli(watch.parent, "-g", gpx, "--clock-photo", watch, "--clock-time", "12:00:50")
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.splitlines() == [
+        TRACK_LINE, *CLOCK_LINES, MATCH_LINE.replace("a.jpg    ", "watch.jpg"),
+        "Matched: 1, skipped: 0", PREVIEW_LINE]
+
+
+@needs_exiftool
+@pytest.mark.parametrize("options, note", [
+    ((), "  [computer’s time zone (not in EXIF)]"),
+    (("--timezone", "+02:00"), "  [time zone from --timezone]"),
+])
+def test_time_zone_of_the_clock_photo_is_noted(photo, gpx, clock_photo, options, note):
+    watch = clock_photo(*taken("11:58:38", offset=None))
+    path = photo("a.jpg", taken("11:58:38"))
+
+    result = run_cli(path, "-g", gpx, "--clock-photo", watch, "--clock-time", "12:00:50", *options)
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.splitlines()[1:3] == [CLOCK_LINES[0], CLOCK_LINES[1] + note]
+
+
+@needs_exiftool
+def test_correction_that_could_be_wrong_changes_nothing(photo, gpx, clock_photo):
+    # The camera was not switched to summer time, so its offset is +01:00
+    watch = clock_photo(*taken("10:57:38", offset="+01:00"))
+    path = photo("a.jpg", taken("10:58:38", offset="+01:00"))
+    before = path.read_bytes()
+
+    result = run_cli(path, "-g", gpx, "--clock-photo", watch, "--clock-time", "12:00:50",
+                     "--write")
+
+    assert result.returncode == 1
+    assert result.stdout == ""
+    assert result.stderr == (
+        "The time on the clock is 1 h 3 min 12 s away from the capture time of the clock photo, "
+        "so the clock may have shown a different time zone than the camera. Add the UTC offset "
+        "of the time on the clock, for example “12:00:50+02:00” or “12:00:50+01:00”.\n")
+    assert path.read_bytes() == before
+
+    fixed = run_cli(path, "-g", gpx, "--clock-photo", watch, "--clock-time", "12:00:50+02:00")
+    assert fixed.returncode == 0, fixed.stderr
+    assert fixed.stdout.splitlines()[1] == (
+        "Clock correction: +3 min 12 s (equivalent to --offset=192)")
+
+
+@needs_exiftool
+def test_unusable_clock_photo_stops_the_run(photo, gpx, tmp_path):
+    path = photo("a.jpg", taken("12:00:50"))
+    missing = tmp_path / "missing.jpg"
+
+    result = run_cli(path, "-g", gpx, "--clock-photo", missing, "--clock-time", "12:00:50")
+
+    assert result.returncode == 1
+    assert result.stdout == ""
+    assert result.stderr == f"Cannot use the clock photo {missing}: no such file or directory\n"
+
+
+@pytest.mark.parametrize("options, message", [
+    (("--clock-photo", "w.jpg"), "--clock-photo must be used together with --clock-time"),
+    (("--clock-time", "12:00"), "--clock-time must be used together with --clock-photo"),
+    (("--clock-photo", "w.jpg", "--clock-time", "12:00", "--offset", "0"),
+     "--offset cannot be used together with --clock-photo"),
+    (("--clock-photo", "w.jpg", "--clock-time", "2 PM"),
+     "argument --clock-time: not a valid time: 2 PM (use HH:MM:SS or HH:MM, optionally with a "
+     "date and a UTC offset, for example 14:03:27, 2026-10-06T14:03:27 or 14:03:27+02:00)"),
+])
+def test_clock_options_are_checked_first(tmp_path, options, message):
+    result = run_cli(tmp_path, "-g", "missing.gpx", *options)
+
+    assert result.returncode == 2
+    assert result.stdout == ""
+    assert result.stderr.endswith(f"gpxfoto: error: {message}\n")
+
+
 @needs_exiftool
 @pytest.mark.parametrize("zone, track_line", [
     ("<+14>-14", "Track: 2 points, 01/03/01 14:00:00 – 12/30/99 13:59:59"),

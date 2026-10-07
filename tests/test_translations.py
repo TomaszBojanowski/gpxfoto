@@ -253,7 +253,8 @@ def test_every_message_is_translated(language):
 # Messages whose Polish translation is the English text itself
 SAME_IN_POLISH = {"%(heading)s:", "argument %(argument_name)s: %(message)s", "{elevation} m",
                   "{seconds} s", "{minutes} min", "{hours} h {minutes} min", "{hours} h",
-                  "{minutes} min {seconds} s", "{hours} h {minutes} min {seconds} s"}
+                  "{minutes} min {seconds} s", "{hours} h {minutes} min {seconds} s",
+                  "UTC{offset}"}
 
 
 def test_polish_messages_are_not_copies_of_the_english_ones():
@@ -338,6 +339,7 @@ def test_polish_plural_forms(polish_mo, n, word):
 # ---- Polish output of gpxfoto.cli.main() ------------------------------------
 
 USAGE = ("użycie: gpxfoto [-h] -g PLIK [--write] [--offset SEKUNDY] [--timezone +GG:MM] "
+         "[--clock-photo PLIK] [--clock-time CZAS] "
          "[--max-gap SEKUNDY] [--overwrite] [--backup] [-r] ZDJĘCIE [ZDJĘCIE ...]")
 HELP = {
     "ZDJĘCIE": "pliki JPEG lub katalogi ze zdjęciami",
@@ -347,6 +349,11 @@ HELP = {
     "--offset": "poprawka zegara aparatu w sekundach, dodawana do czasu wykonania zdjęcia",
     "--timezone": "strefa czasowa aparatu dla wszystkich zdjęć (domyślnie: odczytywana z danych "
                   "EXIF każdego zdjęcia)",
+    "--clock-photo": "zdjęcie dokładnego zegara, na przykład zegarka zapisującego trasę, służące "
+                     "do wyznaczenia poprawki zegara aparatu (razem z opcją --clock-time)",
+    "--clock-time": "czas widoczny na zegarze na zdjęciu podanym w opcji --clock-photo, "
+                    "w formacie 24-godzinnym, na przykład 14:03:27, 14:03:27+02:00 lub "
+                    "2026-10-06T14:03:27+02:00",
     "--max-gap": "największy dopuszczalny odstęp czasu między zdjęciem a najbliższym punktem "
                  "trasy (domyślnie: 120 s)",
     "--overwrite": "zmienia także zdjęcia, które mają już zapisane położenie",
@@ -550,6 +557,43 @@ def test_preview_is_polish(polish_cli, tmp_path, capsys):
         "To był podgląd, nie zmieniono żadnych plików. Aby zapisać położenie, należy użyć "
         "opcji --write.",
     ]
+
+
+@needs_exiftool
+def test_clock_correction_is_polish(polish_cli, tmp_path, capsys):
+    gpx = write_gpx(tmp_path / "track.gpx", TRACK)
+    watch = photo(tmp_path, "zegar.jpg", "-DateTimeOriginal=2024:05:01 11:58:38")
+    photo(tmp_path / "photos", "a.jpg", "-DateTimeOriginal=2024:05:01 11:58:38",
+          "-OffsetTimeOriginal=+02:00")
+    polish_cli("-g", gpx, tmp_path / "photos", "--clock-photo", watch, "--clock-time", "12:00:50")
+    assert capsys.readouterr().out.splitlines()[:4] == [
+        TRACK_LINE,
+        "Poprawka zegara: +2 min 12 s (odpowiada opcji --offset=132)",
+        "Zdjęcie zegara zegar.jpg: aparat 1.05.2024 11:58:38 UTC+02:00, zegar 1.05.2024 12:00:50 "
+        "UTC+02:00  [strefa czasowa komputera (brak w EXIF)]",
+        "  a.jpg            12:00:50  50.000500, 20.001000    205 m",
+    ]
+
+
+@needs_exiftool
+@pytest.mark.parametrize("reading, message", [
+    ("13:00:50",
+     "Czas na zegarze różni się od czasu wykonania zdjęcia zegara o 1 h 2 min 12 s, więc zegar "
+     "mógł pokazywać czas innej strefy czasowej niż aparat. Należy dopisać przesunięcie względem "
+     "UTC czasu na zegarze, na przykład „13:00:50+03:00” lub „13:00:50+02:00”."),
+    ("14:00:50+09:00",
+     "Czas na zegarze różni się od czasu wykonania zdjęcia zegara o 4 h 57 min 48 s. Jeśli zegar "
+     "aparatu rzeczywiście tak bardzo się myli, należy podać także datę widoczną na zegarze "
+     "w postaci „RRRR-MM-DDT14:00:50+09:00”."),
+])
+def test_clock_errors_are_polish(polish_cli, tmp_path, capsys, reading, message):
+    gpx = write_gpx(tmp_path / "track.gpx", TRACK)
+    watch = photo(tmp_path, "zegar.jpg", "-DateTimeOriginal=2024:05:01 11:58:38",
+                  "-OffsetTimeOriginal=+02:00")
+    with pytest.raises(SystemExit) as exit_info:
+        polish_cli("-g", gpx, tmp_path, "--clock-photo", watch, "--clock-time", reading)
+    assert exit_info.value.code == message
+    assert capsys.readouterr().out == ""
 
 
 @needs_exiftool

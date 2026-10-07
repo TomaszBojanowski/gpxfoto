@@ -8,10 +8,11 @@ from datetime import datetime, timedelta
 from gettext import gettext as _, ngettext
 
 from gpxfoto import i18n
+from gpxfoto.engine.clock import ClockError, measure, parse_reading
 from gpxfoto.engine.matching import match_photos, summarize
 from gpxfoto.engine.photos import (
-    TZ_MANUAL, TZ_SYSTEM, check_exiftool, find_photos, parse_utc_offset, photo_from_metadata,
-    read_metadata)
+    TZ_MANUAL, TZ_SYSTEM, check_exiftool, find_photos, format_utc_offset, parse_utc_offset,
+    photo_from_metadata, read_metadata)
 from gpxfoto.engine.track import load_track
 from gpxfoto.engine.writer import BACKUP_DIR, write_location
 from gpxfoto.i18n import N_
@@ -67,6 +68,30 @@ def non_negative_seconds(text):
     return value
 
 
+def clock_reading(text):
+    """argparse type: the time read on a clock."""
+    try:
+        return parse_reading(text)
+    except ValueError as e:
+        raise argparse.ArgumentTypeError(str(e)) from None
+
+
+def offset_value(seconds):
+    """seconds as the value of --offset, e.g. "132", "-3468" or "131.52"."""
+    text = f"{seconds:.3f}".rstrip("0").rstrip(".")
+    return "0" if text == "-0" else text
+
+
+def date_and_time(moment):
+    """The date and time of moment as the regional settings show them."""
+    # Translators: date and time of a track point as a strftime format. %x
+    # and %X follow the system's regional settings; replace them only if
+    # those are wrong for your language, as they are for Polish on macOS
+    # (%-d is the day without a leading zero).
+    # xgettext:no-python-format
+    return moment.strftime(_("%x %X"))
+
+
 def join_negative_time_zone(argv):
     """Let "--timezone -05:00" work like "--timezone=-05:00".
 
@@ -106,12 +131,21 @@ def build_parser():
                         help=_("write the locations to the files (without this option "
                                "only a preview is shown)"))
     # Translators: placeholder for a number in --help; keep it a single word
-    parser.add_argument("--offset", type=seconds, default=0.0, metavar=_("SECONDS"),
+    parser.add_argument("--offset", type=seconds, metavar=_("SECONDS"),
                         help=_("camera clock correction in seconds, added to the capture time"))
     # Translators: placeholder in --help; HH stands for hours, MM for minutes
     parser.add_argument("--timezone", metavar=_("+HH:MM"),
                         help=_("camera time zone for all photos (default: read from each "
                                "photo’s EXIF data)"))
+    parser.add_argument("--clock-photo", metavar=_("FILE"),
+                        help=_("photo of an accurate clock, such as the watch that records the "
+                               "track, for working out the camera clock correction (with "
+                               "{option})").format(option="--clock-time"))
+    # Translators: placeholder for a time in --help; keep it a single word
+    parser.add_argument("--clock-time", type=clock_reading, metavar=_("TIME"),
+                        help=_("time shown on the clock in the {option} photo, 24-hour, for "
+                               "example 14:03:27, 14:03:27+02:00 or 2026-10-06T14:03:27+02:00"
+                               ).format(option="--clock-photo"))
     parser.add_argument("--max-gap", type=non_negative_seconds, default=float(DEFAULT_MAX_GAP),
                         metavar=_("SECONDS"),
                         help=_("largest allowed time between a photo and the nearest track "
@@ -148,9 +182,45 @@ def photo_line(result):
     return f"  {name:<16} {time}{position} {ele_text}{note}"
 
 
+def clock_lines(clock):
+    """The preview lines about a correction worked out from a clock photo."""
+    # Translators: {correction} is a time span with a sign, such as
+    # “+2 min 12 s”; {option} is the same as a command-line option, such as
+    # “--offset=132”
+    lines = [_("Clock correction: {correction} (equivalent to {option})").format(
+        correction=i18n.exact_duration(clock.seconds, sign=True),
+        option="--offset=" + offset_value(clock.seconds))]
+
+    def moment(when):
+        # Translators: a UTC offset as shown to the user; {offset} is, for
+        # example, “+02:00”
+        return date_and_time(when) + " " + _("UTC{offset}").format(
+            offset=format_utc_offset(when.utcoffset()))
+
+    # Translators: {name} is the file name of the clock photo; {camera} and
+    # {clock} are the date and time the camera and the clock showed
+    line = _("Clock photo {name}: camera {camera}, clock {clock}").format(
+        name=printable(os.path.basename(clock.photo)), camera=moment(clock.camera_time),
+        clock=moment(clock.clock_time))
+    if clock.tz_source in TZ_NOTES:
+        line += "  [" + _(TZ_NOTES[clock.tz_source]).format(option="--timezone") + "]"
+    return lines + [line]
+
+
 def main():
     i18n.setup()
-    args = build_parser().parse_args(join_negative_time_zone(sys.argv[1:]))
+    parser = build_parser()
+    args = parser.parse_args(join_negative_time_zone(sys.argv[1:]))
+    if (args.clock_photo is None) != (args.clock_time is None):
+        given, other = (("--clock-photo", "--clock-time") if args.clock_time is None
+                        else ("--clock-time", "--clock-photo"))
+        # Translators: {option} and {other} are command-line options
+        parser.error(_("{option} must be used together with {other}").format(
+            option=given, other=other))
+    if args.clock_photo is not None and args.offset is not None:
+        # Translators: {option} and {other} are command-line options
+        parser.error(_("{option} cannot be used together with {other}").format(
+            option="--offset", other="--clock-photo"))
 
     if shutil.which("exiftool") is None:
         sys.exit(_("exiftool is not installed. On Fedora, install it with: {command}").format(
@@ -163,6 +233,13 @@ def main():
         manual_tz = parse_utc_offset(args.timezone) if args.timezone is not None else None
     except ValueError:
         sys.exit(_("The time zone must be in the form +HH:MM, for example +02:00 or -05:00."))
+    clock = None
+    if args.clock_photo is not None:
+        try:
+            clock = measure(args.clock_photo, args.clock_time, manual_tz)
+        except ClockError as e:
+            sys.exit(printable(str(e)))
+    correction = clock.seconds if clock is not None else (args.offset or 0.0)
 
     try:
         track = load_track(args.gpx)
@@ -174,24 +251,19 @@ def main():
                           len(args.gpx)))
     start = datetime.fromtimestamp(track.first).astimezone()
     end = datetime.fromtimestamp(track.last).astimezone()
-    # Translators: date and time of a track point as a strftime format. %x
-    # and %X follow the system's regional settings; replace them only if
-    # those are wrong for your language, as they are for Polish on macOS
-    # (%-d is the day without a leading zero).
-    # xgettext:no-python-format
-    time_format = _("%x %X")
     # Translators: {start} and {end} are the date and time of the first and the
     # last track point
     print(ngettext("Track: {count} point, {start} – {end} (this computer’s time zone)",
                    "Track: {count} points, {start} – {end} (this computer’s time zone)",
                    len(track.points)).format(count=i18n.number(len(track.points)),
-                                       start=start.strftime(time_format),
-                                       end=end.strftime(time_format)))
-    if args.offset:
+                                       start=date_and_time(start), end=date_and_time(end)))
+    if clock is not None:
+        print("\n".join(clock_lines(clock)))
+    elif correction:
         # Translators: {correction} is a time span with a sign, such as
         # “+2 min 12 s”, added to the capture time of every photo
         print(_("Clock correction: {correction}").format(
-            correction=i18n.exact_duration(args.offset, sign=True)))
+            correction=i18n.exact_duration(correction, sign=True)))
 
     try:
         files = find_photos(args.photos, args.recursive)
@@ -213,7 +285,7 @@ def main():
         sys.exit(str(e))
 
     photos = [photo_from_metadata(meta, manual_tz) for meta in metadata]
-    results = match_photos(photos, [track], args.offset, args.max_gap,
+    results = match_photos(photos, [track], correction, args.max_gap,
                            overwrite=args.overwrite)
     for result in results:
         print(photo_line(result))
