@@ -90,9 +90,9 @@ def write_location(path, lat, lon, ele, time_utc, backup, replace=False, seen=No
     before = image_checksum(path)
     directory = os.path.dirname(path)
     fd, temp = tempfile.mkstemp(prefix=TEMP_PREFIX, suffix=".jpg", dir=directory)
-    os.close(fd)
-    os.unlink(temp)                  # exiftool -o requires that the file does not exist
     try:
+        os.close(fd)
+        os.unlink(temp)              # exiftool -o requires that the file does not exist
         command = ["exiftool", "-q", "-n", "-m"]
         if replace:
             command += ["-GPS:all=", "-XMP-exif:GPS*="]
@@ -110,7 +110,9 @@ def write_location(path, lat, lon, ele, time_utc, backup, replace=False, seen=No
             command += [f"-GPS:GPSAltitude={abs(ele):.1f}",
                         f"-GPS:GPSAltitudeRef={0 if ele >= 0 else 1}"]
         command += ["-o", temp, "--", path]
-        process = subprocess.run(command, capture_output=True, text=True, errors="replace")
+        # The result is readable only by its owner until it gets the photo's permissions
+        process = subprocess.run(command, capture_output=True, text=True, errors="replace",
+                                 umask=0o077)
         if process.returncode != 0 or not os.path.exists(temp):
             raise RuntimeError(process.stderr.strip() or _("exiftool did not write the file"))
         if image_checksum(temp) != before:

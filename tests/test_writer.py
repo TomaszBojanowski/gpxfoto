@@ -92,10 +92,12 @@ class FakeExiftool:
     def __init__(self, output=add_comment, returncode=0, stderr="", create=True, error=None):
         self.output, self.returncode, self.stderr = output, returncode, stderr
         self.create, self.error = create, error
-        self.commands, self.temp_existed = [], []
+        self.commands, self.temp_existed, self.umasks = [], [], []
 
-    def __call__(self, command, capture_output=False, text=False, check=False, errors=None):
+    def __call__(self, command, capture_output=False, text=False, check=False, errors=None,
+                 umask=-1):
         self.commands.append(command)
+        self.umasks.append(umask)
         temp = command[command.index("-o") + 1]
         self.temp_existed.append(os.path.exists(temp))
         if self.create:
@@ -168,6 +170,45 @@ def test_result_goes_through_temp_file_in_same_directory(
     assert fake.commands[0][-4:] == ["-o", temp, "--", target]
     assert fake.temp_existed == [False]              # exiftool -o refuses existing files
     assert not os.path.exists(temp)
+
+
+def test_exiftool_writes_a_private_file(photo, fake_exiftool):
+    fake = fake_exiftool()
+    write_location(photo, 50.0, 19.0, 200.0, TIME, backup=False)
+    assert fake.umasks == [0o077]
+
+
+@needs_exiftool
+def test_result_is_private_while_it_is_checked(tmp_path, photo, monkeypatch):
+    os.chmod(photo, 0o600)
+    modes = []
+    real = writer.image_checksum
+
+    def checksum(path):
+        if os.path.basename(path).startswith(".gpxfoto-"):
+            modes.append(stat.S_IMODE(os.stat(path).st_mode))
+        return real(path)
+
+    monkeypatch.setattr(writer, "image_checksum", checksum)
+    write_location(photo, 50.0, 19.0, 200.0, TIME, backup=False)
+    assert modes == [0o600]
+    assert stat.S_IMODE(os.stat(photo).st_mode) == 0o600
+
+
+def test_interruption_right_after_the_temporary_file_leaves_nothing(tmp_path, photo,
+                                                                    fake_exiftool, monkeypatch):
+    real_close = os.close
+
+    def close_then_fail(fd):
+        real_close(fd)
+        monkeypatch.setattr(writer.os, "close", real_close)
+        raise KeyboardInterrupt
+
+    fake_exiftool()
+    monkeypatch.setattr(writer.os, "close", close_then_fail)
+    with pytest.raises(KeyboardInterrupt):
+        write_location(photo, 50.0, 19.0, 200.0, TIME, backup=False)
+    assert os.listdir(tmp_path) == ["photo.jpg"]
 
 
 @pytest.mark.parametrize("lat, lon, ele, expected", [
