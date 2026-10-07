@@ -11,7 +11,8 @@ from datetime import datetime, timezone
 
 import pytest
 
-from conftest import latin2_name, make_jpeg, needs_exiftool, read_tags, set_tags
+from conftest import (
+    latin2_name, make_jpeg, needs_exiftool, read_tags, set_panasonic_time_stamp, set_tags)
 from gpxfoto.engine import writer
 from gpxfoto.engine.writer import BACKUP_DIR, BACKUP_MARKER, image_checksum, write_location
 
@@ -988,6 +989,16 @@ def test_gps_tags_are_written(photo, lat, lon, ele, expected):
                 for name, value in expected.items()}
     assert tags == {**expected, "GPSDateStamp": "2026:06:01", "GPSTimeStamp": "08:30:15",
                     "GPSMapDatum": "WGS-84"}
+
+
+@needs_exiftool
+def test_maker_note_time_stamp_is_kept(photo):
+    set_panasonic_time_stamp(photo, "2026:10:06 08:00:00")
+    checksum = image_checksum(photo)
+    write_location(photo, 50.0, 19.0, 200.0, TIME, backup=False)
+    assert read_tags(photo, "Panasonic:TimeStamp", "Model") == {
+        "TimeStamp": "2026:10:06 08:00:00", "Model": "DC-S5M2"}
+    assert image_checksum(photo) == checksum
 
 
 @needs_exiftool

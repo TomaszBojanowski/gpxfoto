@@ -58,6 +58,25 @@ def set_tags(path, *assignments):
                    check=True)
 
 
+# A Panasonic maker note with only a TimeStamp entry (tag 0x00af) holding a
+# short placeholder; exiftool never creates maker notes by itself
+PANASONIC_MAKER_NOTE = (b"Panasonic\0\0\0"
+                        + struct.pack("<HHHI4sI", 1, 0x00AF, 2, 4, b"000\0", 0))
+
+
+def set_panasonic_time_stamp(path, value, model="DC-S5M2"):
+    """Give a JPEG the maker note of a Panasonic camera with TimeStamp set to value."""
+    block = str(path) + ".makernote"
+    with open(block, "wb") as f:
+        f.write(PANASONIC_MAKER_NOTE)
+    try:
+        set_tags(path, "-Make=Panasonic", f"-Model={model}", f"-MakerNotes<={block}")
+    finally:
+        os.unlink(block)
+    # A second run: in the first one, exiftool would keep the placeholder
+    set_tags(path, f"-Panasonic:TimeStamp={value}")
+
+
 def read_tags(path, *names):
     """Read tags with exiftool as numbers; returns a dict."""
     import json

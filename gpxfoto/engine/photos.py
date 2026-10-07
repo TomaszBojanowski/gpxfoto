@@ -16,11 +16,18 @@ TZ_CAMERA = "camera"     # OffsetTimeOriginal or OffsetTime in EXIF
 TZ_MANUAL = "manual"     # given by the user
 TZ_SYSTEM = "system"     # missing in EXIF, the computer's time zone is used
 
+# Camera models known to record the UTC time in Panasonic:TimeStamp
+CAMERA_UTC_MODELS = frozenset({"DC-S5M2"})
+_CAMERA_UTC = re.compile(r"([0-9]{4}):([0-9]{2}):([0-9]{2}) ([0-9]{2}):([0-9]{2}):([0-9]{2})"
+                         r"(\.[0-9]+)?")
+
 # What the matching needs to know about a photo. taken is the capture
 # time from capture_time(), before any correction, and tz_source where its
 # time zone came from; without a usable time, taken and tz_source are None
 # and reason says why. has_location: the photo already has a location.
-Photo = namedtuple("Photo", "path taken tz_source reason has_location")
+# camera_utc: the UTC time the camera recorded, from camera_utc_time().
+Photo = namedtuple("Photo", "path taken tz_source reason has_location camera_utc",
+                   defaults=(None,))
 
 
 def find_photos(paths, recursive):
@@ -83,9 +90,13 @@ def read_metadata(files):
 
 def _run_exiftool(files):
     """Return exiftool's entries for files and its error output."""
+    # -Panasonic:TimeStamp names its group: a bare -TimeStamp also reads
+    # XMP tags, and -MakerNotes:TimeStamp those of other makers. No other
+    # tag read here is called TimeStamp, so the -json key is unambiguous.
     command = ["exiftool", "-json", "-n", "-DateTimeOriginal", "-CreateDate",
                "-OffsetTimeOriginal", "-OffsetTime", "-SubSecTimeOriginal",
-               "-GPSLatitude", "-GPSLongitude", "-Error", "--"] + files
+               "-GPSLatitude", "-GPSLongitude", "-Model", "-Panasonic:TimeStamp", "-Error",
+               "--"] + files
     process = subprocess.run(command, capture_output=True, text=True, errors="replace")
     if not process.stdout.strip():
         return [], process.stderr
@@ -148,8 +159,34 @@ def photo_from_metadata(meta, manual_tz):
     """Return the Photo described by exiftool's metadata of one file."""
     taken, detail = capture_time(meta, manual_tz)
     if taken is None:
-        return Photo(meta["SourceFile"], None, None, detail, "GPSLatitude" in meta)
-    return Photo(meta["SourceFile"], taken, detail, None, "GPSLatitude" in meta)
+        return Photo(meta["SourceFile"], None, None, detail, "GPSLatitude" in meta,
+                     camera_utc_time(meta))
+    return Photo(meta["SourceFile"], taken, detail, None, "GPSLatitude" in meta,
+                 camera_utc_time(meta))
+
+
+def camera_utc_time(meta):
+    """The UTC time recorded by the camera, as an aware datetime, or None.
+
+    Only for the models in CAMERA_UTC_MODELS, whose Panasonic:TimeStamp
+    holds the capture time in UTC.
+    """
+    if str(meta.get("Model", "")).strip() not in CAMERA_UTC_MODELS:
+        return None
+    # str(): exiftool gives a value that looks like a number as a number
+    match = _CAMERA_UTC.fullmatch(str(meta.get("TimeStamp", "")).strip())
+    if not match:
+        return None
+    try:
+        time = datetime(*map(int, match.groups()[:6]))
+        if match[7]:
+            time += timedelta(seconds=float("0" + match[7]))
+    except (ValueError, OverflowError):
+        return None
+    # As for capture times: too close to the ends of the calendar to convert
+    if not datetime(1, 1, 2) <= time < datetime(9999, 12, 31):
+        return None
+    return time.replace(tzinfo=timezone.utc)
 
 
 def capture_time(meta, manual_tz):

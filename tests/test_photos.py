@@ -7,7 +7,8 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from conftest import latin2_name, make_jpeg, needs_exiftool, set_tags
+from conftest import (
+    latin2_name, make_jpeg, needs_exiftool, set_panasonic_time_stamp, set_tags)
 from gpxfoto.engine import photos
 from gpxfoto.engine.photos import (
     TZ_CAMERA, TZ_MANUAL, TZ_SYSTEM, capture_time, check_exiftool, find_photos,
@@ -254,6 +255,59 @@ def test_capture_time_unreadable_date_does_not_fall_back_to_create_date():
 def test_format_utc_offset(offset, text):
     assert photos.format_utc_offset(offset) == text
     assert photos.parse_utc_offset(text).utcoffset(None) == offset
+
+
+# camera_utc_time
+
+UTC = timezone.utc
+
+
+@pytest.mark.parametrize("value, expected", [
+    ("2026:10:06 08:00:00", datetime(2026, 10, 6, 8, 0, 0, tzinfo=UTC)),
+    ("  2026:10:06 08:00:00 ", datetime(2026, 10, 6, 8, 0, 0, tzinfo=UTC)),
+    ("2026:10:06 08:00:00.25", datetime(2026, 10, 6, 8, 0, 0, 250000, tzinfo=UTC)),
+    ("0001:01:02 00:00:00", datetime(1, 1, 2, tzinfo=UTC)),
+    ("9999:12:30 23:59:59", datetime(9999, 12, 30, 23, 59, 59, tzinfo=UTC)),
+])
+def test_camera_utc_time(value, expected):
+    assert photos.camera_utc_time({"Model": "DC-S5M2", "TimeStamp": value}) == expected
+
+
+@pytest.mark.parametrize("value", [
+    None, "", "000", 2026, "0000:00:00 00:00:00", "2026:13:01 00:00:00", "2026:10:06 25:00:00",
+    "2026:10:06 08:00:00Z", "2026:10:06 08:00:00+02:00", "2026-10-06 08:00:00",
+    "2026:10:06 08:00", "0001:01:01 12:00:00", "9999:12:31 00:00:00", "9999:12:31 23:59:59.9",
+    "２０２６:10:06 08:00:00",
+])
+def test_camera_utc_time_unusable(value):
+    meta = {"Model": "DC-S5M2"}
+    if value is not None:
+        meta["TimeStamp"] = value
+    assert photos.camera_utc_time(meta) is None
+
+
+@pytest.mark.parametrize("model", [None, "", "DC-GH5", "DC-S5", "LEICA SL2", "dc-s5m2"])
+def test_camera_utc_time_only_for_known_models(model):
+    meta = {"TimeStamp": "2026:10:06 08:00:00"}
+    if model is not None:
+        meta["Model"] = model
+    assert photos.camera_utc_time(meta) is None
+
+
+@needs_exiftool
+def test_camera_utc_time_is_read_from_the_maker_note_only(tmp_path):
+    path = tmp_path / "P1000123.JPG"
+    path.write_bytes(make_jpeg())
+    set_tags(path, "-DateTimeOriginal=2026:10:06 10:00:00", "-OffsetTimeOriginal=+02:00",
+             "-XMP-apple-fi:TimeStamp=123456")
+    set_panasonic_time_stamp(path, "2026:10:06 08:00:00")
+    other = tmp_path / "other.jpg"
+    other.write_bytes(make_jpeg())
+    set_tags(other, "-Model=DC-S5M2", "-XMP-apple-fi:TimeStamp=123456")
+    found = [photos.photo_from_metadata(meta, None)
+             for meta in read_metadata([str(path), str(other)])]
+    assert [photo.camera_utc for photo in found] == [
+        datetime(2026, 10, 6, 8, 0, 0, tzinfo=UTC), None]
 
 
 # photo_from_metadata
@@ -519,7 +573,7 @@ def test_check_exiftool_reports_a_broken_one(monkeypatch):
 
 PREFIX = ["exiftool", "-json", "-n", "-DateTimeOriginal", "-CreateDate",
           "-OffsetTimeOriginal", "-OffsetTime", "-SubSecTimeOriginal",
-          "-GPSLatitude", "-GPSLongitude", "-Error", "--"]
+          "-GPSLatitude", "-GPSLongitude", "-Model", "-Panasonic:TimeStamp", "-Error", "--"]
 
 
 @pytest.fixture
