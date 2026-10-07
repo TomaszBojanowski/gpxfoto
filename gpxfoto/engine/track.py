@@ -54,6 +54,18 @@ PIN_HEIGHT = 5.0         # m
 # noisy to tell climbing from standing
 ELEVATION_NOISE = 0.5    # m
 
+# Direction of travel. A photo gets one only where the track clearly and
+# simply passes through its place: it gets TRAVEL_DISTANCE away within
+# TRAVEL_WINDOW both before and after the photo, and the way between those
+# two points is at most TRAVEL_MAX_WINDING times the straight line, which
+# leaves out stops, sharp turns, hairpins and switchbacks. Steps of the
+# way count once they reach TRAVEL_STEP, so that GPS jitter adds nothing.
+# Chosen on a real hike and on noisy tracks modelled on it.
+TRAVEL_DISTANCE = 20.0   # m
+TRAVEL_WINDOW = 60.0     # s
+TRAVEL_STEP = 10.0       # m
+TRAVEL_MAX_WINDING = 1.2
+
 _M_PER_DEGREE = math.pi * 6371000.0 / 180
 
 
@@ -724,6 +736,82 @@ def place(points, times, stops, t, max_gap):
     if stop is None:
         return lat, lon, ele, gap, None
     return stop.lat, stop.lon, ele if stop.elevation is None else stop.elevation, gap, stop
+
+
+def travel_direction(points, times, t, lat, lon):
+    """Return (degrees, None) or (None, reason).
+
+    degrees is the direction of travel through the photo's place, a whole
+    number from 0 to 359 clockwise from true north. points and times are
+    what locate() got, t the same time and (lat, lon) the position it
+    gave.
+    """
+    if not times or not times[0] <= t <= times[-1]:
+        return None, _too_close_to_an_end()
+    here = (t, lat, lon, None)
+    i = bisect.bisect_left(times, t)
+    first, reason = _away(points, times, t, here, range(i - 1, -1, -1))
+    if first is None:
+        return None, reason
+    last, reason = _away(points, times, t, here, range(i, len(points)))
+    if last is None:
+        return None, reason
+    if _length(points, first, last) > TRAVEL_MAX_WINDING * _distance_m(points[first], points[last]):
+        # Translators: why a photo gets no direction of travel
+        return None, _("the track winds too much here")
+    return round(_bearing(points[first], points[last])) % 360, None
+
+
+def _too_close_to_an_end():
+    # Translators: why a photo gets no direction of travel
+    return _("too close to the start or end of the track")
+
+
+def _away(points, times, t, here, indices):
+    """(index, None) of the first point in indices, going away from t in
+    time, that is TRAVEL_DISTANCE from here within TRAVEL_WINDOW, or
+    (None, reason)."""
+    seen = False
+    for j in indices:
+        if abs(times[j] - t) > TRAVEL_WINDOW:
+            break
+        seen = True
+        if _distance_m(points[j], here) >= TRAVEL_DISTANCE:
+            return j, None
+    else:
+        return None, _too_close_to_an_end()
+    if seen:
+        # Translators: why a photo gets no direction of travel; {distance}
+        # is a distance such as “20 m” and {duration} a time span such as
+        # “60 s”
+        reason = _("the track stays within {distance} of this place for {duration} before or "
+                   "after the photo")
+    else:
+        # Translators: why a photo gets no direction of travel; {duration}
+        # is a time span such as “60 s”
+        reason = _("no track points within {duration} before or after the photo")
+    return None, reason.format(distance=distance(TRAVEL_DISTANCE),
+                               duration=duration(TRAVEL_WINDOW))
+
+
+def _length(points, first, last):
+    """Metres along the track from first to last, in steps of TRAVEL_STEP or more."""
+    total, mark = 0.0, points[first]
+    for j in range(first + 1, last + 1):
+        step = _distance_m(mark, points[j])
+        if step >= TRAVEL_STEP or j == last:
+            total += step
+            mark = points[j]
+    return total
+
+
+def _bearing(a, b):
+    """The initial great-circle bearing from point a to point b, 0 to 360°."""
+    f1, f2 = math.radians(a[1]), math.radians(b[1])
+    dl = math.radians(b[2] - a[2])
+    return math.degrees(math.atan2(math.sin(dl) * math.cos(f2),
+                                   math.cos(f1) * math.sin(f2)
+                                   - math.sin(f1) * math.cos(f2) * math.cos(dl))) % 360
 
 
 def _elevation_noise(heights):

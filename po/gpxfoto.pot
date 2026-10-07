@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: gpxfoto 0.1.0\n"
 "Report-Msgid-Bugs-To: https://github.com/tomaszbojanowski/gpxfoto/issues\n"
-"POT-Creation-Date: 2026-10-07 21:31+0000\n"
+"POT-Creation-Date: 2026-10-07 21:41+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -637,48 +637,75 @@ msgid "invalid capture time in EXIF: {value}"
 msgstr ""
 
 #. Translators: reason why a photo was skipped; {name} is a GPX file
-#: gpxfoto/engine/track.py:363
+#: gpxfoto/engine/track.py:375
 #, python-brace-format
 msgid "the track {name} cannot be read"
 msgstr ""
 
 #. Translators: reason why a photo was skipped
-#: gpxfoto/engine/track.py:366
+#: gpxfoto/engine/track.py:378
 msgid "no track covers this time"
 msgstr ""
 
 #. Translators: reason why a photo was skipped; {first} and
 #. {second} are track files, {distance} is such as “1.8 km”
-#: gpxfoto/engine/track.py:389
+#: gpxfoto/engine/track.py:401
 #, python-brace-format
 msgid "the tracks {first} and {second} put this photo {distance} apart"
 msgstr ""
 
 #. Translators: {error} describes the problem, e.g. “No such file or directory”
-#: gpxfoto/engine/track.py:423
+#: gpxfoto/engine/track.py:435
 #, python-brace-format
 msgid "Cannot read the GPX file {path}: {error}"
 msgstr ""
 
 #. Translators: reason why a photo was skipped; {duration} is
 #. a time span such as “10 min”
-#: gpxfoto/engine/track.py:498
+#: gpxfoto/engine/track.py:510
 #, python-brace-format
 msgid "{duration} before the start of the track"
 msgstr ""
 
 #. Translators: reason why a photo was skipped; {duration} is
 #. a time span such as “10 min”
-#: gpxfoto/engine/track.py:502
+#: gpxfoto/engine/track.py:514
 #, python-brace-format
 msgid "{duration} after the end of the track"
 msgstr ""
 
 #. Translators: reason why a photo was skipped; {duration} is a time
 #. span such as “10 min”
-#: gpxfoto/engine/track.py:512
+#: gpxfoto/engine/track.py:524
 #, python-brace-format
 msgid "gap in the track recording, nearest point {duration} away"
+msgstr ""
+
+#. Translators: why a photo gets no direction of travel
+#: gpxfoto/engine/track.py:761
+msgid "the track winds too much here"
+msgstr ""
+
+#. Translators: why a photo gets no direction of travel
+#: gpxfoto/engine/track.py:767
+msgid "too close to the start or end of the track"
+msgstr ""
+
+#. Translators: why a photo gets no direction of travel; {distance}
+#. is a distance such as “20 m” and {duration} a time span such as
+#. “60 s”
+#: gpxfoto/engine/track.py:787
+#, python-brace-format
+msgid ""
+"the track stays within {distance} of this place for {duration} before or "
+"after the photo"
+msgstr ""
+
+#. Translators: why a photo gets no direction of travel; {duration}
+#. is a time span such as “60 s”
+#: gpxfoto/engine/track.py:792
+#, python-brace-format
+msgid "no track points within {duration} before or after the photo"
 msgstr ""
 
 #: gpxfoto/engine/writer.py:38
