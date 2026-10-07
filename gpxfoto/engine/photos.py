@@ -90,7 +90,7 @@ def capture_time(meta, manual_tz):
         # Translators: reason why a photo was skipped; {value} is the text found
         return None, _("invalid capture time in EXIF: {value}").format(value=raw)
     fraction = str(meta.get("SubSecTimeOriginal", "")).strip()
-    if fraction.isdigit():
+    if fraction.isascii() and fraction.isdigit():
         time += timedelta(seconds=float("0." + fraction))
     if manual_tz is not None:
         return time.replace(tzinfo=manual_tz), TZ_MANUAL

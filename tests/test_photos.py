@@ -89,6 +89,8 @@ def test_capture_time_uses_subseconds_and_offset_from_camera():
     ("", 0),
     ("abc", 0),
     ("-5", 0),
+    ("²", 0),           # isdigit() but not a decimal digit
+    ("٤٥", 0),          # Arabic-Indic digits
 ])
 def test_capture_time_subseconds(subsec, microseconds):
     meta = {"DateTimeOriginal": "2024:05:01 12:34:56", "SubSecTimeOriginal": subsec,
