@@ -9,7 +9,7 @@ and its walking; see tests/test_checks.py and tests/test_private.py.
 """
 import bisect
 import math
-from collections import namedtuple
+from collections import deque, namedtuple
 
 from gpxfoto.engine.track import RECORDING_BREAK, STILL_SPEED, place
 
@@ -72,12 +72,16 @@ JUMP_WINDOW = 60.0               # s of camera time between the two photos
 JUMP_SPEED = 100.0               # m/s (360 km/h)
 JUMP_CLOCK_STEP = 1.0            # s
 JUMP_ACCURACY = 100.0            # m
-# A track that itself moves faster (a plane) raises the limit
+# A track that itself keeps a higher speed for TOP_HOLD (a plane) raises
+# the limit; one wrong GPS fix, however far off, does not
 JUMP_TRACK_FACTOR = 1.5
+TOP_HOLD = 60.0                  # s
 
 # The track's speeds for the motion check, from pace(): times of its
 # points, slow as prefix counts of slow points (slow[j] - slow[i] slow
-# points among i..j-1), typical in m/s or None when the track barely moves
+# points among i..j-1), typical in m/s or None when the track barely moves,
+# fast_share the share of the recorded time at full pace, top the highest
+# speed the track keeps for TOP_HOLD, in m/s
 Pace = namedtuple("Pace", "times slow typical fast_share top")
 
 # shift: seconds to add to the photo times; pinned of matched photos fall
@@ -271,8 +275,27 @@ def pace(points, stops):
             recorded += step
             fast += step * (slow[j + 2] == slow[j])
     fast_share = fast / recorded if recorded else 0.0
-    top = max((v for v in speeds if v is not None), default=0.0)
-    return Pace(times, slow, typical, fast_share, top)
+    return Pace(times, slow, typical, fast_share, _held(times, speeds, TOP_HOLD))
+
+
+def _held(times, speeds, hold):
+    """The highest speed kept for hold seconds: the largest of the lowest
+    speeds over each hold seconds of the track. An unknown speed is 0."""
+    best = 0.0
+    window = deque()        # indices of the window, by rising speed
+    j = 0
+    for i in range(len(times)):
+        if times[-1] - times[i] < hold:
+            break
+        while j < len(times) and times[j] <= times[i] + hold:
+            while window and (speeds[window[-1]] or 0.0) >= (speeds[j] or 0.0):
+                window.pop()
+            window.append(j)
+            j += 1
+        while window[0] < i:
+            window.popleft()
+        best = max(best, speeds[window[0]] or 0.0)
+    return best
 
 
 def at_full_pace(pace_, t):
@@ -336,7 +359,7 @@ def jumps(shots, top_speed=0.0):
     for i, j in zip(order, order[1:]):
         a, b = shots[i], shots[j]
         gap = b.clock - a.clock
-        if gap > JUMP_WINDOW:
+        if gap >= JUMP_WINDOW:
             continue
         distance = _distance_m(a.lat, a.lon, b.lat, b.lon)
         speed = max(JUMP_SPEED, JUMP_TRACK_FACTOR * top_speed)

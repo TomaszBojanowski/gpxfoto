@@ -320,8 +320,8 @@ def test_photos_with_different_time_zones_jump():
     (2.0, 399.0, False),
     (2.0, 401.0, True),        # JUMP_SPEED (100 m/s) * (2 s + 1 s) + 100 m = 400 m
     (0.0, 201.0, True),        # a burst: 100 m/s * 1 s + 100 m
-    (60.0, 6201.0, True),
-    (60.5, 50000.0, False),    # more than a minute apart: not checked
+    (59.0, 6101.0, True),
+    (60.0, 50000.0, False),    # a minute or more apart: not checked
 ])
 def test_the_jump_limit(gap, distance, expected):
     assert JUMP_SPEED == 100.0
@@ -368,18 +368,40 @@ def test_a_steady_track_never_jumps():
 
 
 def test_the_top_speed_counts_each_file_on_its_own(tmp_path):
-    # Two files 5 km apart, one at even and one at odd seconds: used
-    # together, the track zigzags between them at kilometres a second
-    def track(name, east, parity):
+    # Two files 5 km apart recorded at the same seconds: used together,
+    # the track zigzags between them at hundreds of metres a second
+    def track(name, east):
         points = []
-        for k in range(parity, 600, 2):
+        for k in range(600):
             lat, lon = position(east + 1.2 * k, 0.0)
             when = datetime.fromtimestamp(T0 + k, timezone.utc)
             points.append((when.strftime("%Y-%m-%dT%H:%M:%SZ"), lat, lon, None))
         return write_gpx(tmp_path / name, points)
-    both = load_track([track("a.gpx", 0.0, 0), track("b.gpx", 5000.0, 1)], stops=False)
+    both = load_track([track("a.gpx", 0.0), track("b.gpx", 5000.0)], stops=False)
     assert pace(both.points, []).top > 400
     assert top_speed(both.points, both.sources) == pytest.approx(1.2)
     alone = load_track([tmp_path / "a.gpx"], stops=False)
     assert alone.sources is None
     assert top_speed(alone.points) == pace(alone.points, []).top == pytest.approx(1.2)
+
+
+def test_one_wrong_fix_does_not_raise_the_top_speed():
+    # One point 8 km off the walk: a glitch, not a speed anyone kept
+    points = Hike(seed=9).walk(7200, east=1.2).points
+    glitch = points[3000]
+    points[3000] = (glitch[0], *position(1.2 * 3000 + 8000, 0.0), glitch[3])
+    assert pace(points, []).top == pytest.approx(1.2, abs=0.01)
+    a = T0 + 1000
+    photos = []
+    for t, zone in ((a, ZONE), (a + 4 + 3600, ZONE - 3600)):
+        lat, lon = place(points, [p[0] for p in points], [], t, MAX_GAP)[:2]
+        photos.append(Shot(t, t + zone, lat, lon))
+    assert len(jumps(photos, pace(points, []).top)) == 1
+
+
+def test_a_plane_keeps_its_speed():
+    # 10 min at 232 m/s: photos from the window seat do not jump
+    points = Hike(seed=16).walk(600, east=232.0).points
+    assert pace(points, []).top == pytest.approx(232.0)
+    photo_times = [T0 + 30 * k for k in range(1, 19)]
+    assert jumps(shots(points, [], photo_times), pace(points, []).top) == []
