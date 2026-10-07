@@ -368,6 +368,13 @@ def main():
 
     print(_("Matched: {matched}, skipped: {skipped}").format(
         matched=i18n.number(summary.matched), skipped=i18n.number(summary.skipped)))
+    if track.stops and summary.matched:
+        # Translators: how many of the matched photos were taken during stops;
+        # a wrong camera clock puts fewer of them there
+        print(ngettext("During stops: {count} of {matched} matched photo",
+                       "During stops: {count} of {matched} matched photos",
+                       summary.matched).format(count=i18n.number(summary.at_stops),
+                                               matched=i18n.number(summary.matched)))
     for line in time_check_lines(results):
         print(line)
     if not args.write:

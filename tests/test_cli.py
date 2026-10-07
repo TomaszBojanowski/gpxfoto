@@ -524,7 +524,8 @@ def test_photo_taken_during_a_stop_gets_the_stop_position(photo, stop_gpx):
 
     assert preview.returncode == 0, preview.stderr
     assert preview.stdout.splitlines() == [
-        STOP_TRACK_LINE, WALKING, AT_STOP, "Matched: 2, skipped: 0", PREVIEW_LINE]
+        STOP_TRACK_LINE, WALKING, AT_STOP, "Matched: 2, skipped: 0",
+        "During stops: 1 of 2 matched photos", PREVIEW_LINE]
 
     written = run_cli(b, "-g", stop_gpx, "--write")
 
@@ -557,9 +558,28 @@ def test_photo_before_a_stop_at_the_start_of_the_track_keeps_the_first_point(tmp
     result = run_cli(b, "-g", gpx)
 
     assert result.returncode == 0, result.stderr
-    assert result.stdout.splitlines()[1:3] == [
+    assert result.stdout.splitlines()[1:4] == [
         f"  b.jpg            12:01:30  50.000018, {lon_at(STAND_EAST):.6f}    200 m",
-        "Matched: 1, skipped: 0"]
+        "Matched: 1, skipped: 0",
+        "During stops: 0 of 1 matched photo"]
+
+
+@needs_exiftool
+@pytest.mark.parametrize("offset, line, indicator", [
+    # A clock 2 min fast puts the photo on the walk before the stop
+    ("-120", f"  b.jpg            12:01:30  50.000000, {lon_at(108):.6f}    200 m",
+     "During stops: 0 of 1 matched photo"),
+    ("0", AT_STOP, "During stops: 1 of 1 matched photo"),
+])
+def test_count_during_stops_follows_the_clock_correction(photo, stop_gpx, offset, line,
+                                                         indicator):
+    b = photo("b.jpg", taken("12:03:30"))
+
+    result = run_cli(b, "-g", stop_gpx, "--offset", offset)
+
+    assert result.returncode == 0, result.stderr
+    lines = [l for l in result.stdout.splitlines() if not l.startswith("Clock correction")]
+    assert lines[1:4] == [line, "Matched: 1, skipped: 0", indicator]
 
 
 @needs_exiftool
@@ -571,10 +591,11 @@ def test_stop_over_a_night_shows_its_dates(tmp_path, photo):
     result = run_cli(b, "-g", gpx)
 
     assert result.returncode == 0, result.stderr
-    assert result.stdout.splitlines()[1:3] == [
+    assert result.stdout.splitlines()[1:4] == [
         "  b.jpg            21:00:00  50.000000, 20.000005   1000 m"
         "  [stop 05/01/24 18:00:00 – 05/02/24 07:00:00]",
-        "Matched: 1, skipped: 0"]
+        "Matched: 1, skipped: 0",
+        "During stops: 1 of 1 matched photo"]
 
 
 @needs_exiftool
@@ -1200,6 +1221,26 @@ def test_numbers_follow_the_system_locale(tmp_path, photo, numeric_locale):
         "Matched: 1, skipped: 0",
         PREVIEW_LINE,
     ]
+
+
+def test_count_during_stops_follows_the_locale(tmp_path, monkeypatch, capsys):
+    gpx = write_gpx(tmp_path / "stop.gpx", stop_track())
+    metadata = [{"SourceFile": f"{i}.jpg", "DateTimeOriginal": "2024:05:01 12:03:30",
+                 "OffsetTimeOriginal": "+02:00"} for i in range(2000)]
+    monkeypatch.setenv("LANGUAGE", "C")
+    monkeypatch.setattr(i18n, "setup", lambda: None)
+    monkeypatch.setattr(shutil, "which", lambda name, *args, **kwargs: "/usr/bin/" + name)
+    monkeypatch.setattr(cli, "find_photos", lambda paths, recursive: [
+        m["SourceFile"] for m in metadata])
+    monkeypatch.setattr(cli, "read_metadata", lambda files: metadata)
+    monkeypatch.setattr(locale, "localeconv", lambda: {
+        "decimal_point": ",", "thousands_sep": ".", "grouping": [3, 0]})
+    monkeypatch.setattr(sys, "argv", ["gpxfoto", "photos", "-g", str(gpx)])
+
+    cli.main()
+
+    lines = capsys.readouterr().out.splitlines()
+    assert lines[-3:-1] == ["Matched: 2.000, skipped: 0", "During stops: 2.000 of 2.000 matched photos"]
 
 
 def test_summary_counts_follow_the_locale(tmp_path, monkeypatch, capsys):

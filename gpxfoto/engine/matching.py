@@ -17,7 +17,9 @@ PhotoResult = namedtuple("PhotoResult",
                          "photo time time_utc lat lon ele gap reason time_check stop",
                          defaults=(None,) * 9)
 
-Summary = namedtuple("Summary", "matched skipped")
+# How many photos were matched and skipped, and how many of the matched
+# ones were taken during stops
+Summary = namedtuple("Summary", "matched skipped at_stops")
 
 
 def match_photo(photo, tracks, correction, max_gap, overwrite=False):
@@ -55,6 +57,7 @@ def match_photos(photos, tracks, correction, max_gap, **options):
 
 
 def summarize(results):
-    """Return how many photos were matched and how many skipped."""
+    """Return the Summary of results."""
     matched = sum(1 for result in results if result.reason is None)
-    return Summary(matched, len(results) - matched)
+    at_stops = sum(1 for result in results if result.stop is not None)
+    return Summary(matched, len(results) - matched, at_stops)

@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: gpxfoto 0.1.0\n"
 "Report-Msgid-Bugs-To: https://github.com/tomaszbojanowski/gpxfoto/issues\n"
-"POT-Creation-Date: 2026-10-07 20:01+0000\n"
+"POT-Creation-Date: 2026-10-07 20:08+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -351,25 +351,34 @@ msgstr ""
 msgid "Matched: {matched}, skipped: {skipped}"
 msgstr ""
 
+#. Translators: how many of the matched photos were taken during stops;
+#. a wrong camera clock puts fewer of them there
+#: gpxfoto/cli.py:374
+#, python-brace-format
+msgid "During stops: {count} of {matched} matched photo"
+msgid_plural "During stops: {count} of {matched} matched photos"
+msgstr[0] ""
+msgstr[1] ""
+
 #. Translators: {option} is the command-line option --write
-#: gpxfoto/cli.py:376
+#: gpxfoto/cli.py:383
 #, python-brace-format
 msgid ""
 "This was a preview; no files were changed. Use {option} to write the "
 "locations."
 msgstr ""
 
-#: gpxfoto/cli.py:390
+#: gpxfoto/cli.py:397
 #, python-brace-format
 msgid "Could not write {name}: {error} (file unchanged)"
 msgstr ""
 
-#: gpxfoto/cli.py:392
+#: gpxfoto/cli.py:399
 #, python-brace-format
 msgid "Written: {written}, errors: {errors}"
 msgstr ""
 
-#: gpxfoto/cli.py:395
+#: gpxfoto/cli.py:402
 msgid "The image data of every written file was verified as unchanged."
 msgstr ""
 
@@ -436,12 +445,12 @@ msgid "Cannot use the clock photo {path}: {reason}"
 msgstr ""
 
 #. Translators: reason why a photo was skipped
-#: gpxfoto/engine/matching.py:31
+#: gpxfoto/engine/matching.py:33
 msgid "already has a location"
 msgstr ""
 
 #. Translators: reason why a photo was skipped
-#: gpxfoto/engine/matching.py:43
+#: gpxfoto/engine/matching.py:45
 msgid "the corrected capture time is out of range"
 msgstr ""
 

@@ -76,9 +76,9 @@ def test_photos_are_matched_in_order_and_counted(track):
               photo((12, 0, 10), has_location=True, path="c.jpg")]
     results = match_photos(photos, [track], 0, 120)
     assert [r.photo.path for r in results] == ["a.jpg", "b.jpg", "c.jpg"]
-    assert summarize(results) == Summary(matched=1, skipped=2)
+    assert summarize(results) == Summary(matched=1, skipped=2, at_stops=0)
     results = match_photos(photos, [track], 0, 120, overwrite=True)
-    assert summarize(results) == Summary(matched=2, skipped=1)
+    assert summarize(results) == Summary(matched=2, skipped=1, at_stops=0)
 
 
 def s5ii_photo(local_time, camera_utc_time, tz_source=TZ_CAMERA, offset=WARSAW):
@@ -117,3 +117,4 @@ def test_photo_taken_during_a_stop_gets_its_position():
         stop.lat, stop.lon, stop.elevation, stop)
     unpinned = match_photo(photo((12, 2, 0)), [Track(["stop.gpx"], True, points)], 0, 120)
     assert unpinned.stop is None and unpinned.lat != stop.lat
+    assert summarize([result, unpinned]) == Summary(matched=2, skipped=0, at_stops=1)

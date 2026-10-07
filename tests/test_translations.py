@@ -627,7 +627,26 @@ def test_stop_note_is_polish(polish_cli, tmp_path, capsys):
     path = photo(tmp_path / "photos", "b.jpg", "-DateTimeOriginal=2024:05:01 12:03:30",
                  "-OffsetTimeOriginal=+02:00")
     polish_cli("-g", gpx, path)
-    assert capsys.readouterr().out.splitlines()[1] == AT_STOP.replace("[stop", "[postój")
+    assert capsys.readouterr().out.splitlines()[1:4] == [
+        AT_STOP.replace("[stop", "[postój"), "Dopasowano: 1, pominięto: 0",
+        "Na postojach: 1 z 1 dopasowanego zdjęcia"]
+
+
+@pytest.mark.parametrize("count, text", [
+    (1, "1 z 1 dopasowanego zdjęcia"), (2, "2 z 2 dopasowanych zdjęć"),
+    (5, "5 z 5 dopasowanych zdjęć"), (22, "22 z 22 dopasowanych zdjęć"),
+])
+def test_count_during_stops_is_polish(polish_cli, exiftool_present, tmp_path, capsys,
+                                      monkeypatch, count, text):
+    gpx = write_gpx(tmp_path / "stop.gpx", stop_track())
+    metadata = [{"SourceFile": f"{i}.jpg", "DateTimeOriginal": "2024:05:01 12:03:30",
+                 "OffsetTimeOriginal": "+02:00"} for i in range(count)]
+    monkeypatch.setattr(cli, "check_exiftool", lambda: None)
+    monkeypatch.setattr(cli, "find_photos", lambda paths, recursive: [
+        m["SourceFile"] for m in metadata])
+    monkeypatch.setattr(cli, "read_metadata", lambda files: metadata)
+    polish_cli("-g", gpx, "photos")
+    assert capsys.readouterr().out.splitlines()[count + 2] == "Na postojach: " + text
 
 
 @needs_exiftool
