@@ -92,12 +92,11 @@ def capture_time(meta, manual_tz):
     fraction = str(meta.get("SubSecTimeOriginal", "")).strip()
     if fraction.isdigit():
         time += timedelta(seconds=float("0." + fraction))
-    offset = meta.get("OffsetTimeOriginal") or meta.get("OffsetTime")
     if manual_tz is not None:
         return time.replace(tzinfo=manual_tz), TZ_MANUAL
-    if offset:
+    for name in ("OffsetTimeOriginal", "OffsetTime"):
         try:
-            return time.replace(tzinfo=parse_utc_offset(str(offset))), TZ_CAMERA
-        except ValueError:
+            return time.replace(tzinfo=parse_utc_offset(str(meta[name]))), TZ_CAMERA
+        except (KeyError, ValueError):
             pass
     return time.astimezone(), TZ_SYSTEM

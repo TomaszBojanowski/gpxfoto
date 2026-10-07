@@ -111,8 +111,8 @@ def test_capture_time_falls_back_to_create_date_and_offset_time():
     assert taken.utcoffset() == timedelta(hours=-3, minutes=-30)
 
 
-@pytest.mark.parametrize("original", ["", None])
-def test_capture_time_empty_offset_time_original_falls_back_to_offset_time(original):
+@pytest.mark.parametrize("original", ["", None, "   :  ", "+02:75", 2, "Z"])
+def test_capture_time_unusable_offset_time_original_falls_back_to_offset_time(original):
     meta = {"DateTimeOriginal": "2024:05:01 12:00:00", "OffsetTimeOriginal": original,
             "OffsetTime": "+03:00"}
     assert capture_time(meta, None) == (datetime(2024, 5, 1, 12, 0, 0, tzinfo=zone(3)), TZ_CAMERA)
