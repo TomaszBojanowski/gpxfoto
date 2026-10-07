@@ -175,6 +175,7 @@ def test_naive_time_is_utc_not_local(tmp_path, local_zone):
 
 @pytest.mark.parametrize("time_text", [
     None, "", "   ", "yesterday", "2026-13-01T10:00:00Z", "2026-06-01T25:00:00Z",
+    "9999-12-31T23:59:59-01:00", "0001-01-01T00:00:00+01:00",
 ])
 def test_points_without_usable_time_are_skipped(tmp_path, time_text):
     path = write_gpx(tmp_path / "track.gpx", [

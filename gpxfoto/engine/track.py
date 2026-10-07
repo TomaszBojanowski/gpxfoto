@@ -55,7 +55,7 @@ def _read_points(path):
             try:
                 point = (_parse_time(time_text).timestamp(), float(el.attrib["lat"]),
                          float(el.attrib["lon"]), _elevation(ele_text))
-            except (ValueError, KeyError):
+            except (ValueError, KeyError, OverflowError):    # overflow: beyond year 9999
                 pass
             else:
                 # Also false for NaN; rules out infinity
