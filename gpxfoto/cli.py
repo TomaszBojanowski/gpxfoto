@@ -43,6 +43,11 @@ ARGPARSE_MESSAGES = (
 )
 
 
+def printable(text):
+    """Text for the terminal; bytes of a file name that are not UTF-8 become �."""
+    return text.encode("utf-8", "surrogateescape").decode("utf-8", "replace")
+
+
 def seconds(text):
     """argparse type: a finite number of seconds that fits a time span."""
     try:
@@ -164,7 +169,7 @@ def main():
     plan, skipped = [], 0
     for meta in metadata:
         path = meta["SourceFile"]
-        name = os.path.basename(path)
+        name = printable(os.path.basename(path))
         if "GPSLatitude" in meta and not args.overwrite:
             # Translators: reason why a photo was skipped
             reason = _("already has a location")
@@ -222,7 +227,7 @@ def main():
         except (RuntimeError, ValueError, OSError) as e:
             errors += 1
             print("  " + _("Could not write {name}: {error} (file unchanged)").format(
-                name=os.path.basename(path), error=e))
+                name=printable(os.path.basename(path)), error=printable(str(e))))
     print(_("Written: {written}, errors: {errors}").format(
         written=i18n.number(written), errors=i18n.number(errors)))
     if written:

@@ -66,7 +66,7 @@ def write_location(path, lat, lon, ele, time_utc, backup):
         if ele is not None:
             command += [f"-GPSAltitude={abs(ele):.1f}", f"-GPSAltitudeRef={0 if ele >= 0 else 1}"]
         command += ["-o", temp, "--", path]
-        process = subprocess.run(command, capture_output=True, text=True)
+        process = subprocess.run(command, capture_output=True, text=True, errors="replace")
         if process.returncode != 0 or not os.path.exists(temp):
             raise RuntimeError(process.stderr.strip() or _("exiftool did not write the file"))
         if image_checksum(temp) != before:

@@ -50,17 +50,35 @@ def find_photos(paths, recursive):
 
 
 def read_metadata(files):
+    """Read the metadata of files with exiftool, in batches of 500.
+
+    "SourceFile" of each entry is the path exactly as given, also when the
+    file name is not valid UTF-8. Files exiftool could not read are left out.
+    """
     result = []
     for start in range(0, len(files), 500):
+        batch = files[start:start + 500]
         command = ["exiftool", "-json", "-n", "-DateTimeOriginal", "-CreateDate",
                    "-OffsetTimeOriginal", "-OffsetTime", "-SubSecTimeOriginal",
-                   "-GPSLatitude", "-GPSLongitude", "--"] + files[start:start + 500]
-        process = subprocess.run(command, capture_output=True, text=True)
+                   "-GPSLatitude", "-GPSLongitude", "--"] + batch
+        process = subprocess.run(command, capture_output=True, text=True, errors="replace")
         if not process.stdout.strip():
             raise RuntimeError(_("exiftool returned no data:\n{errors}").format(
                 errors=process.stderr))
-        result.extend(json.loads(process.stdout))
+        # exiftool keeps the order of the files
+        entries = iter(json.loads(process.stdout))
+        entry = next(entries, None)
+        for path in batch:
+            if entry is not None and entry.get("SourceFile") == _as_exiftool_shows(path):
+                entry["SourceFile"] = path
+                result.append(entry)
+                entry = next(entries, None)
     return result
+
+
+def _as_exiftool_shows(path):
+    """exiftool shows each byte of a file name that is not UTF-8 as "?"."""
+    return re.sub("[\udc80-\udcff]", "?", path)
 
 
 def parse_utc_offset(text):

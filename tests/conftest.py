@@ -97,6 +97,19 @@ def write_gpx(path, points, namespace=GPX_NAMESPACE, garmin=False):
     return path
 
 
+def latin2_name(directory, name="zdj\xeacie.jpg"):
+    """A path whose file name is not valid UTF-8 ("zdjęcie" in ISO 8859-2).
+
+    Skips the test where the file system accepts only UTF-8 names.
+    """
+    path = os.path.join(str(directory), os.fsdecode(name.encode("latin-1")))
+    try:
+        open(path, "wb").close()
+    except (OSError, UnicodeError):
+        pytest.skip("the file system accepts only UTF-8 file names")
+    os.unlink(path)
+    return path
+
 def run_cli(*args, cwd=None, env=None):
     """Run "python -m gpxfoto" in English with a fixed time zone and no colours."""
     environment = {k: v for k, v in os.environ.items()

@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 
 import pytest
 
-from conftest import make_jpeg, needs_exiftool, read_tags, set_tags
+from conftest import latin2_name, make_jpeg, needs_exiftool, read_tags, set_tags
 from gpxfoto.engine import writer
 from gpxfoto.engine.writer import BACKUP_DIR, image_checksum, write_location
 
@@ -80,7 +80,7 @@ class FakeExiftool:
         self.create, self.error = create, error
         self.commands, self.temp_existed = [], []
 
-    def __call__(self, command, capture_output=False, text=False, check=False):
+    def __call__(self, command, capture_output=False, text=False, check=False, errors=None):
         self.commands.append(command)
         temp = command[command.index("-o") + 1]
         self.temp_existed.append(os.path.exists(temp))
@@ -558,6 +558,31 @@ def test_real_exiftool_error_is_reported(tmp_path, photo):
         write_location(photo, 50.0, 19.0, 200.0, TIME, backup=True)
     assert state(photo) == before
     assert os.listdir(tmp_path) == ["photo.jpg"]
+
+
+@needs_exiftool
+def test_file_name_that_is_not_utf8(tmp_path):
+    path = latin2_name(tmp_path)
+    with open(path, "wb") as f:
+        f.write(make_jpeg())
+    checksum = image_checksum(path)
+    write_location(path, 50.0614, 19.9366, 219.4, TIME, backup=True)
+    assert image_checksum(path) == checksum
+    assert gps_tags(path)["GPSLatitude"] == 50.0614
+    assert os.listdir(os.path.join(tmp_path, BACKUP_DIR)) == [os.path.basename(path)]
+
+
+@needs_exiftool
+def test_exiftool_error_about_file_name_that_is_not_utf8(tmp_path):
+    """exiftool names the file in its error, in bytes that are not UTF-8."""
+    path = latin2_name(tmp_path)
+    with open(path, "wb") as f:
+        f.write(with_exif(make_jpeg(), TRUNCATED_IFD))
+    before = open(path, "rb").read()
+    with pytest.raises(RuntimeError, match="^Error: Truncated IFD0 directory - .*zdj\ufffdcie"):
+        write_location(path, 50.0, 19.0, 200.0, TIME, backup=False)
+    assert open(path, "rb").read() == before
+    assert os.listdir(tmp_path) == [os.path.basename(path)]
 
 
 @needs_exiftool

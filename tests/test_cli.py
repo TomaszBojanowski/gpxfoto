@@ -8,7 +8,7 @@ import sys
 
 import pytest
 
-from conftest import needs_exiftool, read_tags, run_cli, set_tags, write_gpx
+from conftest import latin2_name, needs_exiftool, read_tags, run_cli, set_tags, write_gpx
 from gpxfoto import cli, i18n
 from gpxfoto.engine.writer import image_checksum
 
@@ -446,6 +446,21 @@ def test_overwrite_with_track_without_elevation_drops_old_elevation(tmp_path, ph
     tags = read_tags(path, "GPS:all")
     assert "GPSAltitude" not in tags and "GPSAltitudeRef" not in tags
     assert tags["GPSLatitude"] == pytest.approx(51.0005, abs=1e-7)
+
+
+@needs_exiftool
+def test_file_name_that_is_not_utf8(photo, gpx):
+    source = photo("a.jpg", taken("12:00:50"))
+    path = latin2_name(source.parent)
+    os.rename(source, path)
+
+    result = run_cli(source.parent, "-g", gpx, "--write")
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.splitlines()[1] == (
+        "  zdj\ufffdcie.jpg      12:00:50  50.000500, 20.001000    205 m")
+    assert read_tags(path, "GPS:GPSLatitude") == {
+        "GPSLatitude": pytest.approx(50.0005, abs=1e-7)}
 
 @needs_exiftool
 @needs_posix_shell

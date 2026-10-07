@@ -7,7 +7,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from conftest import make_jpeg, needs_exiftool, set_tags
+from conftest import latin2_name, make_jpeg, needs_exiftool, set_tags
 from gpxfoto.engine import photos
 from gpxfoto.engine.photos import (
     TZ_CAMERA, TZ_MANUAL, TZ_SYSTEM, capture_time, find_photos, parse_utc_offset,
@@ -414,7 +414,7 @@ def fake_exiftool(monkeypatch):
 
     def run(command, **kwargs):
         calls.append(command)
-        assert kwargs == {"capture_output": True, "text": True}
+        assert kwargs == {"capture_output": True, "text": True, "errors": "replace"}
         files = command[len(PREFIX):]
         stdout = json.dumps([{"SourceFile": f} for f in files])
         return subprocess.CompletedProcess(command, 0, stdout, "")
@@ -436,6 +436,33 @@ def test_read_metadata_runs_exiftool_in_batches_of_500(fake_exiftool, count, bat
     assert [len(c) - len(PREFIX) for c in fake_exiftool] == batches
     assert all(c[:len(PREFIX)] == PREFIX for c in fake_exiftool)
     assert [f for c in fake_exiftool for f in c[len(PREFIX):]] == files
+
+
+def test_read_metadata_matches_entries_in_order(monkeypatch):
+    """exiftool shows bytes that are not UTF-8 as "?" and leaves out files
+    it cannot read; each entry still gets the path that was given."""
+    files = ["a.jpg", "zdj\udceacie.jpg", "gone.jpg", "\udce2\udc82.jpg", "zdj?cie.jpg"]
+
+    def run(command, **kwargs):
+        shown = ["a.jpg", "zdj?cie.jpg", "??.jpg", "zdj?cie.jpg"]
+        stdout = json.dumps([{"SourceFile": f, "N": i} for i, f in enumerate(shown)])
+        return subprocess.CompletedProcess(command, 1, stdout, "Error: File not found\n")
+
+    monkeypatch.setattr(photos.subprocess, "run", run)
+    assert read_metadata(files) == [
+        {"SourceFile": "a.jpg", "N": 0}, {"SourceFile": "zdj\udceacie.jpg", "N": 1},
+        {"SourceFile": "\udce2\udc82.jpg", "N": 2}, {"SourceFile": "zdj?cie.jpg", "N": 3}]
+
+
+@needs_exiftool
+def test_read_metadata_of_file_name_that_is_not_utf8(tmp_path):
+    path = latin2_name(tmp_path)
+    write_photo(tmp_path / "plain.jpg", "-DateTimeOriginal=2024:05:01 12:00:00")
+    with open(path, "wb") as f:
+        f.write((tmp_path / "plain.jpg").read_bytes())
+    entries = read_metadata([path, str(tmp_path / "plain.jpg")])
+    assert [e["SourceFile"] for e in entries] == [path, str(tmp_path / "plain.jpg")]
+    assert entries[0]["DateTimeOriginal"] == "2024:05:01 12:00:00"
 
 
 @pytest.mark.parametrize("stdout", ["", "  \n"])
