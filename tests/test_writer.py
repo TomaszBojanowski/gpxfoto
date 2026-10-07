@@ -152,7 +152,7 @@ def test_verified_result_replaces_photo(tmp_path, photo, fake_exiftool, mode):
 
 
 @pytest.mark.parametrize("path", ["photo.jpg", os.path.join("album", "photo.jpg")])
-def test_result_goes_through_temp_file_in_same_directory(
+def test_result_goes_through_temp_directory_next_to_photo(
         tmp_path, monkeypatch, fake_exiftool, replace_calls, path):
     monkeypatch.chdir(tmp_path)
     os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
@@ -164,12 +164,13 @@ def test_result_goes_through_temp_file_in_same_directory(
     assert len(replace_calls) == 1
     temp, target = replace_calls[0]
     assert target == os.path.realpath(path)
-    assert os.path.dirname(temp) == os.path.dirname(target)
-    assert os.path.basename(temp).startswith(".gpxfoto-")
-    assert temp.endswith(".jpg")
+    temp_dir, name = os.path.split(temp)
+    assert os.path.dirname(temp_dir) == os.path.dirname(target)
+    assert os.path.basename(temp_dir).startswith(".gpxfoto-")
+    assert name == os.path.basename(target)
     assert fake.commands[0][-4:] == ["-o", temp, "--", target]
     assert fake.temp_existed == [False]              # exiftool -o refuses existing files
-    assert not os.path.exists(temp)
+    assert not os.path.exists(temp_dir)
 
 
 def test_exiftool_writes_a_private_file(photo, fake_exiftool):
@@ -185,29 +186,70 @@ def test_result_is_private_while_it_is_checked(tmp_path, photo, monkeypatch):
     real = writer.image_checksum
 
     def checksum(path):
-        if os.path.basename(path).startswith(".gpxfoto-"):
+        if path != str(photo):
             modes.append(stat.S_IMODE(os.stat(path).st_mode))
+            modes.append(stat.S_IMODE(os.stat(os.path.dirname(path)).st_mode))
         return real(path)
 
     monkeypatch.setattr(writer, "image_checksum", checksum)
     write_location(photo, 50.0, 19.0, 200.0, TIME, backup=False)
-    assert modes == [0o600]
+    assert modes == [0o600, 0o700]
     assert stat.S_IMODE(os.stat(photo).st_mode) == 0o600
 
 
-def test_interruption_right_after_the_temporary_file_leaves_nothing(tmp_path, photo,
-                                                                    fake_exiftool, monkeypatch):
-    real_close = os.close
+def readable_by_another_user(directory, path):
+    """Whether user 4242, with no groups, can open path, relative to directory, for reading."""
+    fd = os.open(directory, os.O_RDONLY)
+    pid = os.fork()
+    if pid == 0:
+        try:
+            os.setgroups([])
+            os.setgid(4242)
+            os.setuid(4242)
+            os.close(os.open(path, os.O_RDONLY, dir_fd=fd))
+        except OSError:
+            os._exit(1)
+        os._exit(0)
+    os.close(fd)
+    return os.waitstatus_to_exitcode(os.waitpid(pid, 0)[1]) == 0
 
-    def close_then_fail(fd):
-        real_close(fd)
-        monkeypatch.setattr(writer.os, "close", real_close)
-        raise KeyboardInterrupt
 
-    fake_exiftool()
-    monkeypatch.setattr(writer.os, "close", close_then_fail)
+@needs_exiftool
+@pytest.mark.skipif(not hasattr(os, "fork") or not hasattr(os, "geteuid") or os.geteuid() != 0,
+                    reason="only root can act as another user")
+@pytest.mark.parametrize("default_acl", [False, True], ids=["plain", "default ACL"])
+def test_another_user_cannot_read_the_result_while_it_is_checked(tmp_path, photo, monkeypatch,
+                                                                  default_acl):
+    os.chmod(tmp_path, 0o755)
+    os.chmod(photo, 0o600)
+    if default_acl:
+        # New files in the directory give user 4242 access, which the photo does not
+        anyone = 0xFFFFFFFF
+        set_xattr(tmp_path, "system.posix_acl_default", posix_acl(
+            (0x01, 6, anyone), (0x02, 6, 4242), (0x04, 4, anyone), (0x10, 6, anyone),
+            (0x20, 4, anyone)))
+    (tmp_path / "open.jpg").write_bytes(b"")
+    os.chmod(tmp_path / "open.jpg", 0o644)
+    assert readable_by_another_user(tmp_path, "open.jpg")
+    readable = []
+    real = writer.image_checksum
+
+    def checksum(path):
+        if path != str(photo):
+            readable.append(readable_by_another_user(tmp_path, os.path.relpath(path, tmp_path)))
+        return real(path)
+
+    monkeypatch.setattr(writer, "image_checksum", checksum)
+    write_location(photo, 50.0, 19.0, 200.0, TIME, backup=False)
+    assert readable == [False]
+
+
+def test_interrupted_exiftool_leaves_nothing(tmp_path, photo, fake_exiftool):
+    before = state(photo)
+    fake_exiftool(error=KeyboardInterrupt())
     with pytest.raises(KeyboardInterrupt):
         write_location(photo, 50.0, 19.0, 200.0, TIME, backup=False)
+    assert state(photo) == before
     assert os.listdir(tmp_path) == ["photo.jpg"]
 
 
@@ -498,13 +540,13 @@ def test_everything_reaches_the_disk_before_the_photo_is_replaced(photo, fake_ex
     fake_exiftool()
     write_location(photo, 50.0, 19.0, 200.0, TIME, backup=True)
     assert disk_events == [
-        ("sync", "TEMP"),                       # the result
+        ("sync", "TEMP/photo.jpg"),             # the result
         ("sync", "TEMP"),                       # the new backup directory with its marker
         ("sync", "."),                          # its name
         ("sync", "originals/TEMP"),             # the backup copy
         ("link", "originals/TEMP", "originals/photo.jpg"),
         ("sync", "originals"),                  # its name
-        ("replace", "TEMP", "photo.jpg"),
+        ("replace", "TEMP/photo.jpg", "photo.jpg"),
         ("sync", "."),                          # the photo's new file
     ]
 
@@ -513,7 +555,8 @@ def test_without_backup_the_result_is_synced_before_the_replacement(photo, fake_
                                                                     disk_events):
     fake_exiftool()
     write_location(photo, 50.0, 19.0, 200.0, TIME, backup=False)
-    assert disk_events == [("sync", "TEMP"), ("replace", "TEMP", "photo.jpg"), ("sync", ".")]
+    assert disk_events == [("sync", "TEMP/photo.jpg"), ("replace", "TEMP/photo.jpg", "photo.jpg"),
+                           ("sync", ".")]
 
 
 def test_failed_sync_of_the_result_keeps_the_photo(tmp_path, photo, fake_exiftool, monkeypatch):
@@ -668,7 +711,8 @@ def test_new_backup_directory_is_marked_and_owned_like_its_parent(tmp_path, phot
     real_chown = os.chown
 
     def chown(path, uid, gid):
-        owners.append((os.path.basename(path), uid, gid))
+        if os.path.isdir(path):
+            owners.append((os.path.dirname(path), os.path.basename(path)[:9], uid, gid))
         return real_chown(path, uid, gid)
 
     fake_exiftool()
@@ -677,8 +721,7 @@ def test_new_backup_directory_is_marked_and_owned_like_its_parent(tmp_path, phot
     backups_dir = album / BACKUP_DIR
     assert stat.S_IMODE(os.stat(backups_dir).st_mode) == 0o750
     parent = os.stat(album)
-    assert (os.path.basename(owners[0][0]).startswith(".gpxfoto-"), owners[0][1:]) == (
-        True, (parent.st_uid, parent.st_gid))
+    assert owners == [(str(album), ".gpxfoto-", parent.st_uid, parent.st_gid)]
     assert "gpxfoto never changes or replaces these copies." in (
         backups_dir / BACKUP_MARKER).read_text()
     assert sorted(os.listdir(album)) == ["originals", "photo.jpg"]

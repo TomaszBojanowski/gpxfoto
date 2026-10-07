@@ -278,7 +278,8 @@ def test_find_photos_recursive_walks_sorted_subdirectories_after_files(photo_tre
 def test_find_photos_skips_backups_and_temporary_files(photo_tree, recursive):
     for name in ["originals/z.jpg", "originals/.gpxfoto", "a_dir/originals/m.jpg",
                  "a_dir/originals/.gpxfoto", ".gpxfoto-k2j4.jpg", "b_dir/.gpxfoto-x1.jpg",
-                 "originals/.gpxfoto-c.jpg"]:
+                 "originals/.gpxfoto-c.jpg", ".gpxfoto-r8x2/photo.jpg",
+                 "b_dir/.gpxfoto-q1w3/c.jpg"]:
         (photo_tree / name).parent.mkdir(parents=True, exist_ok=True)
         (photo_tree / name).write_bytes(b"")
     root = str(photo_tree)
@@ -303,7 +304,6 @@ def test_find_photos_searches_a_backup_directory_given_explicitly(tmp_path):
     temp.write_bytes(b"")
     assert find_photos([str(backups), str(temp)], recursive=True) == [
         str(backups / "a.jpg"), str(temp)]
-
 
 
 def test_find_photos_skips_what_is_not_a_regular_file(tmp_path):

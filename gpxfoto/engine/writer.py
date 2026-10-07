@@ -91,10 +91,12 @@ def write_location(path, lat, lon, ele, time_utc, backup, replace=False, seen=No
     access_ns = (seen or original).st_atime_ns
     before = image_checksum(path)
     directory = os.path.dirname(path)
-    fd, temp = tempfile.mkstemp(prefix=TEMP_PREFIX, suffix=".jpg", dir=directory)
+    # The result is made in a directory only its owner can enter: in a
+    # directory with a default access control list, a new file can be
+    # readable by others whatever its permissions
+    temp_dir = tempfile.mkdtemp(prefix=TEMP_PREFIX, dir=directory)
     try:
-        os.close(fd)
-        os.unlink(temp)              # exiftool -o requires that the file does not exist
+        temp = os.path.join(temp_dir, os.path.basename(path))
         command = ["exiftool", "-q", "-n", "-m"]
         if replace:
             command += ["-GPS:all=", "-XMP-exif:GPS*="]
@@ -113,7 +115,7 @@ def write_location(path, lat, lon, ele, time_utc, backup, replace=False, seen=No
             command += [f"-GPS:GPSAltitude={abs(ele):.1f}",
                         f"-GPS:GPSAltitudeRef={0 if ele >= 0 else 1}"]
         command += ["-o", temp, "--", path]
-        # The result is readable only by its owner until it gets the photo's permissions
+        # Also readable only by its owner until it gets the photo's permissions
         process = subprocess.run(command, capture_output=True, text=True, errors="replace",
                                  umask=0o077)
         if process.returncode != 0 or not os.path.exists(temp):
@@ -131,8 +133,7 @@ def write_location(path, lat, lon, ele, time_utc, backup, replace=False, seen=No
         os.replace(temp, path)       # atomic replacement
         _sync_directory(directory)
     finally:
-        if os.path.exists(temp):
-            os.unlink(temp)
+        shutil.rmtree(temp_dir, ignore_errors=True)
 
 
 def _changed(before, now):
