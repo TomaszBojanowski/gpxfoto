@@ -16,7 +16,7 @@ from gpxfoto.engine.photos import (
     TZ_CAMERA, TZ_MANUAL, TZ_SYSTEM, check_exiftool, find_photos, format_utc_offset,
     parse_utc_offset, photo_from_metadata, read_metadata, summarize_time_checks)
 from gpxfoto.engine.track import (
-    find_tracks, load_track, nearest_track, quick_span, tracks_needed)
+    find_tracks, load_track, nearest_track, quick_span, tracks_needed, travel_direction)
 from gpxfoto.engine.writer import BACKUP_DIR, write_location
 from gpxfoto.i18n import N_
 
@@ -175,6 +175,10 @@ def build_parser():
                                "at its time"))
     parser.add_argument("--overwrite", action="store_true",
                         help=_("also change photos that already have a location"))
+    parser.add_argument("--travel-direction", action="store_true",
+                        help=_("also add the direction of travel from the track (EXIF "
+                               "GPSTrack), not the direction the camera faced; photos taken at "
+                               "a stop or on a winding stretch get none"))
     # Translators: {directory} is the name of the directory, which is not translated
     parser.add_argument("--backup", action="store_true",
                         help=_("keep copies of the original files in a “{directory}” "
@@ -242,11 +246,12 @@ def file_labels(paths):
             for path, name in zip(paths, names)}
 
 
-def photo_line(result, labels=None, width=0):
+def photo_line(result, labels=None, width=0, direction=None):
     """The preview line of one photo.
 
     With labels, a dict of file labels, the line names the track files
-    its position comes from, in a column width characters wide.
+    its position comes from, in a column width characters wide. direction
+    is the photo's (degrees, reason) from directions(), if any.
     """
     name = printable(os.path.basename(result.photo.path))
     time = "" if result.time is None else f"{result.time:%X}  "
@@ -257,6 +262,18 @@ def photo_line(result, labels=None, width=0):
         notes.append(time_check_note(result.time_check))
     if result.stop is not None:
         notes.append(stop_note(result.stop, result.time.tzinfo))
+    heading = ""
+    if direction is not None:
+        degrees, reason = direction
+        if degrees is None:
+            # Translators: a note on the line of a photo; {reason} says why,
+            # e.g. “the track winds too much here”
+            notes.append(_("no direction of travel: {reason}").format(reason=reason))
+        else:
+            # Translators: shown after the position of a photo; {degrees} is
+            # a whole number from 0 to 359, padded to three characters
+            heading = "  " + _("direction of travel {degrees}°").format(
+                degrees=i18n.number(degrees, width=3))
     notes = "  [" + "; ".join(notes) + "]" if notes else ""
     files = ", ".join(labels[path] for path in result.files) if labels else ""
     if result.reason is not None:
@@ -271,7 +288,7 @@ def photo_line(result, labels=None, width=0):
     else:
         ele_text = "       —"
     source = f"  {files:<{width}}" if labels else ""
-    return f"  {name:<16} {time}{position} {ele_text}{source}{notes}".rstrip()
+    return f"  {name:<16} {time}{position} {ele_text}{source}{heading}{notes}".rstrip()
 
 
 def clock_lines(clock):
@@ -536,6 +553,24 @@ def warning_lines(found, shots, names, correction, clock):
     return lines
 
 
+def directions(results, tracks):
+    """The (degrees, reason) of the direction of travel of each matched
+    photo, from the track that placed it, and None for the others."""
+    owner = {path: track for track in tracks for path in track.files}
+    found = []
+    for result in results:
+        if result.reason is not None:
+            found.append(None)
+        elif result.stop is not None:
+            # Translators: why a photo gets no direction of travel
+            found.append((None, _("taken during a stop")))
+        else:
+            track = owner[result.files[0]]
+            found.append(travel_direction(track.points, track.times, result.time.timestamp(),
+                                          result.lat, result.lon))
+    return found
+
+
 def no_points(count):
     return ngettext("The GPX file contains no track points with timestamps.",
                     "The GPX files contain no track points with timestamps.", count)
@@ -653,20 +688,29 @@ def main():
             print(track_line(track, labels, by_name=True))
         for line in correction_lines(clock, correction):
             print(line)
+    heading = (directions(results, tracks) if args.travel_direction
+               else [None] * len(results))
     # With several track files, each photo line names its own
     if found or len(named) > 1:
         width = max((len(", ".join(labels[path] for path in result.files))
                      for result in results if result.reason is None), default=0)
-        for result in results:
-            print(photo_line(result, labels, width))
+        for result, direction in zip(results, heading):
+            print(photo_line(result, labels, width, direction))
     else:
-        for result in results:
-            print(photo_line(result))
+        for result, direction in zip(results, heading):
+            print(photo_line(result, direction=direction))
     summary = summarize(results)
-    plan = [result for result in results if result.reason is None]
+    plan = [(result, direction) for result, direction in zip(results, heading)
+            if result.reason is None]
 
     print(_("Matched: {matched}, skipped: {skipped}").format(
         matched=i18n.number(summary.matched), skipped=i18n.number(summary.skipped)))
+    if args.travel_direction:
+        known = sum(direction[0] is not None for result, direction in plan)
+        # Translators: how many matched photos got a direction of travel and
+        # how many did not
+        print(_("With a direction of travel: {known}, without: {unknown}").format(
+            known=i18n.number(known), unknown=i18n.number(len(plan) - known)))
     if any(track.stops for track in tracks) and summary.matched:
         # Translators: how many of the matched photos were taken during stops;
         # a wrong camera clock puts fewer of them there
@@ -690,12 +734,13 @@ def main():
         return
 
     written = errors = 0
-    for result in plan:
+    for result, direction in plan:
         path = result.photo.path
         try:
             write_location(path, result.lat, result.lon, result.ele, result.time_utc,
                            args.backup, replace=result.photo.has_location,
-                           seen=seen.get(path))
+                           seen=seen.get(path), direction=direction[0] if direction else None,
+                           clear_direction=args.travel_direction)
             written += 1
         except (RuntimeError, ValueError, OSError) as e:
             errors += 1

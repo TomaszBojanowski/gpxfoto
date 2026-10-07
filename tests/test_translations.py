@@ -343,7 +343,8 @@ def test_polish_plural_forms(polish_mo, n, word):
 
 USAGE = ("użycie: gpxfoto [-h] -g TRASA [--write] [--offset SEKUNDY] [--timezone +GG:MM] "
          "[--clock-photo PLIK] [--clock-time CZAS] "
-         "[--max-gap SEKUNDY] [--no-stops] [--overwrite] [--backup] [-r] ZDJĘCIE [ZDJĘCIE ...]")
+         "[--max-gap SEKUNDY] [--no-stops] [--overwrite] [--travel-direction] [--backup] [-r] "
+         "ZDJĘCIE [ZDJĘCIE ...]")
 HELP = {
     "ZDJĘCIE": "pliki JPEG lub katalogi ze zdjęciami",
     "--help": "wyświetla ten komunikat pomocy i kończy działanie",
@@ -363,6 +364,9 @@ HELP = {
     "--no-stops": "nie wyszukuje postojów; każde zdjęcie otrzymuje położenie z trasy w chwili "
                   "wykonania",
     "--overwrite": "zmienia także zdjęcia, które mają już zapisane położenie",
+    "--travel-direction": "dopisuje także kierunek ruchu z trasy (EXIF GPSTrack), a nie kierunek, "
+                          "w którym skierowany był aparat; zdjęcia zrobione na postoju lub na "
+                          "krętym odcinku go nie otrzymują",
     "--backup": "zachowuje kopie oryginalnych plików w podkatalogu „originals” obok każdego "
                 "zdjęcia; istniejąca kopia nigdy nie jest zastępowana",
     "--recursive": "wyszukuje zdjęcia i trasy także w podkatalogach",
@@ -770,3 +774,20 @@ def test_motion_and_jump_warnings_are_polish(polish_cli, tmp_path, capsys, photo
         "  Należy sprawdzić strefy czasowe tych zdjęć oraz to, czy pliki GPX nie zapisują różnych "
         "wycieczek w tym samym czasie.",
     ]
+
+
+@needs_exiftool
+def test_direction_of_travel_is_polish(polish_cli, tmp_path, capsys):
+    gpx = write_gpx(tmp_path / "track.gpx", stop_track())
+    photos = tmp_path / "photos"
+    photo(photos, "a.jpg", "-DateTimeOriginal=2024:05:01 12:00:50", "-OffsetTimeOriginal=+02:00")
+    photo(photos, "b.jpg", "-DateTimeOriginal=2024:05:01 12:03:30", "-OffsetTimeOriginal=+02:00")
+    photo(photos, "c.jpg", "-DateTimeOriginal=2024:05:01 12:06:55", "-OffsetTimeOriginal=+02:00")
+    polish_cli("-g", gpx, photos, "--travel-direction")
+    lines = capsys.readouterr().out.splitlines()
+    assert lines[1].endswith("    200 m  kierunek ruchu  90°")
+    assert lines[2].endswith("  [postój 12:01:52 – 12:05:08; brak kierunku ruchu: zrobione "
+                             "podczas postoju]")
+    assert lines[3].endswith("    200 m  [brak kierunku ruchu: zbyt blisko początku lub końca "
+                             "trasy]")
+    assert lines[5] == "Z kierunkiem ruchu: 1, bez kierunku: 2"

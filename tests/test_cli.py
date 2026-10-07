@@ -1367,6 +1367,7 @@ def test_help(tmp_path):
     assert "--max-gap SECONDS" in result.stdout
     assert "(default: 120 s)" in result.stdout
     assert "“originals” subdirectory next to each photo" in result.stdout
+    assert "[--overwrite] [--travel-direction] [--backup]" in " ".join(result.stdout.split())
 
 
 # Regional settings
@@ -1702,3 +1703,100 @@ def test_jump_warning_names_three_pairs(count, more):
         *(f"  p{k}.jpg and p{k + 1}.jpg: taken 1 s apart, placed 5.0 km apart"
           for k in range(min(count, 3))),
         *more, JUMP_ADVICE]
+
+
+# --- direction of travel -------------------------------------------------
+
+@needs_exiftool
+def test_travel_direction_is_shown_and_written(photo, gpx):
+    a = photo("a.jpg", taken("12:00:50"))
+    # An old direction of travel, from another program
+    b = photo("b.jpg", [*taken("12:00:05"), "-GPSTrack=200", "-GPSTrackRef=M"])
+    checksums = {a: image_checksum(a), b: image_checksum(b)}
+
+    preview = run_cli(a.parent, "-g", gpx, "--travel-direction")
+
+    assert preview.returncode == 0, preview.stderr
+    assert preview.stdout.splitlines() == [
+        TRACK_LINE,
+        MATCH_LINE + "  direction of travel  52°",
+        "  b.jpg            12:00:05  50.000050, 20.000100    200 m"
+        "  [no direction of travel: too close to the start or end of the track]",
+        "Matched: 2, skipped: 0",
+        "With a direction of travel: 1, without: 1",
+        PREVIEW_LINE,
+    ]
+    # Without the option, nothing about directions
+    plain = run_cli(a.parent, "-g", gpx)
+    assert plain.stdout.splitlines()[1:4] == [
+        MATCH_LINE, "  b.jpg            12:00:05  50.000050, 20.000100    200 m",
+        "Matched: 2, skipped: 0"]
+
+    saved = run_cli(a.parent, "-g", gpx, "--travel-direction", "--write")
+
+    assert saved.returncode == 0, saved.stderr
+    assert saved.stdout.splitlines()[-2:] == written(2, 0)
+    assert read_tags(a, "GPSTrack", "GPSTrackRef", "GPSImgDirection") == {
+        "GPSTrack": 52, "GPSTrackRef": "T"}
+    # The old direction does not pass for one of ours
+    assert read_tags(b, "GPSTrack", "GPSTrackRef", "GPSLatitude") == {
+        "GPSLatitude": pytest.approx(50.00005, abs=1e-7)}
+    for path, checksum in checksums.items():
+        assert image_checksum(path) == checksum
+
+
+@needs_exiftool
+def test_without_the_option_an_old_direction_of_travel_stays(photo, gpx):
+    b = photo("b.jpg", [*taken("12:00:05"), "-GPSTrack=200", "-GPSTrackRef=M"])
+    assert run_cli(b, "-g", gpx, "--write").returncode == 0
+    assert read_tags(b, "GPSTrack", "GPSTrackRef") == {"GPSTrack": 200, "GPSTrackRef": "M"}
+
+
+@needs_exiftool
+def test_no_direction_of_travel_at_a_stop(photo, stop_gpx):
+    a = photo("a.jpg", taken("12:00:50"))
+    photo("b.jpg", taken("12:03:30"))
+
+    preview = run_cli(a.parent, "-g", stop_gpx, "--travel-direction")
+
+    assert preview.stdout.splitlines()[1:5] == [
+        WALKING + "  direction of travel  90°",
+        AT_STOP[:-1] + "; no direction of travel: taken during a stop]",
+        "Matched: 2, skipped: 0",
+        "With a direction of travel: 1, without: 1",
+    ]
+    no_stops = run_cli(a.parent, "-g", stop_gpx, "--travel-direction", "--no-stops")
+    assert no_stops.stdout.splitlines()[2] == (
+        ON_TRACK + "  [no direction of travel: the track stays within 20 m of this place for "
+        "60 s before or after the photo]")
+
+
+@needs_exiftool
+def test_direction_of_travel_after_the_track_files(tmp_path, photo):
+    north = write_gpx(tmp_path / "north.gpx", [("2024-05-01T10:00:00Z", 50.0, 20.0, None),
+                                               ("2024-05-01T10:01:40Z", 50.001, 20.0, None)])
+    west = write_gpx(tmp_path / "west-longer-name.gpx", [
+        ("2024-05-01T11:00:00Z", 50.1, 20.1, None), ("2024-05-01T11:01:40Z", 50.1, 20.098, None)])
+    a = photo("a.jpg", taken("12:00:50"))
+    photo("c.jpg", taken("13:00:50"))
+
+    result = run_cli(a.parent, "-g", north, "-g", west, "--travel-direction")
+
+    assert result.stdout.splitlines()[1:3] == [
+        "  a.jpg            12:00:50  50.000500, 20.000000        —  north.gpx           "
+        "  direction of travel   0°",
+        "  c.jpg            13:00:50  50.100000, 20.099000        —  west-longer-name.gpx"
+        "  direction of travel 270°",
+    ]
+
+
+@needs_exiftool
+def test_a_photo_with_a_location_gets_a_direction_only_with_overwrite(photo, gpx):
+    a = photo("a.jpg", [*taken("12:00:50"), "-GPSLatitude=1", "-GPSLatitudeRef=N",
+                        "-GPSLongitude=2", "-GPSLongitudeRef=E"])
+    kept = run_cli(a, "-g", gpx, "--travel-direction")
+    assert kept.stdout.splitlines()[1:3] == [
+        "  a.jpg            skipped: already has a location",
+        "Matched: 0, skipped: 1"]
+    replaced = run_cli(a, "-g", gpx, "--travel-direction", "--overwrite")
+    assert replaced.stdout.splitlines()[1] == MATCH_LINE + "  direction of travel  52°"
