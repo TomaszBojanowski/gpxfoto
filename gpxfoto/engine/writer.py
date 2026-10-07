@@ -50,7 +50,9 @@ def write_location(path, lat, lon, ele, time_utc, backup):
         raise ValueError(_("invalid location: {location}").format(location=location))
     # Through a symbolic link, the file it points to is written
     path = os.path.realpath(path)
-    if os.stat(path).st_nlink > 1:
+    # Taken before anything reads the photo, which may update its access time
+    original = os.stat(path)
+    if original.st_nlink > 1:
         # A new file replaces the photo, which would separate the links
         raise RuntimeError(_("the file has several hard links; writing it would separate them"))
     before = image_checksum(path)
@@ -76,18 +78,33 @@ def write_location(path, lat, lon, ele, time_utc, backup):
             raise RuntimeError(process.stderr.strip() or _("exiftool did not write the file"))
         if image_checksum(temp) != before:
             raise RuntimeError(_("exiftool changed the image data; the result was discarded"))
-        stat = os.stat(path)
-        shutil.copymode(path, temp)
-        os.utime(temp, ns=(stat.st_atime_ns, stat.st_mtime_ns))
+        _copy_attributes(path, original, temp)
         if backup:
-            _back_up(path, directory)
+            _back_up(path, directory, original)
         os.replace(temp, path)       # atomic replacement
     finally:
         if os.path.exists(temp):
             os.unlink(temp)
 
 
-def _back_up(path, directory):
+def _copy_attributes(path, original, target):
+    """Give target the owner, permissions, extended attributes and times of the photo.
+
+    Extended attributes include access control lists. The owner and group
+    are copied as far as the system allows.
+    """
+    try:
+        os.chown(target, original.st_uid, original.st_gid)
+    except OSError:
+        try:
+            os.chown(target, -1, original.st_gid)    # allowed for members of the group
+        except OSError:
+            pass
+    shutil.copystat(path, target)
+    os.utime(target, ns=(original.st_atime_ns, original.st_mtime_ns))
+
+
+def _back_up(path, directory, original):
     """Copy the photo into BACKUP_DIR unless a copy is already there.
 
     The first copy is the true original, so it is never replaced. The copy
@@ -102,7 +119,8 @@ def _back_up(path, directory):
     fd, temp = tempfile.mkstemp(prefix=TEMP_PREFIX, suffix=".jpg", dir=target_dir)
     os.close(fd)
     try:
-        shutil.copy2(path, temp)
+        shutil.copyfile(path, temp)
+        _copy_attributes(path, original, temp)
         os.replace(temp, target)
     finally:
         if os.path.exists(temp):

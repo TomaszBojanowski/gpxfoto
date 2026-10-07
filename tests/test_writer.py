@@ -315,9 +315,62 @@ def test_times_are_those_reported_for_the_photo(photo, fake_exiftool, monkeypatc
     monkeypatch.setattr(writer.os, "stat", spy_stat)
     monkeypatch.setattr(writer.os, "utime", spy_utime)
     write_location(photo, 50.0, 19.0, 200.0, TIME, backup=False)
-    assert len(applied) == 1
-    assert applied[0] in reported
-    assert applied[0][1] == MTIME_NS
+    # The last times set are those reported before the photo was read
+    assert applied[-1] == reported[0] == (MTIME_NS - 10**9, MTIME_NS)
+
+
+def test_access_time_from_before_reading_is_kept(tmp_path, photo, fake_exiftool):
+    """Reading the photo may update its access time (relatime does when it is
+    older than the modification time); the original one is kept."""
+    atime = MTIME_NS - 86400 * 10**9
+    os.utime(photo, ns=(atime, MTIME_NS))
+    fake_exiftool()
+    write_location(photo, 50.0, 19.0, 200.0, TIME, backup=True)
+    for path in (photo, tmp_path / BACKUP_DIR / "photo.jpg"):
+        info = os.stat(path)
+        assert (info.st_atime_ns, info.st_mtime_ns) == (atime, MTIME_NS)
+
+
+def set_xattr(path, name, value):
+    try:
+        os.setxattr(path, name, value)
+    except (AttributeError, OSError):
+        pytest.skip("extended attributes are not supported here")
+
+
+def test_extended_attributes_are_kept(tmp_path, photo, fake_exiftool):
+    set_xattr(photo, "user.xdg.comment", b"Hut at the pass")
+    fake_exiftool()
+    write_location(photo, 50.0, 19.0, 200.0, TIME, backup=True)
+    for path in (photo, tmp_path / BACKUP_DIR / "photo.jpg"):
+        assert os.getxattr(path, "user.xdg.comment") == b"Hut at the pass"
+
+
+@pytest.mark.skipif(not hasattr(os, "geteuid") or os.geteuid() != 0,
+                    reason="only root can give a file to another user")
+def test_owner_and_group_are_kept(tmp_path, photo, fake_exiftool):
+    os.chown(photo, 4321, 8765)
+    fake_exiftool()
+    write_location(photo, 50.0, 19.0, 200.0, TIME, backup=True)
+    for path in (photo, tmp_path / BACKUP_DIR / "photo.jpg"):
+        info = os.stat(path)
+        assert (info.st_uid, info.st_gid) == (4321, 8765)
+
+
+def test_owner_that_cannot_be_set_does_not_stop_writing(photo, fake_exiftool, monkeypatch):
+    calls = []
+
+    def refuse(path, uid, gid):
+        calls.append((uid, gid))
+        raise PermissionError(1, "Operation not permitted")
+
+    expected = add_comment(photo.read_bytes())
+    fake_exiftool()
+    monkeypatch.setattr(writer.os, "chown", refuse)
+    write_location(photo, 50.0, 19.0, 200.0, TIME, backup=False)
+    info = os.stat(photo)
+    assert calls == [(info.st_uid, info.st_gid), (-1, info.st_gid)]
+    assert state(photo) == (expected, MTIME_NS, 0o640)
 
 
 def test_non_jpeg_photo_is_rejected_before_exiftool(tmp_path, fake_exiftool):
@@ -452,7 +505,7 @@ def test_interrupted_backup_leaves_no_partial_copy(tmp_path, photo, fake_exiftoo
 
     before = state(photo)
     fake_exiftool()
-    monkeypatch.setattr(writer.shutil, "copy2", broken_copy)
+    monkeypatch.setattr(writer.shutil, "copyfile", broken_copy)
     with pytest.raises(OSError, match="No space left on device"):
         write_location(photo, 50.0, 19.0, 200.0, TIME, backup=True)
     assert state(photo) == before
