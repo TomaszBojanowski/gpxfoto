@@ -506,6 +506,24 @@ def test_unreadable_gpx_message_is_polish(polish_cli, exiftool_present, tmp_path
                                     "no element found: line 1, column 5")
 
 
+@needs_exiftool
+def test_skipped_track_file_message_is_polish(polish_cli, tmp_path, capsys):
+    tracks = tmp_path / "tracks"
+    tracks.mkdir()
+    write_gpx(tracks / "day1.gpx", TRACK)
+    (tracks / "broken.gpx").write_text("<!DOCTYPE gpx>\n<gpx><trk>")
+    photo(tmp_path / "photos", "a.jpg", "-DateTimeOriginal=2024:05:01 12:00:50",
+          "-OffsetTimeOriginal=+02:00")
+    with pytest.raises(SystemExit) as exit_info:
+        polish_cli("-g", tracks, tmp_path / "photos")
+    assert exit_info.value.code == 1
+    captured = capsys.readouterr()
+    error, skipped = captured.err.splitlines()
+    assert error.startswith(f"Nie można odczytać pliku GPX {tracks / 'broken.gpx'}: ")
+    assert skipped == "  Ten plik zostaje pominięty; używane są pozostałe trasy."
+    assert "Dopasowano: 1, pominięto: 0" in captured.out.splitlines()
+
+
 def test_exiftool_without_output_message_is_polish(polish_cli, exiftool_present, tmp_path,
                                                     monkeypatch):
     gpx = write_gpx(tmp_path / "track.gpx", [("2024-05-01T10:00:00Z", 50.0, 20.0, None)])

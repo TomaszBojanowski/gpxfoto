@@ -139,14 +139,16 @@ line names the file its position comes from.
 Every `.gpx` file in it, and with `-r` in its subdirectories, is a track of
 its own, and each photo gets the track that covers its time; a position is
 never made up from two different files. If several tracks cover a photo,
-the one with recorded points closest to its time wins, then a file given
-by name, then the one that records more often. If two tracks from the
-directory with points equally close to a photo’s time put it more than
-200 m apart, it is skipped, as is a photo
-within the time of a file that cannot be read. A photo that no track
-covers is shown with the nearest track within a day. To stay quick with
-many files, gpxfoto first scans each file for its times and reads in full
-only the files the photos need.
+the one with recorded points closest to its time wins, then a file given by
+name, then the one that records more often. If two tracks from the
+directory with points equally close to a photo’s time put it more than 200
+m apart, it is skipped. A file in the directory that cannot be read is
+skipped with a message, and the other tracks are used as if it were not
+there; a photo that only that file would cover is skipped, and gpxfoto
+exits with status 1 at the end. A file given by name that cannot be read
+stops the run. A photo that no track covers is shown with the nearest track
+within a day. To stay quick with many files, gpxfoto first scans each file
+for its times and reads in full only the files the photos need.
 
 ### Stops
 
@@ -191,12 +193,10 @@ never changes anything by itself.
 
 The first two need the stops and speeds of one track: they are left out
 when the matched photos come from several tracks, when photos are skipped
-for another track or for a file that cannot be read, and with
-`--no-stops`. When no track of a directory covers the photos, they look at
-the nearest one.
-The thresholds were chosen on a real hike; with the right clock, they gave
-no warning for any of 900 modelled sets of photos taken mostly at stops and
-short pauses.
+for another track, and with `--no-stops`. When no track of a directory
+covers the photos, they look at the nearest one. The thresholds were chosen
+on a real hike; with the right clock, they gave no warning for any of 900
+modelled sets of photos taken mostly at stops and short pauses.
 
 ### Direction of travel
 

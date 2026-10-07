@@ -291,8 +291,11 @@ def test_track_file_that_cannot_be_read_leaves_only_its_photos(photo, track_dir,
 
     result = run_cli(a.parent, "-g", track_dir, *(["--write"] if write else []))
 
+    # The run goes on; the exit status tells that a file was skipped
     assert result.returncode == 1
-    assert result.stderr.startswith(f"Cannot read the GPX file {track_dir / 'day2.GPX'}: ")
+    error, skipped = result.stderr.splitlines()
+    assert error.startswith(f"Cannot read the GPX file {track_dir / 'day2.GPX'}: ")
+    assert skipped == SKIPPED_FILE
     assert result.stdout.splitlines()[2:5] == [
         MATCH_LINE + "  day1.gpx",
         "  chile.jpg        12:00:50  skipped: the track day2.GPX cannot be read",
@@ -302,18 +305,111 @@ def test_track_file_that_cannot_be_read_leaves_only_its_photos(photo, track_dir,
         assert read_tags(a, "GPSLatitude")["GPSLatitude"] == pytest.approx(50.0005)
 
 
+SKIPPED_FILE = "  This file is skipped; the other tracks are used."
+
+# Files whose times cannot be scanned quickly, so which photos they would
+# cover is not known, and which then cannot be read either
+UNSCANNABLE = {
+    "doctype": "<!DOCTYPE gpx>\n<gpx><trk>".encode(),
+    "utf-16": '<?xml version="1.0" encoding="UTF-16"?><gpx><trk>'.encode("utf-16"),
+    "binary": bytes(range(256)) * 4,
+}
+
+
 @needs_exiftool
-def test_track_file_of_unknown_time_that_cannot_be_read_stops_the_run(photo, track_dir):
-    (track_dir / "broken.gpx").write_text("<!DOCTYPE gpx>\n<gpx><trk>")
+@pytest.mark.parametrize("content", UNSCANNABLE.values(), ids=UNSCANNABLE)
+def test_track_file_of_unknown_time_that_cannot_be_read_is_skipped(photo, track_dir, content):
+    (track_dir / "broken.gpx").write_bytes(content)
     path = photo("a.jpg", taken("12:00:50"))
-    before = path.read_bytes()
+    checksum = image_checksum(path)
 
     result = run_cli(path, "-g", track_dir, "--write")
 
     assert result.returncode == 1
-    assert result.stdout == ""
-    assert result.stderr.startswith(f"Cannot read the GPX file {track_dir / 'broken.gpx'}: ")
+    error, skipped = result.stderr.splitlines()
+    assert error.startswith(f"Cannot read the GPX file {track_dir / 'broken.gpx'}: ")
+    assert skipped == SKIPPED_FILE
+    # The other tracks are used as if the file were not there
+    assert result.stdout.splitlines() == [
+        "Tracks covering the photos: 1 of 4 GPX files",
+        TRACK_LINE.replace("track.gpx", "day1.gpx"),
+        MATCH_LINE + "  day1.gpx",
+        "Matched: 1, skipped: 0",
+        *written(1, 0)]
+    assert read_tags(path, "GPSLatitude")["GPSLatitude"] == pytest.approx(50.0005)
+    assert image_checksum(path) == checksum
+
+
+@needs_exiftool
+def test_other_tracks_place_photos_in_the_time_of_a_file_that_cannot_be_read(photo, track_dir):
+    # A cut-off copy of day1.gpx covers the same time
+    text = (track_dir / "day1.gpx").read_text()
+    (track_dir / "copy.gpx").write_text(text[:text.rindex("</trkpt>")])
+    path = photo("a.jpg", taken("12:00:50"))
+
+    result = run_cli(path, "-g", track_dir)
+
+    assert result.returncode == 1
+    assert result.stderr.splitlines()[1:] == [SKIPPED_FILE]
+    assert result.stdout.splitlines()[2:4] == [MATCH_LINE + "  day1.gpx", "Matched: 1, skipped: 0"]
+
+
+@needs_exiftool
+def test_every_track_file_that_cannot_be_read_is_skipped(photo, tmp_path):
+    tracks = tmp_path / "tracks"
+    tracks.mkdir()
+    (tracks / "a.gpx").write_bytes(UNSCANNABLE["doctype"])
+    text = write_gpx(tracks / "b.gpx", TRACK).read_text()
+    (tracks / "b.gpx").write_text(text[:text.rindex("</trkpt>")])
+    path = photo("a.jpg", taken("12:00:50"))
+    before = path.read_bytes()
+
+    result = run_cli(path, "-g", tracks, "--write")
+
+    assert result.returncode == 1
+    assert result.stderr.splitlines()[1::2] == [SKIPPED_FILE] * 2
+    assert "Traceback" not in result.stderr
+    assert result.stdout.splitlines() == [
+        "Tracks covering the photos: 0 of 2 GPX files",
+        "  a.jpg            12:00:50  skipped: the track b.gpx cannot be read",
+        "Matched: 0, skipped: 1",
+        *written(0, 0)]
     assert path.read_bytes() == before
+
+
+@needs_exiftool
+def test_named_track_file_that_cannot_be_read_still_stops_the_run(photo, track_dir, tmp_path):
+    broken = tmp_path / "broken.gpx"
+    broken.write_text("<gpx>")
+    path = photo("a.jpg", taken("12:00:50"))
+    before = path.read_bytes()
+
+    result = run_cli(path, "-g", broken, "-g", track_dir, "--write")
+
+    assert result.returncode == 1
+    assert result.stdout == ""
+    assert result.stderr == f"Cannot read the GPX file {broken}: no element found: line 1, column 5\n"
+    assert path.read_bytes() == before
+
+
+@needs_exiftool
+def test_a_file_that_cannot_be_read_is_not_named_as_the_nearest_track(photo, track_dir):
+    # 30 min after day1.gpx; a cut-off file whose times can be scanned,
+    # 18 min later, would be nearer
+    text = write_gpx(track_dir / "later.gpx", [("2024-05-01T10:50:00Z", 50.0, 20.0, None),
+                                               ("2024-05-01T10:51:00Z", 50.0, 20.0, None)]
+                     ).read_text()
+    (track_dir / "later.gpx").write_text(text[:text.rindex("</trkpt>")])
+    path = photo("a.jpg", taken("12:31:40"))
+
+    result = run_cli(path, "-g", track_dir)
+
+    # Not needed for any photo, so not reported
+    assert result.returncode == 0 and result.stderr == ""
+
+    assert result.stdout.splitlines()[1] == (
+        "  a.jpg            12:31:40  skipped: 30 min after the end of the nearest track "
+        "(day1.gpx)")
 
 
 @needs_exiftool
@@ -1633,11 +1729,10 @@ def test_shift_in_a_directory_of_tracks_that_cover_no_photo(photo_series, tmp_pa
 
 
 @needs_exiftool
-def test_no_shift_when_photos_are_skipped_for_a_track_that_cannot_be_read(
+def test_shift_next_to_a_track_that_cannot_be_read(
         photo_series, tmp_path, hike_points):
-    # Next to the hike, a file that cannot be read covers its second half:
-    # photos there stay skipped whatever the shift, so the counts of the
-    # hike alone would be wrong
+    # Next to the hike, a file that cannot be read covers its second half;
+    # it is skipped, so the counts of the hike alone hold
     tracks = tmp_path / "tracks"
     tracks.mkdir()
     hike_gpx(tracks / "a.gpx", hike_points)
@@ -1645,8 +1740,10 @@ def test_no_shift_when_photos_are_skipped_for_a_track_that_cannot_be_read(
     broken.write_text(broken.read_text()[:-30])
     photo_series(at_stops(-3600))
     result = run_cli("photos", "-g", tracks)
-    assert "skipped: the track b.gpx cannot be read" in result.stdout
-    assert warnings(result.stdout) == []
+    assert result.returncode == 1
+    assert warnings(result.stdout)[0] == SHIFT_WARNING
+    applied = run_cli("photos", "-g", tracks, "--offset=3600").stdout.splitlines()
+    assert "During stops: 12 of 12 matched photos" in applied
 
 
 def shift_shots(zones=(7200,), count=12):

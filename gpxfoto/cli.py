@@ -365,19 +365,22 @@ def covering(tracks, results, max_gap):
                   key=lambda track: track.first)
 
 
-def with_nearest_tracks(results, tracks, spans, stops):
+def with_nearest_tracks(results, tracks, spans, stops, skipped=()):
     """results, where a photo no track covers names the nearest track file,
-    and the tracks loaded for that."""
+    and the tracks loaded for that. skipped are files that cannot be read."""
     loaded = {}
 
     def load(path):
         if path not in loaded:
-            loaded[path] = load_track([path], named=False, stops=stops)
+            try:
+                loaded[path] = load_track([path], named=False, stops=stops)
+            except ValueError:
+                loaded[path] = None     # not read again for the next photo
         return loaded[path]
 
     singles = [track for track in tracks if len(track.files) == 1]
-    unread = {path: span for path, span in spans.items()
-              if not any(track.files[0] == path for track in singles)}
+    unread = {path: span for path, span in spans.items() if path not in skipped
+              and not any(track.files[0] == path for track in singles)}
     changed = []
     for result in results:
         if not result.covered:
@@ -416,16 +419,15 @@ def shots_of(results):
     return shots, names
 
 
-def suspicion(results, tracks, shots, args, nearby=(), unreadable=()):
+def suspicion(results, tracks, shots, args, nearby=()):
     """The signs of a suspicious match.
 
     The whole-hour shift and the photos in motion are looked for only on
     the track that placed every matched photo, as they need its stops and
     speeds. When no photo was matched, that is the only track loaded, or
     the only one of nearby, the tracks loaded to name the nearest one.
-    Photos skipped for another track, or near a track file that cannot be
-    read (unreadable), would not move onto this track's stops with any
-    shift.
+    Photos skipped for another track would not move onto this track's
+    stops with any shift.
     """
     owner = {path: track for track in tracks for path in track.files}
     used = []
@@ -435,7 +437,7 @@ def suspicion(results, tracks, shots, args, nearby=(), unreadable=()):
     others = {owner.get(path) for result in results if result.reason is not None
               and result.covered for path in result.files}
     one = used or tracks + [track for track in nearby if track not in tracks]
-    if len(one) == 1 and others <= set(one) and not unreadable and not args.no_stops:
+    if len(one) == 1 and others <= set(one) and not args.no_stops:
         track = one[0]
         top = None if track.sources is None else checks.top_speed(track.points, track.sources)
         return checks.suspicious_match(track.points, track.times, track.stops, shots,
@@ -680,7 +682,8 @@ def main():
         sys.exit(str(e))
 
     photos = [photo_from_metadata(meta, manual_tz) for meta in metadata]
-    unreadable = []
+    skipped_files = []          # found track files that cannot be read
+    unreadable = []             # their (path, span) where the span is known
     if found:
         # Only when the scans are sure that no file has a time
         if not tracks and all(span == () for span in spans.values()):
@@ -690,11 +693,14 @@ def main():
             try:
                 track = load_track([path], named=False, stops=not args.no_stops)
             except ValueError as e:
-                if spans[path] is None:
-                    sys.exit(str(e))        # which photos it would cover is not known
-                # Only the photos within its time are left without a location
-                print(str(e), file=sys.stderr)
-                unreadable.append((path, spans[path]))
+                # A file found in a directory is skipped, and the other
+                # tracks are used as if it were not there
+                print(printable(str(e)), file=sys.stderr)
+                print("  " + _("This file is skipped; the other tracks are used."),
+                      file=sys.stderr)
+                skipped_files.append(path)
+                if spans[path] is not None:
+                    unreadable.append((path, spans[path]))
                 continue
             if track is not None:
                 tracks.append(track)
@@ -703,7 +709,8 @@ def main():
                            label=labels.get, unreadable=unreadable)
     nearby = []
     if found:
-        results, nearby = with_nearest_tracks(results, tracks, spans, not args.no_stops)
+        results, nearby = with_nearest_tracks(results, tracks, spans, not args.no_stops,
+                                              skipped_files)
     if found:
         used = covering(tracks, results, args.max_gap)
         total = len(named) + len(found)
@@ -751,7 +758,7 @@ def main():
         print(line)
     if not args.write:
         shots, names = shots_of(results)
-        signs = suspicion(results, tracks, shots, args, nearby, unreadable)
+        signs = suspicion(results, tracks, shots, args, nearby)
         # Photos whose camera records UTC would then disagree with it
         zone_option = not any(result.photo.camera_utc is not None for result in results)
         for line in warning_lines(signs, shots, names, correction, clock, zone_option):
@@ -760,7 +767,7 @@ def main():
             # Translators: {option} is the command-line option --write
             print(_("This was a preview; no files were changed. "
                     "Use {option} to write the locations.").format(option="--write"))
-        if unreadable:
+        if skipped_files:
             sys.exit(1)
         return
 
@@ -781,7 +788,7 @@ def main():
         written=i18n.number(written), errors=i18n.number(errors)))
     if written:
         print(_("The image data of every written file was verified as unchanged."))
-    if errors or unreadable:
+    if errors or skipped_files:
         sys.exit(1)
 
 

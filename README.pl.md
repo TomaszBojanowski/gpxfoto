@@ -138,19 +138,22 @@ podaje nazwę pliku, jeśli jest tylko jeden. Przy kilku plikach wiersz
 każdego zdjęcia podaje plik, z którego pochodzi jego położenie.
 
 W opcji `-g` można też podać katalog, na przykład ten, w którym
-przechowywane są wszystkie aktywności. Każdy plik `.gpx` w tym katalogu,
-a z opcją `-r` także w jego podkatalogach, jest osobną trasą, a każde
-zdjęcie otrzymuje trasę obejmującą czas jego wykonania; położenie nigdy nie
+przechowywane są wszystkie aktywności. Każdy plik `.gpx` w tym katalogu, a
+z opcją `-r` także w jego podkatalogach, jest osobną trasą, a każde zdjęcie
+otrzymuje trasę obejmującą czas jego wykonania; położenie nigdy nie
 powstaje z dwóch różnych plików. Jeśli czas zdjęcia obejmuje kilka tras,
 wygrywa ta, której zapisane punkty leżą najbliżej tego czasu, potem plik
 podany z nazwy, a potem ten, który zapisuje punkty częściej. Jeśli dwie
 trasy z katalogu, których punkty leżą równie blisko czasu zdjęcia,
-umieszczają zdjęcie w miejscach odległych o ponad 200 m,
-zdjęcie zostaje pominięte, podobnie jak zdjęcie z czasu pliku, którego nie
-można odczytać. Przy zdjęciu, którego czasu nie obejmuje żadna trasa,
-podana jest najbliższa trasa w ciągu doby. Aby przy wielu plikach
-pozostać szybkim, gpxfoto najpierw odczytuje z każdego pliku tylko czasy,
-a w całości czyta jedynie pliki potrzebne dla zdjęć.
+umieszczają zdjęcie w miejscach odległych o ponad 200 m, zdjęcie zostaje
+pominięte. Plik z katalogu, którego nie można odczytać, zostaje pominięty z
+komunikatem, a pozostałe trasy są używane tak, jakby go nie było; zdjęcie,
+które obejmowałby tylko ten plik, zostaje pominięte, a gpxfoto kończy
+działanie z kodem wyjścia 1. Plik podany z nazwy, którego nie można
+odczytać, przerywa działanie programu. Przy zdjęciu, którego czasu nie
+obejmuje żadna trasa, podana jest najbliższa trasa w ciągu doby. Aby przy
+wielu plikach pozostać szybkim, gpxfoto najpierw odczytuje z każdego pliku
+tylko czasy, a w całości czyta jedynie pliki potrzebne dla zdjęć.
 
 ### Postoje
 
@@ -199,11 +202,11 @@ Sam niczego nie zmienia.
 
 Dwa pierwsze ostrzeżenia wymagają postojów i prędkości jednej trasy: nie
 pojawiają się, gdy dopasowane zdjęcia pochodzą z kilku tras, gdy zdjęcia
-pominięto z powodu innej trasy lub pliku, którego nie da się odczytać, ani
-z opcją `--no-stops`. Gdy żadna trasa z katalogu nie obejmuje zdjęć,
-sprawdzana jest najbliższa. Progi dobrano na prawdziwej wycieczce; przy dobrze ustawionym
-zegarze nie dały żadnego ostrzeżenia w 900 modelowanych zestawach zdjęć
-zrobionych głównie na postojach i krótkich przystankach.
+pominięto z powodu innej trasy, ani z opcją `--no-stops`. Gdy żadna trasa z
+katalogu nie obejmuje zdjęć, sprawdzana jest najbliższa. Progi dobrano na
+prawdziwej wycieczce; przy dobrze ustawionym zegarze nie dały żadnego
+ostrzeżenia w 900 modelowanych zestawach zdjęć zrobionych głównie na
+postojach i krótkich przystankach.
 
 ### Kierunek ruchu
 

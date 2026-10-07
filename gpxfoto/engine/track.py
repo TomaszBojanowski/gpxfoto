@@ -369,16 +369,9 @@ def match(tracks, t, max_gap, label=os.path.basename, unreadable=()):
     When the winner was found in a directory and another track places t
     as well but more than DISAGREEMENT away, nothing is placed. label
     gives the name of a track file in reasons. unreadable holds (path,
-    span) of the track files that could not be read: where their span,
-    widened by max_gap, holds t, nothing is placed either.
+    span) of the track files that could not be read: when no track places
+    t and their span, widened by max_gap, holds it, the reason names them.
     """
-    for path, (first, last) in unreadable:
-        if first - max_gap <= t <= last + max_gap:
-            # Translators: reason why a photo was skipped; {name} is a GPX file
-            return Match(reason=_("the track {name} cannot be read").format(name=label(path)))
-    if not tracks:
-        # Translators: reason why a photo was skipped
-        return Match(reason=_("no track covers this time"), covered=False)
     placed, rejected = [], []
     for track in tracks:
         if not track.first - max_gap <= t <= track.last + max_gap:
@@ -406,6 +399,13 @@ def match(tracks, t, max_gap, label=os.path.basename, unreadable=()):
                                                distance=distance(apart))
                     return Match(track=track, reason=reason, conflict=other)
         return Match(lat, lon, ele, gap, track, stop=stop, files=track.files_at(t))
+    for path, (first, last) in unreadable:
+        if first - max_gap <= t <= last + max_gap:
+            # Translators: reason why a photo was skipped; {name} is a GPX file
+            return Match(reason=_("the track {name} cannot be read").format(name=label(path)))
+    if not tracks:
+        # Translators: reason why a photo was skipped
+        return Match(reason=_("no track covers this time"), covered=False)
     if rejected:
         _key, track, reason = min(rejected, key=lambda r: r[0])
         files = track.files_at(t) if track.first <= t <= track.last else ()
