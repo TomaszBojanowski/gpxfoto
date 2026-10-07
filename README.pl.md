@@ -72,6 +72,21 @@ Strefa czasowa zdjęcia jest odczytywana z pola `OffsetTimeOriginal` (lub
 `--timezone` zastępuje ją dla wszystkich zdjęć. Jeśli nie ma żadnej z nich,
 używana jest strefa czasowa komputera, o czym informuje lista zdjęć.
 
+Zdjęcie zostaje pominięte, jeśli czas jego wykonania dzieli od najbliższego
+punktu trasy więcej niż `--max-gap`: przed początkiem trasy, po jej
+zakończeniu albo w przerwie w zapisie trasy. Zdjęcie wykonane w czasie
+takiej przerwy otrzymuje jednak położenie, jeśli w trakcie przerwy zapisane
+położenie zmieniło się o mniej niż 100 m.
+
+Z opcją `--backup` kopia każdego zdjęcia sprzed zapisu trafia do katalogu
+`originals` obok niego. gpxfoto oznacza ten katalog plikiem `.gpxfoto`,
+nigdy nie zmienia znajdujących się w nim kopii i pomija go przy
+wyszukiwaniu z opcją `-r`. Istniejąca kopia musi zawierać ten sam obraz co
+zdjęcie; jeśli w jej miejscu jest coś innego, zdjęcie nie zostaje zapisane.
+
+Program jest po angielsku, z polskim tłumaczeniem; język wynika z ustawień
+systemu.
+
 ### Poprawka zegara aparatu
 
 Zegar aparatu spieszy się lub spóźnia, a czasy trasy pochodzą z GPS. Aby
@@ -112,12 +127,6 @@ odpowiada strefie czasowej używanej na świecie, ostrzeżenie podaje wartość
 `--timezone`, przy której oba czasy byłyby zgodne. Kontrola nigdy nie
 zmienia czasu ani położenia. Nie wykryje błędnego ustawienia strefy
 czasowej w samym aparacie, bo aparat wylicza oba czasy z tego ustawienia.
-
-Zdjęcie zostaje pominięte, jeśli czas jego wykonania dzieli od najbliższego
-punktu trasy więcej niż `--max-gap`: przed początkiem trasy, po jej
-zakończeniu albo w przerwie w zapisie trasy. Zdjęcie wykonane w czasie
-takiej przerwy otrzymuje jednak położenie, jeśli w trakcie przerwy zapisane
-położenie zmieniło się o mniej niż 100 m.
 
 ### Kilka tras
 
@@ -203,15 +212,6 @@ lub na serpentynach nie dostają kierunku, a podgląd podaje przyczynę.
 Z tą opcją starszy kierunek ruchu w zapisywanym zdjęciu, także w XMP,
 zostaje usunięty, żeby nie uchodził za wyznaczony z trasy. Na wycieczce
 autora kierunek dostało 84% zdjęć zrobionych w marszu.
-
-Z opcją `--backup` kopia każdego zdjęcia sprzed zapisu trafia do katalogu
-`originals` obok niego. gpxfoto oznacza ten katalog plikiem `.gpxfoto`,
-nigdy nie zmienia znajdujących się w nim kopii i pomija go przy
-wyszukiwaniu z opcją `-r`. Istniejąca kopia musi zawierać ten sam obraz co
-zdjęcie; jeśli w jej miejscu jest coś innego, zdjęcie nie zostaje zapisane.
-
-Program jest po angielsku, z polskim tłumaczeniem; język wynika z ustawień
-systemu.
 
 ## Rozwój
 

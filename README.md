@@ -72,6 +72,20 @@ The time zone of a photo is read from `OffsetTimeOriginal` (or
 `--timezone` overrides it for all photos. Without either, the computer’s
 time zone is used, and the list of photos says so.
 
+A photo is skipped when its capture time is more than `--max-gap` away from
+the nearest track point: before the track starts, after it ends, or in a
+break in recording. A photo taken during such a break still gets a location
+if the recorded position moved less than 100 m during the break.
+
+With `--backup`, a copy of each photo as it was before goes into an
+`originals` directory next to it. gpxfoto marks that directory with a
+`.gpxfoto` file, never changes the copies in it, and leaves it out when
+searching with `-r`. An existing copy must hold the same image as the
+photo; if something else is there, the photo is not written.
+
+The program is in English with a Polish translation; the language follows
+the system settings.
+
 ### Correcting the camera clock
 
 A camera clock drifts, while the times of the track come from GPS. To find
@@ -112,11 +126,6 @@ in use, the warning gives the `--timezone` value that would make both times
 match. The check never changes a time or a location. It cannot notice a
 wrong time zone setting in the camera itself, because the camera works out
 both times from that setting.
-
-A photo is skipped when its capture time is more than `--max-gap` away from
-the nearest track point: before the track starts, after it ends, or in a
-break in recording. A photo taken during such a break still gets a location
-if the recorded position moved less than 100 m during the break.
 
 ### Several tracks
 
@@ -196,15 +205,6 @@ turn or on switchbacks get none, and the preview says why. With the option,
 an older direction of travel in a written photo, also in XMP, is removed,
 so that it cannot pass for one from the track. On the author’s hike, 84% of
 the photos taken while walking got a direction.
-
-With `--backup`, a copy of each photo as it was before goes into an
-`originals` directory next to it. gpxfoto marks that directory with a
-`.gpxfoto` file, never changes the copies in it, and leaves it out when
-searching with `-r`. An existing copy must hold the same image as the
-photo; if something else is there, the photo is not written.
-
-The program is in English with a Polish translation; the language follows
-the system settings.
 
 ## Development
 
