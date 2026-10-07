@@ -11,6 +11,9 @@ from gettext import gettext as _
 BACKUP_DIR = "originals"
 # Name prefix of temporary files, which a crash could leave behind
 TEMP_PREFIX = ".gpxfoto-"
+# The EXIF GPS fields of a location, which are always written anew
+LOCATION_TAGS = ("GPSLatitude", "GPSLatitudeRef", "GPSLongitude", "GPSLongitudeRef",
+                 "GPSAltitude", "GPSAltitudeRef", "GPSDateStamp", "GPSTimeStamp", "GPSMapDatum")
 
 
 def image_checksum(path):
@@ -48,7 +51,14 @@ def image_checksum(path):
                 digest.update(data)
 
 
-def write_location(path, lat, lon, ele, time_utc, backup):
+def write_location(path, lat, lon, ele, time_utc, backup, replace=False):
+    """Write a location into the photo at path, changing nothing else.
+
+    replace means the photo already has a location. All its GPS data, also
+    in XMP, then belongs to the old location and is removed. Otherwise only
+    the fields of a location are written anew, and other GPS data, such as
+    a compass direction, is kept.
+    """
     # Comparisons with NaN are false, so this also rules out NaN and infinity
     if not (-90 <= lat <= 90 and -180 <= lon <= 180 and (ele is None or math.isfinite(ele))):
         location = f"{lat}, {lon}" if ele is None else f"{lat}, {lon}, {ele} m"
@@ -66,17 +76,22 @@ def write_location(path, lat, lon, ele, time_utc, backup):
     os.close(fd)
     os.unlink(temp)                  # exiftool -o requires that the file does not exist
     try:
-        command = [
-            "exiftool", "-q", "-n", "-m",
-            # Old GPS data, also in XMP, must not stay next to the new location
-            "-GPS:all=", "-XMP-exif:GPS*=",
-            f"-GPSLatitude={abs(lat):.8f}", f"-GPSLatitudeRef={'N' if lat >= 0 else 'S'}",
-            f"-GPSLongitude={abs(lon):.8f}", f"-GPSLongitudeRef={'E' if lon >= 0 else 'W'}",
-            f"-GPSDateStamp={time_utc:%Y:%m:%d}", f"-GPSTimeStamp={time_utc:%H:%M:%S}",
-            "-GPSMapDatum=WGS-84",
+        command = ["exiftool", "-q", "-n", "-m"]
+        if replace:
+            command += ["-GPS:all=", "-XMP-exif:GPS*="]
+        else:
+            command += [f"-GPS:{tag}=" for tag in LOCATION_TAGS]
+        # The group is named, so that exiftool does not also write these
+        # values, without their N/S and E/W, into GPS tags found in XMP.
+        command += [
+            f"-GPS:GPSLatitude={abs(lat):.8f}", f"-GPS:GPSLatitudeRef={'N' if lat >= 0 else 'S'}",
+            f"-GPS:GPSLongitude={abs(lon):.8f}", f"-GPS:GPSLongitudeRef={'E' if lon >= 0 else 'W'}",
+            f"-GPS:GPSDateStamp={time_utc:%Y:%m:%d}", f"-GPS:GPSTimeStamp={time_utc:%H:%M:%S}",
+            "-GPS:GPSMapDatum=WGS-84",
         ]
         if ele is not None:
-            command += [f"-GPSAltitude={abs(ele):.1f}", f"-GPSAltitudeRef={0 if ele >= 0 else 1}"]
+            command += [f"-GPS:GPSAltitude={abs(ele):.1f}",
+                        f"-GPS:GPSAltitudeRef={0 if ele >= 0 else 1}"]
         command += ["-o", temp, "--", path]
         process = subprocess.run(command, capture_output=True, text=True, errors="replace")
         if process.returncode != 0 or not os.path.exists(temp):

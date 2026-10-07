@@ -208,7 +208,7 @@ def main():
         if detail in TZ_NOTES:
             note = "  [" + _(TZ_NOTES[detail]).format(option="--timezone") + "]"
         print(f"  {name:<16} {taken:%X}  {position} {ele_text}{note}")
-        plan.append((path, lat, lon, ele, taken.astimezone(timezone.utc)))
+        plan.append((path, lat, lon, ele, taken.astimezone(timezone.utc), "GPSLatitude" in meta))
 
     print(_("Matched: {matched}, skipped: {skipped}").format(
         matched=i18n.number(len(plan)), skipped=i18n.number(skipped)))
@@ -220,9 +220,9 @@ def main():
         return
 
     written = errors = 0
-    for path, lat, lon, ele, time_utc in plan:
+    for path, lat, lon, ele, time_utc, had_location in plan:
         try:
-            write_location(path, lat, lon, ele, time_utc, args.backup)
+            write_location(path, lat, lon, ele, time_utc, args.backup, replace=had_location)
             written += 1
         except (RuntimeError, ValueError, OSError) as e:
             errors += 1

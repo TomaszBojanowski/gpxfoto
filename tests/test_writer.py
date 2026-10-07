@@ -179,9 +179,11 @@ def test_exiftool_gets_unsigned_values_and_utc_time(photo, fake_exiftool, far_ea
     command = fake.commands[0]
     # Values are numbers, not print values; minor errors must not block writing.
     assert {"-n", "-m"} <= set(command)
-    # Deletions ("-Tag=") are left out: clearing a stale altitude would be fine.
-    tags = dict(arg[1:].split("=", 1) for arg in map(str, command)
-                if arg.startswith("-GPS") and not arg.endswith("="))
+    # Every GPS value names the EXIF GPS group, so exiftool writes it nowhere else
+    assert not [arg for arg in command if arg.startswith("-GPS") and not arg.startswith("-GPS:")]
+    # Deletions ("-GPS:Tag=") are left out
+    tags = dict(arg[len("-GPS:"):].split("=", 1) for arg in map(str, command)
+                if arg.startswith("-GPS:GPS") and not arg.endswith("="))
     for name in ("GPSLatitude", "GPSLongitude", "GPSAltitude"):
         if name in tags:
             tags[name] = float(tags[name])
@@ -595,17 +597,43 @@ def test_old_gps_data_is_removed(photo):
              "-XMP-exif:GPSLongitude=2", "-XMP-exif:GPSAltitude=812",
              "-XMP-exif:GPSImgDirection=90", "-DateTimeOriginal=2026:06:01 10:30:15",
              "-XMP-exif:DateTimeOriginal=2026:06:01 10:30:15")
-    write_location(photo, 50.0614, 19.9366, None, TIME, backup=False)
+    write_location(photo, -22.95, -43.21, None, TIME, backup=False, replace=True)
     assert gps_tags(photo) == {
-        "GPSLatitudeRef": "N", "GPSLatitude": 50.0614, "GPSLongitudeRef": "E",
-        "GPSLongitude": 19.9366, "GPSDateStamp": "2026:06:01", "GPSTimeStamp": "08:30:15",
+        "GPSLatitudeRef": "S", "GPSLatitude": 22.95, "GPSLongitudeRef": "W",
+        "GPSLongitude": 43.21, "GPSDateStamp": "2026:06:01", "GPSTimeStamp": "08:30:15",
         "GPSMapDatum": "WGS-84"}
-    # exiftool also updates the GPS position it finds in XMP; the rest is gone
-    assert read_tags(photo, "XMP-exif:all") == {
-        "GPSLatitude": 50.0614, "GPSLongitude": 19.9366,
-        "DateTimeOriginal": "2026:06:01 10:30:15"}
+    # XMP has no N/S or E/W fields, so its old GPS data must go, not be rewritten
+    assert read_tags(photo, "XMP-exif:all") == {"DateTimeOriginal": "2026:06:01 10:30:15"}
     assert read_tags(photo, "EXIF:DateTimeOriginal") == {
         "DateTimeOriginal": "2026:06:01 10:30:15"}
+
+
+@needs_exiftool
+def test_other_gps_data_is_kept_when_there_was_no_location(photo):
+    """A compass direction recorded without a position stays; only the
+    fields of a location, such as a stray altitude, are written anew."""
+    set_tags(photo, "-GPSImgDirection=123.4", "-GPSImgDirectionRef=M", "-GPSDestBearing=45",
+             "-GPSDestBearingRef=T", "-GPSAltitude=812", "-GPSAltitudeRef=0",
+             "-XMP-exif:GPSImgDirection=123.4")
+    write_location(photo, -22.95, -43.21, None, TIME, backup=False)
+    assert gps_tags(photo) == {
+        "GPSLatitudeRef": "S", "GPSLatitude": 22.95, "GPSLongitudeRef": "W",
+        "GPSLongitude": 43.21, "GPSDateStamp": "2026:06:01", "GPSTimeStamp": "08:30:15",
+        "GPSMapDatum": "WGS-84", "GPSImgDirectionRef": "M", "GPSImgDirection": 123.4,
+        "GPSDestBearingRef": "T", "GPSDestBearing": 45}
+    assert read_tags(photo, "XMP-exif:all") == {"GPSImgDirection": 123.4}
+
+
+@needs_exiftool
+def test_xmp_gps_data_is_left_alone_without_replace(photo):
+    """Without replace, XMP is not touched at all, so a value without its
+    N/S or E/W can never end up there."""
+    set_tags(photo, "-XMP-exif:GPSLatitude=1", "-XMP-exif:GPSLongitude=2")
+    write_location(photo, -22.95, -43.21, -12.5, TIME, backup=False)
+    assert read_tags(photo, "XMP-exif:all") == {"GPSLatitude": 1, "GPSLongitude": 2}
+    tags = gps_tags(photo)
+    assert (tags["GPSLatitudeRef"], tags["GPSLongitudeRef"], tags["GPSAltitudeRef"]) == (
+        "S", "W", 1)
 
 
 @needs_exiftool

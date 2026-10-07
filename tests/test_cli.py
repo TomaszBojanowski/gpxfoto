@@ -462,6 +462,35 @@ def test_file_name_that_is_not_utf8(photo, gpx):
     assert read_tags(path, "GPS:GPSLatitude") == {
         "GPSLatitude": pytest.approx(50.0005, abs=1e-7)}
 
+
+@needs_exiftool
+def test_compass_direction_is_kept_on_a_photo_without_location(photo, gpx):
+    path = photo("a.jpg", [*taken("12:00:50"), "-GPSImgDirection=123.4", "-GPSImgDirectionRef=M"])
+
+    result = run_cli(path, "-g", gpx, "--write")
+
+    assert result.returncode == 0, result.stderr
+    tags = read_tags(path, "GPS:all")
+    assert tags["GPSImgDirection"] == 123.4
+    assert tags["GPSLatitude"] == pytest.approx(50.0005, abs=1e-7)
+
+
+@needs_exiftool
+def test_overwrite_in_the_southern_hemisphere_leaves_no_wrong_xmp(tmp_path, photo):
+    gpx = write_gpx(tmp_path / "rio.gpx", [("2024-05-01T08:00:00Z", -22.95, -43.21, 10.0),
+                                           ("2024-05-01T08:01:40Z", -22.951, -43.211, 12.0)])
+    path = photo("a.jpg", [*taken("05:00:50", "-03:00"), "-GPSLatitude=1", "-GPSLatitudeRef=N",
+                           "-GPSLongitude=1", "-GPSLongitudeRef=E", "-XMP-exif:GPSLatitude=1",
+                           "-XMP-exif:GPSLongitude=1"])
+
+    result = run_cli(path, "-g", gpx, "--write", "--overwrite")
+
+    assert result.returncode == 0, result.stderr
+    assert read_tags(path, "XMP-exif:all") == {}
+    assert read_tags(path, "Composite:GPSLatitude", "Composite:GPSLongitude") == {
+        "GPSLatitude": pytest.approx(-22.9505, abs=1e-7),
+        "GPSLongitude": pytest.approx(-43.2105, abs=1e-7)}
+
 @needs_exiftool
 @needs_posix_shell
 def test_failed_write_is_reported_and_exits_with_status_1(tmp_path, photo, gpx):
@@ -710,7 +739,7 @@ def test_summary_counts_follow_the_locale(tmp_path, monkeypatch, capsys):
                  "OffsetTimeOriginal": "+02:00"} for i in range(2000)]
     metadata += [{"SourceFile": f"no-date-{i}.jpg"} for i in range(1000)]
 
-    def write_location(path, *args):
+    def write_location(path, *args, **kwargs):
         i = int(path[:-4])
         if i % 2:
             raise (RuntimeError, ValueError, OSError)[i % 3](f"failure {i}")
