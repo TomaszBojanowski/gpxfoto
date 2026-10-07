@@ -191,7 +191,16 @@ def _back_up(path, directory, original, checksum):
         if image_checksum(temp) != checksum:
             raise RuntimeError(_("the backup copy differs from the photo"))
         _copy_attributes(path, original, temp)
-        os.replace(temp, target)
+        try:
+            os.link(temp, target)       # unlike a rename, never replaces a file
+        except FileExistsError:
+            _check_backup(target, checksum)          # made meanwhile by another run
+        except OSError:
+            # No hard links on this file system, as on FAT memory cards
+            if os.path.lexists(target):
+                _check_backup(target, checksum)
+            else:
+                os.replace(temp, target)
     finally:
         if os.path.exists(temp):
             os.unlink(temp)

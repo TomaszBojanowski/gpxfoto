@@ -1,5 +1,6 @@
 """write_location: GPS tags through exiftool, verified and written atomically."""
 import os
+import shutil
 import stat
 import struct
 import subprocess
@@ -623,6 +624,43 @@ def test_interrupted_backup_leaves_no_partial_copy(tmp_path, photo, fake_exiftoo
     assert state(photo) == before
     assert backups(tmp_path) == []
     assert sorted(os.listdir(tmp_path)) == ["originals", "photo.jpg"]
+
+
+@pytest.mark.parametrize("other_image, accepted", [(False, True), (True, False)])
+def test_backup_made_meanwhile_by_another_run_is_kept(tmp_path, photo, fake_exiftool, monkeypatch,
+                                                      other_image, accepted):
+    """Another run puts its backup in place while this one is copying."""
+    real_copy = shutil.copyfile
+    theirs = make_jpeg(quantization=range(2, 66) if other_image else None, comment=b"theirs")
+
+    def copy_while_another_run_finishes(source, target):
+        real_copy(source, target)
+        (tmp_path / BACKUP_DIR / "photo.jpg").write_bytes(theirs)
+
+    before = state(photo)
+    fake_exiftool()
+    monkeypatch.setattr(writer.shutil, "copyfile", copy_while_another_run_finishes)
+    if accepted:
+        write_location(photo, 50.0, 19.0, 200.0, TIME, backup=True)
+        assert state(photo)[0] == add_comment(before[0])
+    else:
+        with pytest.raises(RuntimeError, match="is not a copy of this photo"):
+            write_location(photo, 50.0, 19.0, 200.0, TIME, backup=True)
+        assert state(photo) == before
+    assert (tmp_path / BACKUP_DIR / "photo.jpg").read_bytes() == theirs
+    assert backups(tmp_path) == ["photo.jpg"]
+
+
+def test_backup_without_hard_links(tmp_path, photo, fake_exiftool, monkeypatch):
+    def no_links(source, target):
+        raise PermissionError(1, "Operation not permitted")
+
+    before = state(photo)
+    fake_exiftool()
+    monkeypatch.setattr(writer.os, "link", no_links)
+    write_location(photo, 50.0, 19.0, 200.0, TIME, backup=True)
+    assert state(tmp_path / BACKUP_DIR / "photo.jpg") == before
+    assert backups(tmp_path) == ["photo.jpg"]
 
 
 # With the real exiftool
