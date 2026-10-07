@@ -105,7 +105,8 @@ def write_location(path, lat, lon, ele, time_utc, backup, replace=False, seen=No
         command += [
             f"-GPS:GPSLatitude={abs(lat):.8f}", f"-GPS:GPSLatitudeRef={'N' if lat >= 0 else 'S'}",
             f"-GPS:GPSLongitude={abs(lon):.8f}", f"-GPS:GPSLongitudeRef={'E' if lon >= 0 else 'W'}",
-            f"-GPS:GPSDateStamp={time_utc:%Y:%m:%d}", f"-GPS:GPSTimeStamp={time_utc:%H:%M:%S}",
+            f"-GPS:GPSDateStamp={time_utc.year:04}:{time_utc:%m:%d}",
+            f"-GPS:GPSTimeStamp={time_utc:%H:%M:%S}",
             "-GPS:GPSMapDatum=WGS-84",
         ]
         if ele is not None:

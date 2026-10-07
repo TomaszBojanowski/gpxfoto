@@ -916,6 +916,15 @@ def test_time_stamp_is_utc(photo, far_east_time_zone):
 
 
 @needs_exiftool
+def test_date_stamp_has_a_four_digit_year(photo):
+    # exiftool does not accept a shorter year, and would leave the date out
+    write_location(photo, 50.0, 19.0, None, datetime(999, 1, 5, 6, 7, 8, tzinfo=timezone.utc),
+                   backup=False)
+    tags = read_tags(photo, "GPSDateStamp", "GPSTimeStamp")
+    assert tags == {"GPSDateStamp": "0999:01:05", "GPSTimeStamp": "06:07:08"}
+
+
+@needs_exiftool
 @pytest.mark.parametrize("mode", [0o640, 0o600, 0o444])
 def test_image_mode_and_mtime_are_preserved(tmp_path, photo, mode):
     os.chmod(photo, mode)
