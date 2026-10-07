@@ -388,6 +388,12 @@ def test_summarize_time_checks():
     assert photos.summarize_time_checks([(TZ_MANUAL, unknown), (TZ_MANUAL, plus_two)]) == [
         photos.TimeCheckSummary(TZ_MANUAL, 2, None)]
     assert photos.summarize_time_checks([]) == []
+    # Photos that already match would no longer match with the suggestion
+    assert photos.summarize_time_checks(checks, {TZ_MANUAL}) == [
+        photos.TimeCheckSummary(TZ_MANUAL, 2, None),
+        photos.TimeCheckSummary(TZ_SYSTEM, 2, None),
+        photos.TimeCheckSummary(TZ_CAMERA, 1, None),
+    ]
 
 
 # photo_from_metadata

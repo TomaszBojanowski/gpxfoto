@@ -117,13 +117,15 @@ the change.
 
 The Panasonic LUMIX S5II also records the capture time in UTC, in its maker
 note (`Panasonic:TimeStamp`). For photos from this camera, gpxfoto compares
-that time with the capture time it uses, before any clock correction. If
+that time with the capture time it uses, before any clock correction; a
+difference that the correction makes up is not reported, and photos that
+already have a location and are not overwritten are not checked. If
 they are more than two minutes apart, the photo’s line gets a note, and a
 warning after the list gives the likely cause: a wrong `--timezone`, the
 computer’s time zone used for photos without one in EXIF, or a capture time
 that another program changed in EXIF. Where the difference fits a time zone
 in use, the warning gives the `--timezone` value that would make both times
-match. The check never changes a time or a location. It cannot notice a
+match, unless that would break photos whose times already match. The check never changes a time or a location. It cannot notice a
 wrong time zone setting in the camera itself, because the camera works out
 both times from that setting.
 
@@ -139,7 +141,8 @@ its own, and each photo gets the track that covers its time; a position is
 never made up from two different files. If several tracks cover a photo,
 the one with recorded points closest to its time wins, then a file given
 by name, then the one that records more often. If two tracks from the
-directory put a photo more than 200 m apart, it is skipped, as is a photo
+directory with points equally close to a photo’s time put it more than
+200 m apart, it is skipped, as is a photo
 within the time of a file that cannot be read. A photo that no track
 covers is shown with the nearest track within a day. To stay quick with
 many files, gpxfoto first scans each file for its times and reads in full

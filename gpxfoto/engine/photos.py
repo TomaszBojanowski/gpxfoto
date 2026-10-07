@@ -216,11 +216,13 @@ def check_against_camera_utc(taken, source, camera_utc, correction=0.0):
     return TimeCheck(difference, suggested)
 
 
-def summarize_time_checks(checks):
+def summarize_time_checks(checks, agreeing=frozenset()):
     """Return a TimeCheckSummary per source of time zones, for (source, TimeCheck) pairs.
 
     The order is TZ_MANUAL, TZ_SYSTEM, TZ_CAMERA, without sources that have
-    no checks.
+    no checks. agreeing holds the sources of photos whose capture time
+    matches the camera's UTC time: no time zone is suggested for them,
+    as it would break those photos, e.g. across a change to summer time.
     """
     groups = {}
     for source, check in checks:
@@ -230,8 +232,8 @@ def summarize_time_checks(checks):
         group = groups.get(source)
         if group:
             zones = {check.suggested_tz for check in group}
-            summaries.append(TimeCheckSummary(source, len(group),
-                                              zones.pop() if len(zones) == 1 else None))
+            one = zones.pop() if len(zones) == 1 and source not in agreeing else None
+            summaries.append(TimeCheckSummary(source, len(group), one))
     return summaries
 
 

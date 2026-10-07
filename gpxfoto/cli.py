@@ -205,10 +205,12 @@ def time_check_note(check):
 def time_check_lines(results):
     """The summary of the capture times that do not match the camera's UTC time."""
     checks = [(r.photo.tz_source, r.time_check) for r in results if r.time_check is not None]
+    agreeing = {r.photo.tz_source for r in results if r.time is not None
+                and r.time_check is None and r.photo.camera_utc is not None}
     # The computer's time zone is not advised when some photos have one in EXIF
     zone_in_exif = any(r.photo.tz_source == TZ_CAMERA for r in results)
     lines = []
-    for summary in summarize_time_checks(checks):
+    for summary in summarize_time_checks(checks, agreeing):
         lines.append(ngettext(
             "Warning: {count} photo has a capture time that does not match the UTC time "
             "recorded by the camera.",

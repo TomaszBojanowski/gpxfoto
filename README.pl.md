@@ -119,12 +119,15 @@ się o inną wartość.
 Panasonic LUMIX S5II zapisuje czas wykonania zdjęcia także w UTC, w danych
 producenta (`Panasonic:TimeStamp`). Dla zdjęć z tego aparatu gpxfoto
 porównuje ten czas z czasem wykonania, którego używa, przed poprawką
-zegara. Jeśli różnią się o więcej niż dwie minuty, wiersz zdjęcia otrzymuje
+zegara; różnica, którą poprawka wyrównuje, nie jest zgłaszana, a zdjęcia,
+które mają już położenie i nie są nadpisywane, nie są sprawdzane. Jeśli
+czasy różnią się o więcej niż dwie minuty, wiersz zdjęcia otrzymuje
 uwagę, a ostrzeżenie pod listą podaje możliwą przyczynę: błędną opcję
 `--timezone`, strefę czasową komputera użytą dla zdjęć bez strefy w EXIF
 albo czas wykonania zmieniony w EXIF przez inny program. Jeśli różnica
 odpowiada strefie czasowej używanej na świecie, ostrzeżenie podaje wartość
-`--timezone`, przy której oba czasy byłyby zgodne. Kontrola nigdy nie
+`--timezone`, przy której oba czasy byłyby zgodne, chyba że rozstroiłaby
+ona zdjęcia, których czasy już się zgadzają. Kontrola nigdy nie
 zmienia czasu ani położenia. Nie wykryje błędnego ustawienia strefy
 czasowej w samym aparacie, bo aparat wylicza oba czasy z tego ustawienia.
 
@@ -141,7 +144,8 @@ zdjęcie otrzymuje trasę obejmującą czas jego wykonania; położenie nigdy ni
 powstaje z dwóch różnych plików. Jeśli czas zdjęcia obejmuje kilka tras,
 wygrywa ta, której zapisane punkty leżą najbliżej tego czasu, potem plik
 podany z nazwy, a potem ten, który zapisuje punkty częściej. Jeśli dwie
-trasy z katalogu umieszczają zdjęcie w miejscach odległych o ponad 200 m,
+trasy z katalogu, których punkty leżą równie blisko czasu zdjęcia,
+umieszczają zdjęcie w miejscach odległych o ponad 200 m,
 zdjęcie zostaje pominięte, podobnie jak zdjęcie z czasu pliku, którego nie
 można odczytać. Przy zdjęciu, którego czasu nie obejmuje żadna trasa,
 podana jest najbliższa trasa w ciągu doby. Aby przy wielu plikach

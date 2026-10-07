@@ -637,6 +637,23 @@ def test_capture_time_against_the_camera_utc_time_is_noted(s5ii_photo, gpx):
 
 
 @needs_exiftool
+def test_no_time_zone_suggested_that_breaks_matching_photos(s5ii_photo, gpx):
+    # Before and after a change to winter time: no single --timezone fits
+    first = s5ii_photo("a.jpg", "12:00:50", "10:00:50", offset=None)
+    s5ii_photo("c.jpg", "12:30:00", "11:30:00", offset=None)
+
+    result = run_cli(first.parent, "-g", gpx, "--timezone", "+02:00")
+
+    lines = result.stdout.splitlines()
+    assert lines[2].endswith("  [camera’s UTC time suggests +01:00]")
+    start = lines.index("Warning: 1 photo has a capture time that does not match the UTC time "
+                        "recorded by the camera.")
+    assert lines[start + 1:] == [
+        "  Either the time zone given with --timezone or the camera’s time zone setting is wrong.",
+        PREVIEW_LINE]
+
+
+@needs_exiftool
 def test_capture_time_changed_in_exif_is_noted(s5ii_photo, gpx):
     # Another program moved the capture time in EXIF by an hour
     path = s5ii_photo("a.jpg", "12:00:20", "09:00:20")
