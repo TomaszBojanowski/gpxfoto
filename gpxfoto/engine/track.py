@@ -393,6 +393,48 @@ def find_stops(points):
     return stops
 
 
+def stop_at(stops, t, lat, lon, elevation):
+    """The stop a photo taken at time t belongs to, or None.
+
+    lat, lon and elevation are the photo's position on the track from
+    locate. The photo belongs to a stop when it was taken during the stop
+    and the track is then within PIN_RADIUS and PIN_HEIGHT of the stop.
+    """
+    i = bisect.bisect_right(stops, t, key=lambda s: s.start) - 1
+    if i < 0 or t > stops[i].end:
+        return None
+    stop = stops[i]
+    lon_change = lon - stop.lon
+    if lon_change > 180:
+        lon_change -= 360
+    elif lon_change < -180:
+        lon_change += 360
+    dx = lon_change * _M_PER_DEGREE * math.cos(math.radians(stop.lat))
+    dy = (lat - stop.lat) * _M_PER_DEGREE
+    if dx * dx + dy * dy > PIN_RADIUS ** 2:
+        return None
+    if elevation is not None and stop.elevation is not None:
+        if abs(elevation - stop.elevation) > PIN_HEIGHT:
+            return None
+    return stop
+
+
+def place(points, times, stops, t, max_gap):
+    """Like locate, with the position of the stop the photo was taken at.
+
+    Returns (lat, lon, elevation, gap_s, stop) where stop is None when
+    the photo is not pinned to a stop, or (None, reason).
+    """
+    result = locate(points, times, t, max_gap)
+    if result[0] is None:
+        return result
+    lat, lon, ele, gap = result
+    stop = stop_at(stops, t, lat, lon, ele)
+    if stop is None:
+        return lat, lon, ele, gap, None
+    return stop.lat, stop.lon, ele if stop.elevation is None else stop.elevation, gap, stop
+
+
 def _elevation_noise(heights):
     """Median distance of an elevation from the mean of its neighbours."""
     known = [z for z in heights if z is not None]

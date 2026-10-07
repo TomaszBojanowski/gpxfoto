@@ -1,4 +1,4 @@
-"""Stops: stretches of a track without movement (find_stops)."""
+"""Stops: stretches of a track without movement (find_stops, stop_at, place)."""
 import math
 import random
 from datetime import datetime, timezone
@@ -6,7 +6,9 @@ from datetime import datetime, timezone
 import pytest
 
 from conftest import write_gpx
-from gpxfoto.engine.track import STILL_WINDOW, STOP_HEIGHT, STOP_RADIUS, Stop, find_stops, load_gpx
+from gpxfoto.engine.track import (
+    PIN_HEIGHT, PIN_RADIUS, STILL_WINDOW, STOP_HEIGHT, STOP_RADIUS, Stop, find_stops, load_gpx,
+    locate, place, stop_at)
 
 T0 = datetime(2026, 6, 1, 10, 0, 0, tzinfo=timezone.utc).timestamp()
 LAT, LON = 49.2, 20.0
@@ -324,3 +326,118 @@ def test_stop_on_the_180th_meridian():
     lat, lon = position(144, 0, -16.5, 179.99999)
     assert -180 <= stop.lon < 180
     assert abs((stop.lon - lon + 180) % 360 - 180) < 2e-5
+    assert stop_at([stop], stop.start + 60, lat, lon, None) is stop
+
+
+# stop_at
+
+STOP = Stop(T0 + 100, T0 + 200, LAT, LON, 1000.0, 100, 200)
+LATER = Stop(T0 + 500, T0 + 600, LAT, LON, 1000.0, 500, 600)
+
+
+@pytest.mark.parametrize("t, expected", [
+    (T0 + 99.9, None),
+    (T0 + 100, STOP),
+    (T0 + 150, STOP),
+    (T0 + 200, STOP),
+    (T0 + 200.1, None),
+    (T0 + 400, None),
+    (T0 + 500, LATER),
+    (T0 + 700, None),
+])
+def test_stop_at_time(t, expected):
+    assert stop_at([STOP, LATER], t, LAT, LON, 1000.0) == expected
+
+
+@pytest.mark.parametrize("elevation, pinned", [
+    (1000.0 + PIN_HEIGHT - 0.1, True),
+    (1000.0 - PIN_HEIGHT - 0.1, False),
+    (None, True),
+])
+def test_stop_at_only_near_the_stop_in_height(elevation, pinned):
+    assert (stop_at([STOP], T0 + 150, LAT, LON, elevation) is STOP) == pinned
+
+
+def test_stop_at_without_stops():
+    assert stop_at([], T0, LAT, LON, None) is None
+
+
+@pytest.mark.parametrize("east, north, pinned", [
+    (PIN_RADIUS - 0.1, 0, True),
+    (PIN_RADIUS + 0.1, 0, False),
+    (0, -(PIN_RADIUS - 0.1), True),
+    (0, -(PIN_RADIUS + 0.1), False),
+])
+def test_stop_at_only_near_the_stop(east, north, pinned):
+    lat, lon = position(east, north)
+    assert (stop_at([STOP], T0 + 150, lat, lon, 1000.0) is STOP) == pinned
+
+
+def test_photo_during_a_stop_on_a_real_track_shape():
+    # locate gives the jittery point; the stop gives the median
+    hike = Hike(seed=3).walk(120, east=1.2).stand(300, jitter=4).walk(120, east=1.2)
+    points = hike.points
+    times = [p[0] for p in points]
+    [stop] = find_stops(points)
+    t = T0 + 250
+    lat, lon, _ele, _gap = locate(points, times, t, 120)
+    assert stop_at([stop], t, lat, lon, _ele) is stop
+    assert metres(stop, 144, 0) < 1.5
+
+
+# Added by the review
+
+@pytest.mark.parametrize("seed", [1, 2, 4])
+def test_steady_climb_just_above_the_limit_is_not_a_stop(seed):
+    # 115 m/h: the 30 s windows sometimes miss it in the jitter, the whole stretch does not
+    hike = Hike(seed=seed).walk(60, east=1.2).walk(600, up=0.032, jitter=1.0).walk(60, east=1.2)
+    assert find_stops(hike.points) == []
+
+
+def test_place_pins_a_photo_to_the_stop():
+    from gpxfoto.engine.track import place
+    hike = Hike().walk(180, east=1.2).stand(180, jitter=2).walk(180, east=1.2)
+    points = hike.points
+    times = [p[0] for p in points]
+    stops = find_stops(points)
+    lat, lon, ele, gap, stop = place(points, times, stops, T0 + 270.5, 120)
+    assert stop == stops[0] and (lat, lon, ele) == (stop.lat, stop.lon, stop.elevation)
+    assert gap == 0.5
+    walking = place(points, times, stops, T0 + 60.5, 120)
+    assert walking[:4] == locate(points, times, T0 + 60.5, 120) and walking[4] is None
+    assert place(points, times, stops, T0 - 600, 120) == locate(points, times, T0 - 600, 120)
+    assert place(points, times, [], T0 + 270.5, 120)[:4] == locate(points, times, T0 + 270.5, 120)
+
+
+def test_stop_over_a_night():
+    hike = Hike().walk(3600, east=1.2, jitter=2).pause(14 * 3600).walk(3600, east=1.2, jitter=2)
+    stops = find_stops(hike.points)
+    assert len(stops) == 1
+    assert 3599 - STILL_WINDOW <= stops[0].start - T0 <= 3599
+    assert 3599 + 14 * 3600 <= stops[0].end - T0 <= 3599 + 14 * 3600 + STILL_WINDOW
+
+
+# place
+
+def test_place_pins_a_photo_taken_during_a_stop():
+    hike = Hike(seed=3).walk(120, east=1.2).stand(300, jitter=4).walk(120, east=1.2)
+    points = hike.points
+    times = [p[0] for p in points]
+    stops = find_stops(points)
+    [stop] = stops
+    during = T0 + 250.5
+    assert place(points, times, stops, during, 120) == (
+        stop.lat, stop.lon, stop.elevation, 0.5, stop)
+    walking = T0 + 30.5
+    assert place(points, times, stops, walking, 120) == (
+        *locate(points, times, walking, 120), None)
+    before = T0 - 600
+    assert place(points, times, stops, before, 120) == locate(points, times, before, 120)
+    assert place(points, times, [], during, 120) == (*locate(points, times, during, 120), None)
+
+
+def test_place_keeps_the_track_elevation_when_the_stop_has_none():
+    stop = Stop(T0 + 100, T0 + 200, LAT, LON, None, 1, 2)
+    points = [(T0, LAT, LON, 990.0), (T0 + 100, LAT, LON, 1000.0), (T0 + 200, LAT, LON, 1010.0)]
+    times = [p[0] for p in points]
+    assert place(points, times, [stop], T0 + 150, 120) == (LAT, LON, 1005.0, 50, stop)
