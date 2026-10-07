@@ -389,6 +389,20 @@ def test_photo_given_twice_is_written_once(photo, gpx):
         TRACK_LINE, MATCH_LINE, "Matched: 1, skipped: 0", *written(1, 0)]
     assert (path.parent / "originals" / "a.jpg").read_bytes() == original
 
+
+@needs_exiftool
+def test_overwrite_with_track_without_elevation_drops_old_elevation(tmp_path, photo, gpx):
+    path = photo("a.jpg", taken("12:00:50"))
+    flat = write_gpx(tmp_path / "flat.gpx", [(t, lat + 1, lon + 1, None) for t, lat, lon, _ in TRACK])
+
+    first = run_cli(path, "-g", gpx, "--write")
+    second = run_cli(path, "-g", flat, "--write", "--overwrite")
+
+    assert first.returncode == second.returncode == 0, first.stderr + second.stderr
+    tags = read_tags(path, "GPS:all")
+    assert "GPSAltitude" not in tags and "GPSAltitudeRef" not in tags
+    assert tags["GPSLatitude"] == pytest.approx(51.0005, abs=1e-7)
+
 @needs_exiftool
 @needs_posix_shell
 def test_failed_write_is_reported_and_exits_with_status_1(tmp_path, photo, gpx):

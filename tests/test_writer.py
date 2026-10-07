@@ -475,6 +475,42 @@ def test_other_metadata_is_kept(photo):
 
 
 @needs_exiftool
+def test_old_gps_data_is_removed(photo):
+    """An overwritten location must not keep parts of the old one."""
+    set_tags(photo, "-GPSLatitude=1", "-GPSLatitudeRef=S", "-GPSLongitude=2",
+             "-GPSLongitudeRef=W", "-GPSAltitude=812", "-GPSAltitudeRef=0",
+             "-GPSImgDirection=90", "-GPSSpeed=4", "-XMP-exif:GPSLatitude=1",
+             "-XMP-exif:GPSLongitude=2", "-XMP-exif:GPSAltitude=812",
+             "-XMP-exif:GPSImgDirection=90", "-DateTimeOriginal=2026:06:01 10:30:15",
+             "-XMP-exif:DateTimeOriginal=2026:06:01 10:30:15")
+    write_location(photo, 50.0614, 19.9366, None, TIME, backup=False)
+    assert gps_tags(photo) == {
+        "GPSLatitudeRef": "N", "GPSLatitude": 50.0614, "GPSLongitudeRef": "E",
+        "GPSLongitude": 19.9366, "GPSDateStamp": "2026:06:01", "GPSTimeStamp": "08:30:15",
+        "GPSMapDatum": "WGS-84"}
+    # exiftool also updates the GPS position it finds in XMP; the rest is gone
+    assert read_tags(photo, "XMP-exif:all") == {
+        "GPSLatitude": 50.0614, "GPSLongitude": 19.9366,
+        "DateTimeOriginal": "2026:06:01 10:30:15"}
+    assert read_tags(photo, "EXIF:DateTimeOriginal") == {
+        "DateTimeOriginal": "2026:06:01 10:30:15"}
+
+
+@needs_exiftool
+def test_photo_without_gps_is_written_as_before(photo):
+    """Removing old GPS data changes nothing when there is none."""
+    copy = photo.parent / "copy.jpg"
+    copy.write_bytes(photo.read_bytes())
+    plain = photo.parent / "plain.jpg"
+    subprocess.run(["exiftool", "-q", "-n", "-m", "-GPSLatitude=50.0614", "-GPSLatitudeRef=N",
+                    "-GPSLongitude=19.9366", "-GPSLongitudeRef=E", "-GPSDateStamp=2026:06:01",
+                    "-GPSTimeStamp=08:30:15", "-GPSMapDatum=WGS-84", "-GPSAltitude=219.4",
+                    "-GPSAltitudeRef=0", "-o", str(plain), "--", str(copy)], check=True)
+    write_location(photo, 50.0614, 19.9366, 219.4, TIME, backup=False)
+    assert photo.read_bytes() == plain.read_bytes()
+
+
+@needs_exiftool
 @pytest.mark.parametrize("name", ["-photo.jpg", "zdjęcie z wakacji.jpg"])
 def test_unusual_file_names(tmp_path, monkeypatch, name):
     monkeypatch.chdir(tmp_path)

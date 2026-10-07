@@ -51,6 +51,8 @@ def write_location(path, lat, lon, ele, time_utc, backup):
     try:
         command = [
             "exiftool", "-q", "-n", "-m",
+            # Old GPS data, also in XMP, must not stay next to the new location
+            "-GPS:all=", "-XMP-exif:GPS*=",
             f"-GPSLatitude={abs(lat):.8f}", f"-GPSLatitudeRef={'N' if lat >= 0 else 'S'}",
             f"-GPSLongitude={abs(lon):.8f}", f"-GPSLongitudeRef={'E' if lon >= 0 else 'W'}",
             f"-GPSDateStamp={time_utc:%Y:%m:%d}", f"-GPSTimeStamp={time_utc:%H:%M:%S}",
