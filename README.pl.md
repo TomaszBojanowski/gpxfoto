@@ -63,6 +63,7 @@ gpxfoto ~/Obrazy/2026-10-06 -g activity.gpx --write
 | `--max-gap SEKUNDY` | największy dopuszczalny odstęp czasu między zdjęciem a najbliższym punktem trasy (domyślnie: 120 s) |
 | `--no-stops` | nie wyszukuje postojów; każde zdjęcie otrzymuje położenie z trasy w chwili wykonania |
 | `--overwrite` | zmienia także zdjęcia, które mają już zapisane położenie |
+| `--travel-direction` | dopisuje także kierunek ruchu z trasy (EXIF `GPSTrack`); zob. niżej |
 | `--backup` | zachowuje kopie oryginalnych plików w podkatalogu `originals` obok każdego zdjęcia; istniejąca kopia nigdy nie jest zastępowana |
 | `-r`, `--recursive` | wyszukuje zdjęcia i trasy także w podkatalogach |
 
@@ -183,6 +184,22 @@ Dwa pierwsze ostrzeżenia wymagają postojów i prędkości jednej trasy: nie
 pojawiają się, gdy dopasowane zdjęcia pochodzą z kilku tras, ani z opcją
 `--no-stops`. Progi dobrano na prawdziwej wycieczce; przy dobrze ustawionym
 zegarze nie dały żadnego ostrzeżenia w 900 modelowanych zestawach zdjęć.
+
+### Kierunek ruchu
+
+Z opcją `--travel-direction` dopasowane zdjęcie otrzymuje także kierunek,
+w którym trasa przechodziła przez jego miejsce, w pełnych stopniach od
+północy geograficznej, zapisany w polu EXIF `GPSTrack` z `GPSTrackRef`
+równym T. To kierunek ruchu, a nie kierunek, w którym skierowany był
+aparat, bo tego gpxfoto nie może wiedzieć; pole `GPSImgDirection` nigdy nie
+jest zapisywane. Zdjęcie dostaje kierunek tylko tam, gdzie trasa wyraźnie
+przechodzi przez jego miejsce: w ciągu minuty przed zdjęciem i po nim
+oddala się o 20 m, a droga między tymi dwoma punktami jest najwyżej o 20%
+dłuższa od linii prostej. Zdjęcia zrobione na postoju, na ostrym zakręcie
+lub na serpentynach nie dostają kierunku, a podgląd podaje przyczynę.
+Z tą opcją starszy kierunek ruchu w zapisywanym zdjęciu, także w XMP,
+zostaje usunięty, żeby nie uchodził za wyznaczony z trasy. Na wycieczce
+autora kierunek dostało 84% zdjęć zrobionych w marszu.
 
 Z opcją `--backup` kopia każdego zdjęcia sprzed zapisu trafia do katalogu
 `originals` obok niego. gpxfoto oznacza ten katalog plikiem `.gpxfoto`,

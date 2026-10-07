@@ -63,6 +63,7 @@ gpxfoto ~/Pictures/2026-10-06 -g activity.gpx --write
 | `--max-gap SECONDS` | largest allowed time between a photo and the nearest track point (default: 120 s) |
 | `--no-stops` | do not look for stops; every photo gets the track’s position at its time |
 | `--overwrite` | also change photos that already have a location |
+| `--travel-direction` | also add the direction of travel from the track (EXIF `GPSTrack`); see below |
 | `--backup` | keep copies of the original files in an `originals` subdirectory next to each photo; an existing copy is never replaced |
 | `-r`, `--recursive` | also look for photos and tracks in subdirectories |
 
@@ -178,6 +179,21 @@ The first two need the stops and speeds of one track: they are left out
 when the matched photos come from several tracks, and with `--no-stops`.
 The thresholds were chosen on a real hike; with the right clock, they gave
 no warning for any of 900 modelled sets of photos.
+
+### Direction of travel
+
+With `--travel-direction`, a matched photo also gets the direction in which
+the track passed its place, in whole degrees from true north, written as
+EXIF `GPSTrack` with `GPSTrackRef` T. It is the direction of travel, not
+the direction the camera faced, which gpxfoto cannot know, so
+`GPSImgDirection` is never written. A photo gets a direction only where the
+track clearly passes through its place: within a minute before and after
+the photo the track gets 20 m away, and the way between those two points is
+at most 20% longer than a straight line. Photos taken at a stop, at a sharp
+turn or on switchbacks get none, and the preview says why. With the option,
+an older direction of travel in a written photo, also in XMP, is removed,
+so that it cannot pass for one from the track. On the author’s hike, 84% of
+the photos taken while walking got a direction.
 
 With `--backup`, a copy of each photo as it was before goes into an
 `originals` directory next to it. gpxfoto marks that directory with a

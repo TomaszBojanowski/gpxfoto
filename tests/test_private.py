@@ -19,7 +19,7 @@ from conftest import needs_exiftool, read_tags, run_cli
 from gpxfoto.engine.checks import Shot, pace, suspicious_match
 from gpxfoto.engine.matching import match_photos
 from gpxfoto.engine.photos import TZ_CAMERA, Photo
-from gpxfoto.engine.track import load_track, place
+from gpxfoto.engine.track import load_track, locate, place, travel_direction
 from gpxfoto.engine.writer import image_checksum
 
 PRIVATE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "prywatne")
@@ -254,3 +254,34 @@ def test_no_warning_for_the_reference_photos():
     assert re.search(r"^Matched: [1-9]", preview.stdout, re.M), preview.stdout
     assert not [line for line in preview.stdout.splitlines() if line.startswith("Warning")], \
         preview.stdout
+
+
+# --- direction of travel ------------------------------------------------
+
+@needs_tracks
+@pytest.mark.parametrize("path", TRACKS, ids=os.path.basename)
+def test_direction_of_travel_on_a_real_track(path):
+    track = load_track([path])
+    points, times, stops = track.points, track.times, track.stops
+    standing = set()
+    for stop in stops:
+        standing.update(range(stop.first, stop.last + 1))
+    walking = [k for k in range(1, len(points) - 1) if k not in standing]
+    if len(walking) < 1000:
+        pytest.skip("the track has too little walking")
+    r = random.Random(1)
+    photo_times = [times[r.choice(walking)] + r.random() for _ in range(1000)]
+    start = time.perf_counter()
+    found = [travel_direction(points, times, t, *locate(points, times, t, 120)[:2])[0]
+             for t in photo_times]
+    elapsed = time.perf_counter() - start
+    # On the 5.5-hour hike, 84% of the photos taken while walking get one
+    assert sum(d is not None for d in found) >= 0.8 * len(found)
+    assert elapsed < 0.3 * max(1, len(points) / 20000)
+    # A photo during a stop gets none: it is pinned to the stop, or the
+    # track stays within 20 m around it
+    for stop in stops:
+        for share in (0.25, 0.5, 0.75):
+            t = stop.start + (stop.end - stop.start) * share
+            lat, lon, _, _, pinned = place(points, times, stops, t, 120)
+            assert pinned is not None or travel_direction(points, times, t, lat, lon)[0] is None
