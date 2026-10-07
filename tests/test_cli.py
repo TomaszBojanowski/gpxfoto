@@ -232,12 +232,30 @@ def test_recursive_also_finds_tracks_in_subdirectories(photo, track_dir):
     assert flat.returncode == deep.returncode == 0, flat.stderr + deep.stderr
     assert flat.stdout.splitlines()[:2] == [
         "Tracks covering the photos: 0 of 3 GPX files",
-        "  a.jpg            12:00:50  skipped: 17 h 59 min after the end of the track"]
+        "  a.jpg            12:00:50  skipped: no track covers this time"]
     assert deep.stdout.splitlines()[:3] == [
         "Tracks covering the photos: 1 of 4 GPX files",
         "Track day3.gpx: 2 points, 05/03/24 12:00:00 – 05/03/24 12:01:40 "
         "(this computer’s time zone)",
         "  a.jpg            12:00:50  51.000500, 21.000000        —  day3.gpx"]
+
+
+@needs_exiftool
+def test_track_files_no_photo_needs_are_not_read(photo, track_dir):
+    # Its times are readable, but the rest of the file is not
+    broken = track_dir / "broken.gpx"
+    broken.write_text('<gpx><trk><trkseg><trkpt lat="1" lon="2">'
+                      "<time>2024-06-01T10:00:00Z</time></trkpt>")
+    path = photo("a.jpg", taken("12:00:50"))
+
+    result = run_cli(path, "-g", track_dir)
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.splitlines()[:3] == [
+        "Tracks covering the photos: 1 of 4 GPX files",
+        "Track day1.gpx: 2 points, 05/01/24 12:00:00 – 05/01/24 12:01:40 "
+        "(this computer’s time zone)",
+        MATCH_LINE + "  day1.gpx"]
 
 
 @needs_exiftool

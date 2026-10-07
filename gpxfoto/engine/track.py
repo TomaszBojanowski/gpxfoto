@@ -1,7 +1,9 @@
 """Loading GPX tracks and finding the position at a given moment."""
 import bisect
+import codecs
 import math
 import os
+import re
 import xml.etree.ElementTree as ET
 from collections import namedtuple
 from datetime import datetime, timezone
@@ -12,6 +14,8 @@ from gpxfoto.i18n import distance, duration
 
 # Extensions of the track files looked for in directories, in any case
 GPX_EXTENSIONS = {".gpx"}
+# Larger files are not scanned quickly but read in full when needed
+QUICK_SCAN_LIMIT = 256 * 1024 * 1024
 
 # Elevations further from sea level, in metres, are errors in the track:
 # balloons rise to about 40 km, and the deepest sea is 11 km deep
@@ -162,6 +166,100 @@ def find_tracks(paths, recursive):
     return named, found
 
 
+# A <time> element, with any namespace prefix and attributes: whether it is
+# empty, its text, and its end tag, which is missing when the text holds
+# markup or a character reference
+_NAME = rb"[^\s<>/!?=\"':]+"
+_TIME = re.compile(rb"<(?:" + _NAME + rb":)?time(?=[\s/>])[^<>]*?(/?)>"
+                   rb"(?:([^<>&]*)(</(?:" + _NAME + rb":)?time\s*>))?")
+_DECLARATION = re.compile(rb"<\?xml\s[^>]*?\bencoding\s*=\s*[\"']([A-Za-z][\w.-]*)[\"']")
+# Times all written the same way in UTC, as Garmin and most devices do
+_CANONICAL = re.compile(rb"(?:[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]+)?Z\n)*")
+
+
+def quick_span(path):
+    """The earliest and latest time anywhere in the GPX file at path, quickly.
+
+    Returns (first, last) as Unix times, () when the file has no time,
+    or None when a quick look cannot tell, for example for an encoding
+    other than UTF-8 or Latin, a DOCTYPE, or a time with markup in it.
+    The span holds every time load_gpx() would read, and possibly more.
+    """
+    try:
+        with open(path, "rb") as f:
+            size = os.fstat(f.fileno()).st_size
+            if size > QUICK_SCAN_LIMIT:
+                return None
+            data = f.read(size + 1)
+    except OSError:
+        return None
+    if len(data) > size:           # the file grew while it was read
+        return None
+    if not data:
+        return ()
+    return _scan(data)
+
+
+def _scan(data):
+    if not _ascii_compatible(data[:1024]) or b"<!DOCTYPE" in data:
+        return None
+    texts = []
+    for empty, text, end in _TIME.findall(data):
+        if end:
+            texts.append(text)
+        elif not empty:
+            return None            # markup or a reference in the time
+    joined = b"\n".join(texts) + b"\n"
+    if not joined.isascii():
+        return None
+    try:
+        if len({len(text) for text in texts}) == 1 and _CANONICAL.fullmatch(joined):
+            # Written the same way, the earliest time sorts first as text
+            return (_parse_time(min(texts).decode()).timestamp(),
+                    _parse_time(max(texts).decode()).timestamp())
+    except (ValueError, OverflowError):
+        pass
+    times = []
+    for text in texts:
+        try:
+            times.append(_parse_time(text.decode()).timestamp())
+        except (ValueError, OverflowError):
+            pass
+    return (min(times), max(times)) if times else ()
+
+
+def _ascii_compatible(head):
+    """Whether a file starting with head is in an encoding that keeps ASCII as it is."""
+    if head.startswith(b"\xef\xbb\xbf"):
+        head = head[3:]
+    if head.startswith((b"\xfe\xff", b"\xff\xfe")) or b"\x00" in head[:4]:
+        return False
+    match = _DECLARATION.match(head)
+    if not match:
+        return True
+    try:
+        name = codecs.lookup(match[1].decode("ascii")).name
+    except LookupError:
+        return False
+    return name in ("utf-8", "ascii") or name.startswith(("iso8859-", "cp125"))
+
+
+def tracks_needed(spans, times, max_gap):
+    """The paths whose span, widened by max_gap, holds one of times, or is unknown.
+
+    spans maps paths to quick_span() results; times must be sorted.
+    """
+    needed = []
+    for path, span in spans.items():
+        if span is None:
+            needed.append(path)
+        elif span:
+            i = bisect.bisect_left(times, span[0] - max_gap)
+            if i < len(times) and times[i] <= span[1] + max_gap:
+                needed.append(path)
+    return needed
+
+
 def load_track(paths, named=True, stops=True):
     """Return the Track of the GPX files at paths, or None if they hold no points.
 
@@ -218,6 +316,9 @@ def match(tracks, t, max_gap, label=os.path.basename):
     as well but more than DISAGREEMENT away, nothing is placed. label
     gives the name of a track file in reasons.
     """
+    if not tracks:
+        # Translators: reason why a photo was skipped
+        return Match(reason=_("no track covers this time"), covered=False)
     placed, rejected = [], []
     for track in tracks:
         if not track.first - max_gap <= t <= track.last + max_gap:

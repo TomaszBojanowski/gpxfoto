@@ -10,11 +10,11 @@ from gettext import gettext as _, ngettext
 
 from gpxfoto import i18n
 from gpxfoto.engine.clock import ClockError, measure, parse_reading
-from gpxfoto.engine.matching import match_photos, summarize
+from gpxfoto.engine.matching import corrected_times, match_photos, summarize
 from gpxfoto.engine.photos import (
     TZ_CAMERA, TZ_MANUAL, TZ_SYSTEM, check_exiftool, find_photos, format_utc_offset,
     parse_utc_offset, photo_from_metadata, read_metadata, summarize_time_checks)
-from gpxfoto.engine.track import find_tracks, load_track
+from gpxfoto.engine.track import find_tracks, load_track, quick_span, tracks_needed
 from gpxfoto.engine.writer import BACKUP_DIR, write_location
 from gpxfoto.i18n import N_
 
@@ -400,6 +400,8 @@ def main():
         print(track_line(tracks[0], labels, by_name=False))
         for line in correction_lines(clock, correction):
             print(line)
+    # Only the found files that some photo needs are read in full
+    spans = {path: quick_span(path) for path in found}
 
     try:
         files = find_photos(args.photos, args.recursive)
@@ -420,19 +422,19 @@ def main():
     except RuntimeError as e:
         sys.exit(str(e))
 
+    photos = [photo_from_metadata(meta, manual_tz) for meta in metadata]
     if found:
-        for path in found:
+        if not tracks and not any(spans.values()):
+            sys.exit(no_points(len(named) + len(found)))
+        times = corrected_times(photos, correction, args.overwrite)
+        for path in tracks_needed(spans, times, args.max_gap):
             try:
                 track = load_track([path], named=False, stops=not args.no_stops)
             except ValueError as e:
                 sys.exit(str(e))
             if track is not None:
                 tracks.append(track)
-        if not tracks:
-            sys.exit(no_points(len(named) + len(found)))
         labels = file_labels([path for track in tracks for path in track.files])
-
-    photos = [photo_from_metadata(meta, manual_tz) for meta in metadata]
     results = match_photos(photos, tracks, correction, args.max_gap, overwrite=args.overwrite,
                            label=labels.get)
     if found:

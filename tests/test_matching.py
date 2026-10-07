@@ -3,7 +3,8 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from gpxfoto.engine.matching import PhotoResult, Summary, match_photo, match_photos, summarize
+from gpxfoto.engine.matching import (
+    PhotoResult, Summary, corrected_times, match_photo, match_photos, summarize)
 from gpxfoto.engine.photos import TZ_CAMERA, TZ_MANUAL, Photo
 from gpxfoto.engine.track import Track, find_stops, locate
 
@@ -118,3 +119,11 @@ def test_photo_taken_during_a_stop_gets_its_position():
     unpinned = match_photo(photo((12, 2, 0)), [Track(["stop.gpx"], True, points)], 0, 120)
     assert unpinned.stop is None and unpinned.lat != stop.lat
     assert summarize([result, unpinned]) == Summary(matched=2, skipped=0, at_stops=1)
+
+
+def test_corrected_times_of_the_photos_to_match():
+    photos = [photo((12, 0, 50)), photo((12, 0, 10), has_location=True),
+              Photo("x.jpg", None, None, "no capture time in EXIF", False), photo((12, 0, 0))]
+    assert corrected_times(photos, 10) == [T0 + 10, T0 + 60]
+    assert corrected_times(photos, 10, overwrite=True) == [T0 + 10, T0 + 20, T0 + 60]
+    assert corrected_times(photos, 1e12) == []

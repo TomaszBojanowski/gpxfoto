@@ -736,3 +736,77 @@ def test_find_tracks(tmp_path):
     # A missing file is named, so that reading it reports the error
     assert track_module.find_tracks([str(tmp_path / "missing.gpx")], False) == (
         [str(tmp_path / "missing.gpx")], [])
+
+
+# quick_span and tracks_needed
+
+def write(path, text, encoding="utf-8"):
+    path.write_bytes(text.encode(encoding))
+    return str(path)
+
+
+def span_of(*times):
+    return tuple(_parse_time(t).timestamp() for t in times)
+
+
+@pytest.mark.parametrize("text, expected", [
+    ("", ()),
+    ("<gpx/>", ()),
+    ("<gpx><trk><trkseg></trkseg></trk></gpx>", ()),
+    ('<gpx><time>2026-06-01T10:00:00Z</time><trk><trkseg>'
+     '<trkpt lat="1" lon="2"><time>2026-06-01T10:00:05Z</time></trkpt>'
+     '<trkpt lat="1" lon="2"><time>2026-06-01T09:59:58Z</time></trkpt>'
+     "</trkseg></trk></gpx>",
+     span_of("2026-06-01T09:59:58Z", "2026-06-01T10:00:05Z")),
+    # Namespace prefixes, attributes, spaces and offsets
+    ('<g:gpx xmlns:g="x"><g:trkpt><g:time a="1"> 2026-06-01T12:00:00+02:00 </g:time></g:trkpt>'
+     "<g:trkpt><g:time>2026-06-01T10:00:01.5Z</g:time></g:trkpt><g:time/></g:gpx>",
+     span_of("2026-06-01T10:00:00Z", "2026-06-01T10:00:01.5Z")),
+    # A time the full reader cannot use is left out
+    ("<gpx><time>yesterday</time><time>2026-06-01T10:00:00Z</time></gpx>",
+     span_of("2026-06-01T10:00:00Z", "2026-06-01T10:00:00Z")),
+    # <timestamp> is another element
+    ("<gpx><timestamp>2020-01-01T00:00:00Z</timestamp><time>2026-06-01T10:00:00Z</time></gpx>",
+     span_of("2026-06-01T10:00:00Z", "2026-06-01T10:00:00Z")),
+    # Not sure: a reference, CDATA or a comment inside the time, a DOCTYPE
+    ("<gpx><time>&#50;026-06-01T10:00:00Z</time></gpx>", None),
+    ("<gpx><time><![CDATA[2026-06-01T10:00:00Z]]></time></gpx>", None),
+    ("<gpx><time>2026-06-01<!-- x -->T10:00:00Z</time></gpx>", None),
+    ('<!DOCTYPE gpx [<!ENTITY t "2026-06-01T10:00:00Z">]><gpx><time>&t;</time></gpx>', None),
+])
+def test_quick_span(tmp_path, text, expected):
+    assert track_module.quick_span(write(tmp_path / "t.gpx", text)) == expected
+
+
+@pytest.mark.parametrize("encoding, declared, expected", [
+    ("utf-8", "UTF-8", True), ("latin-1", "ISO-8859-1", True), ("cp1250", "windows-1250", True),
+    ("utf-16", "UTF-16", False), ("utf-8", "x-unknown", False),
+])
+def test_quick_span_only_for_encodings_that_keep_ascii(tmp_path, encoding, declared, expected):
+    text = (f'<?xml version="1.0" encoding="{declared}"?><gpx><name>Zürich</name>'
+            "<time>2026-06-01T10:00:00Z</time></gpx>")
+    span = track_module.quick_span(write(tmp_path / "t.gpx", text, encoding))
+    assert span == (span_of("2026-06-01T10:00:00Z", "2026-06-01T10:00:00Z") if expected else None)
+
+
+def test_quick_span_of_a_real_garmin_track(tmp_path):
+    points = [(f"2026-06-01T10:{i // 60:02d}:{i % 60:02d}.000Z", 50.0, 19.0, 200.0)
+              for i in range(300)]
+    path = write_gpx(tmp_path / "g.gpx", points, garmin=True)
+    loaded = load_gpx([path])
+    assert track_module.quick_span(path) == (loaded[0][0], loaded[-1][0])
+
+
+def test_quick_span_of_a_large_or_missing_file(tmp_path, monkeypatch):
+    path = write(tmp_path / "t.gpx", "<gpx><time>2026-06-01T10:00:00Z</time></gpx>")
+    monkeypatch.setattr(track_module, "QUICK_SCAN_LIMIT", 10)
+    assert track_module.quick_span(path) is None
+    assert track_module.quick_span(str(tmp_path / "missing.gpx")) is None
+
+
+def test_tracks_needed():
+    spans = {"a": (100.0, 200.0), "b": (1000.0, 2000.0), "c": (), "d": None, "e": (300.0, 400.0)}
+    assert track_module.tracks_needed(spans, [50.0, 450.0], 60) == ["a", "d", "e"]
+    assert track_module.tracks_needed(spans, [39.0, 2061.0], 60) == ["d"]
+    assert track_module.tracks_needed(spans, [], 60) == ["d"]
+    assert track_module.tracks_needed(spans, [150.0], 0) == ["a", "d"]

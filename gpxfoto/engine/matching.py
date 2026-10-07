@@ -56,6 +56,19 @@ def match_photo(photo, tracks, correction, max_gap, overwrite=False, label=os.pa
                        time_check=time_check, stop=found.stop, files=found.files)
 
 
+def corrected_times(photos, correction, overwrite=False):
+    """The sorted Unix times of the photos that would be matched, after correction."""
+    times = []
+    for photo in photos:
+        if photo.taken is None or (photo.has_location and not overwrite):
+            continue
+        try:
+            times.append((photo.taken + timedelta(seconds=correction)).timestamp())
+        except OverflowError:
+            pass
+    return sorted(times)
+
+
 def match_photos(photos, tracks, correction, max_gap, **options):
     """Return the PhotoResult of each photo, in the same order."""
     return [match_photo(photo, tracks, correction, max_gap, **options) for photo in photos]
