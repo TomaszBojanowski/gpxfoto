@@ -8,7 +8,7 @@ msgstr ""
 "Project-Id-Version: gpxfoto\n"
 "Report-Msgid-Bugs-To: "
 "https://github.com/tomaszbojanowski/gpxfoto/issues\n"
-"POT-Creation-Date: 2026-10-07 06:44+0000\n"
+"POT-Creation-Date: 2026-10-07 06:49+0000\n"
 "PO-Revision-Date: 2026-10-06 23:45+0200\n"
 "Last-Translator: Tomasz <t.bojanowski@protonmail.com>\n"
 "Language-Team: Polish\n"
@@ -288,13 +288,18 @@ msgstr ""
 "Program exiftool nie zwrócił danych:\n"
 "{errors}"
 
+#: gpxfoto/engine/photos.py:73
+#, python-brace-format
+msgid "exiftool returned data that cannot be read: {error}"
+msgstr "Program exiftool zwrócił dane, których nie można odczytać: {error}"
+
 #. Translators: reason why a photo was skipped
-#: gpxfoto/engine/photos.py:104
+#: gpxfoto/engine/photos.py:111
 msgid "no capture time in EXIF"
 msgstr "brak daty wykonania w EXIF"
 
 #. Translators: reason why a photo was skipped; {value} is the text found
-#: gpxfoto/engine/photos.py:109
+#: gpxfoto/engine/photos.py:116
 #, python-brace-format
 msgid "invalid capture time in EXIF: {value}"
 msgstr "nieprawidłowa data wykonania w EXIF: {value}"
@@ -345,23 +350,24 @@ msgstr "{hours} h {minutes} min"
 msgid "not a JPEG file"
 msgstr "to nie jest plik JPEG"
 
-#: gpxfoto/engine/writer.py:29
+#: gpxfoto/engine/writer.py:29 gpxfoto/engine/writer.py:42
+#: gpxfoto/engine/writer.py:45
 msgid "damaged JPEG structure"
 msgstr "uszkodzona struktura JPEG"
 
-#: gpxfoto/engine/writer.py:50
+#: gpxfoto/engine/writer.py:55
 #, python-brace-format
 msgid "invalid location: {location}"
 msgstr "nieprawidłowe położenie: {location}"
 
-#: gpxfoto/engine/writer.py:55
+#: gpxfoto/engine/writer.py:62
 msgid "the file has several hard links; writing it would separate them"
 msgstr "plik ma kilka dowiązań twardych; zapis by je rozdzielił"
 
-#: gpxfoto/engine/writer.py:76
+#: gpxfoto/engine/writer.py:83
 msgid "exiftool did not write the file"
 msgstr "program exiftool nie zapisał pliku"
 
-#: gpxfoto/engine/writer.py:78
+#: gpxfoto/engine/writer.py:85
 msgid "exiftool changed the image data; the result was discarded"
 msgstr "program exiftool zmienił dane obrazu; wynik odrzucono"

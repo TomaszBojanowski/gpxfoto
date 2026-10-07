@@ -476,6 +476,20 @@ def test_read_metadata_raises_with_exiftool_errors(monkeypatch, stdout):
     assert str(error.value) == "exiftool returned no data:\nError: boom\n"
 
 
+@pytest.mark.parametrize("stdout", [
+    '[{"SourceFile": ', "Warning: odd file\n", '{"SourceFile": "a.jpg"}', '["a.jpg"]',
+])
+def test_read_metadata_reports_output_that_is_not_json(monkeypatch, stdout):
+    def run(command, **kwargs):
+        return subprocess.CompletedProcess(command, 0, stdout, "")
+
+    monkeypatch.setattr(photos.subprocess, "run", run)
+    with pytest.raises(RuntimeError) as raised:
+        read_metadata(["a.jpg"])
+    # The rest of the message comes from the JSON parser
+    assert str(raised.value).startswith("exiftool returned data that cannot be read: ")
+
+
 def test_read_metadata_raises_when_a_later_batch_is_empty(monkeypatch):
     calls = []
 

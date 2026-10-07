@@ -65,8 +65,15 @@ def read_metadata(files):
         if not process.stdout.strip():
             raise RuntimeError(_("exiftool returned no data:\n{errors}").format(
                 errors=process.stderr))
+        try:
+            data = json.loads(process.stdout)
+            if not (isinstance(data, list) and all(isinstance(e, dict) for e in data)):
+                raise ValueError("not a list of objects")
+        except ValueError as e:
+            raise RuntimeError(_("exiftool returned data that cannot be read: {error}").format(
+                error=e)) from e
         # exiftool keeps the order of the files
-        entries = iter(json.loads(process.stdout))
+        entries = iter(data)
         entry = next(entries, None)
         for path in batch:
             if entry is not None and entry.get("SourceFile") == _as_exiftool_shows(path):

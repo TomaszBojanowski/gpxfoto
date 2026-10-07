@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: gpxfoto 0.1.0\n"
 "Report-Msgid-Bugs-To: https://github.com/tomaszbojanowski/gpxfoto/issues\n"
-"POT-Creation-Date: 2026-10-07 06:44+0000\n"
+"POT-Creation-Date: 2026-10-07 06:49+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -260,13 +260,18 @@ msgid ""
 "{errors}"
 msgstr ""
 
+#: gpxfoto/engine/photos.py:73
+#, python-brace-format
+msgid "exiftool returned data that cannot be read: {error}"
+msgstr ""
+
 #. Translators: reason why a photo was skipped
-#: gpxfoto/engine/photos.py:104
+#: gpxfoto/engine/photos.py:111
 msgid "no capture time in EXIF"
 msgstr ""
 
 #. Translators: reason why a photo was skipped; {value} is the text found
-#: gpxfoto/engine/photos.py:109
+#: gpxfoto/engine/photos.py:116
 #, python-brace-format
 msgid "invalid capture time in EXIF: {value}"
 msgstr ""
@@ -317,23 +322,24 @@ msgstr ""
 msgid "not a JPEG file"
 msgstr ""
 
-#: gpxfoto/engine/writer.py:29
+#: gpxfoto/engine/writer.py:29 gpxfoto/engine/writer.py:42
+#: gpxfoto/engine/writer.py:45
 msgid "damaged JPEG structure"
 msgstr ""
 
-#: gpxfoto/engine/writer.py:50
+#: gpxfoto/engine/writer.py:55
 #, python-brace-format
 msgid "invalid location: {location}"
 msgstr ""
 
-#: gpxfoto/engine/writer.py:55
+#: gpxfoto/engine/writer.py:62
 msgid "the file has several hard links; writing it would separate them"
 msgstr ""
 
-#: gpxfoto/engine/writer.py:76
+#: gpxfoto/engine/writer.py:83
 msgid "exiftool did not write the file"
 msgstr ""
 
-#: gpxfoto/engine/writer.py:78
+#: gpxfoto/engine/writer.py:85
 msgid "exiftool changed the image data; the result was discarded"
 msgstr ""
