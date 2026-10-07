@@ -41,9 +41,9 @@ needs_photos = pytest.mark.skipif(not (TRACKS and PHOTOS),
 @needs_tracks
 @pytest.mark.parametrize("path", TRACKS, ids=os.path.basename)
 def test_track_loads_quickly(path):
-    # The best of three runs, so that a busy machine does not fail the test
+    # The best of five runs, so that a busy machine does not fail the test
     elapsed = []
-    for _ in range(3):
+    for _ in range(5):
         start = time.perf_counter()
         track = load_track([path])
         elapsed.append(time.perf_counter() - start)

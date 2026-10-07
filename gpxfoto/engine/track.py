@@ -154,30 +154,35 @@ def load_gpx(paths):
 def _load_points(paths):
     """Return the points of the files at paths sorted by time, and for each
     point the index of its file in paths."""
-    found = []
-    for index, path in enumerate(paths):
+    per_file = []
+    for path in paths:
         try:
-            found += [(point, index) for point in _read_points(path)]
+            per_file.append(_read_points(path))
         except (OSError, ET.ParseError, ValueError, LookupError) as e:
             error = e.strerror if isinstance(e, OSError) and e.strerror else e
             # Translators: {error} describes the problem, e.g. “No such file or directory”
             raise ValueError(_("Cannot read the GPX file {path}: {error}").format(
                 path=path, error=error)) from e
-    found.sort(key=lambda pair: pair[0][0])
+    if len(per_file) == 1:
+        points = sorted(per_file[0], key=lambda p: p[0])
+        return points, [0] * len(points)
+    found = sorted(((point, index) for index, points in enumerate(per_file) for point in points),
+                   key=lambda pair: pair[0][0])
     return [point for point, _index in found], [index for _point, index in found]
 
 
 def _read_points(path):
     points = []
     for _event, el in ET.iterparse(path):
-        if _local_name(el.tag) != "trkpt":
+        # endswith() first: it is much quicker, and most elements are not points
+        if not el.tag.endswith("trkpt") or _local_name(el.tag) != "trkpt":
             continue
         time_text = ele_text = None
         for child in el:
-            name = _local_name(child.tag)
-            if name == "time" and child.text:
+            tag = child.tag
+            if tag.endswith("time") and child.text and _local_name(tag) == "time":
                 time_text = child.text
-            elif name == "ele" and child.text:
+            elif tag.endswith("ele") and child.text and _local_name(tag) == "ele":
                 ele_text = child.text
         if time_text is not None:
             try:
