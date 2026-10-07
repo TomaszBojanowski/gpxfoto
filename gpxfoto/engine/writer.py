@@ -3,17 +3,25 @@ import hashlib
 import math
 import os
 import shutil
+import stat
 import subprocess
 import tempfile
 from gettext import gettext as _
 
 # Subdirectory for copies of the original files
 BACKUP_DIR = "originals"
+# File that marks a BACKUP_DIR as made by gpxfoto
+BACKUP_MARKER = ".gpxfoto"
 # Name prefix of temporary files, which a crash could leave behind
 TEMP_PREFIX = ".gpxfoto-"
 # The EXIF GPS fields of a location, which are always written anew
 LOCATION_TAGS = ("GPSLatitude", "GPSLatitudeRef", "GPSLongitude", "GPSLongitudeRef",
                  "GPSAltitude", "GPSAltitudeRef", "GPSDateStamp", "GPSTimeStamp", "GPSMapDatum")
+
+
+def is_backup_dir(directory):
+    """Whether directory is a backup directory made by gpxfoto."""
+    return os.path.isfile(os.path.join(directory, BACKUP_MARKER))
 
 
 def image_checksum(path):
@@ -65,6 +73,9 @@ def write_location(path, lat, lon, ele, time_utc, backup, replace=False):
         raise ValueError(_("invalid location: {location}").format(location=location))
     # Through a symbolic link, the file it points to is written
     path = os.path.realpath(path)
+    if is_backup_dir(os.path.dirname(path)):
+        raise RuntimeError(_("this file is a backup copy made by gpxfoto, "
+                             "which is never changed"))
     # Taken before anything reads the photo, which may update its access time
     original = os.stat(path)
     if original.st_nlink > 1:
@@ -113,6 +124,13 @@ def _copy_attributes(path, original, target):
     Extended attributes include access control lists. The owner and group
     are copied as far as the system allows.
     """
+    _copy_owner(original, target)
+    shutil.copystat(path, target)
+    os.utime(target, ns=(original.st_atime_ns, original.st_mtime_ns))
+
+
+def _copy_owner(original, target):
+    """Give target the owner and group of original, as far as the system allows."""
     try:
         os.chown(target, original.st_uid, original.st_gid)
     except OSError:
@@ -120,8 +138,36 @@ def _copy_attributes(path, original, target):
             os.chown(target, -1, original.st_gid)    # allowed for members of the group
         except OSError:
             pass
-    shutil.copystat(path, target)
-    os.utime(target, ns=(original.st_atime_ns, original.st_mtime_ns))
+
+
+def _backup_dir(directory):
+    """Return BACKUP_DIR in directory, made and marked unless it exists.
+
+    A new one gets the owner, group and permissions of directory. It is
+    complete with its marker before it gets its name.
+    """
+    target_dir = os.path.join(directory, BACKUP_DIR)
+    if not os.path.lexists(target_dir):
+        temp = tempfile.mkdtemp(prefix=TEMP_PREFIX, dir=directory)
+        try:
+            with open(os.path.join(temp, BACKUP_MARKER), "w", encoding="utf-8") as f:
+                f.write(_("This directory holds copies of the photos next to it as they were "
+                          "before gpxfoto added locations to them. gpxfoto never changes or "
+                          "replaces these copies.") + "\n")
+            parent = os.stat(directory)
+            _copy_owner(parent, temp)
+            os.chmod(temp, stat.S_IMODE(parent.st_mode))
+            try:
+                os.rename(temp, target_dir)
+            except OSError:
+                pass                        # made meanwhile by another run; checked below
+        finally:
+            if os.path.lexists(temp):
+                shutil.rmtree(temp, ignore_errors=True)
+    if not is_backup_dir(target_dir):
+        raise RuntimeError(_("“{path}” already exists and is not a backup directory of "
+                             "gpxfoto").format(path=target_dir))
+    return target_dir
 
 
 def _back_up(path, directory, original, checksum):
@@ -133,12 +179,11 @@ def _back_up(path, directory, original, checksum):
     against the photo and gets its final name only once complete, so an
     interrupted copy never looks like a finished one.
     """
-    target_dir = os.path.join(directory, BACKUP_DIR)
+    target_dir = _backup_dir(directory)
     target = os.path.join(target_dir, os.path.basename(path))
     if os.path.lexists(target):
         _check_backup(target, checksum)
         return
-    os.makedirs(target_dir, exist_ok=True)
     fd, temp = tempfile.mkstemp(prefix=TEMP_PREFIX, suffix=".jpg", dir=target_dir)
     try:
         os.close(fd)

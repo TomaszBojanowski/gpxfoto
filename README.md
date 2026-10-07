@@ -69,6 +69,12 @@ the nearest track point: before the track starts, after it ends, or in a
 break in recording. A photo taken during such a break still gets a location
 if the recorded position moved less than 100 m during the break.
 
+With `--backup`, a copy of each photo as it was before goes into an
+`originals` directory next to it. gpxfoto marks that directory with a
+`.gpxfoto` file, never changes the copies in it, and leaves it out when
+searching with `-r`. An existing copy must hold the same image as the
+photo; if something else is there, the photo is not written.
+
 The program is in English with a Polish translation; the language follows
 the system settings.
 

@@ -1,5 +1,4 @@
 """End-to-end tests of the command-line tool (python -m gpxfoto)."""
-import errno
 import locale
 import os
 import shutil
@@ -380,7 +379,7 @@ def test_backup_keeps_identical_copy_of_original(photo, gpx):
     assert result.stdout.splitlines()[-2:] == written(1, 0)
     assert sorted(os.listdir(path.parent)) == ["a.jpg", "originals"]
     backup = path.parent / "originals" / "a.jpg"
-    assert os.listdir(backup.parent) == ["a.jpg"]
+    assert sorted(os.listdir(backup.parent)) == [".gpxfoto", "a.jpg"]
     assert backup.read_bytes() == original
     assert backup.stat().st_mtime_ns == OLD_TIME_NS
     assert read_tags(path, "GPS:GPSLatitude") == {
@@ -417,7 +416,7 @@ def test_recursive_run_leaves_backups_alone(photo, gpx):
     assert first.returncode == second.returncode == 0, first.stderr + second.stderr
     # The backup would be a second photo without a location
     assert second.stdout.splitlines()[-3] == "Matched: 1, skipped: 0"
-    assert os.listdir(path.parent / "originals") == ["a.jpg"]
+    assert sorted(os.listdir(path.parent / "originals")) == [".gpxfoto", "a.jpg"]
     assert (path.parent / "originals" / "a.jpg").read_bytes() == original
 
 
@@ -588,8 +587,8 @@ def test_damaged_jpeg_and_unusable_backup_directory_are_reported(photo, gpx):
         f"  b.jpg            {matched}",
         f"  damaged.jpg      {matched}",
         "Matched: 3, skipped: 0",
-        f"  Could not write a.jpg: [Errno {errno.EEXIST}] {os.strerror(errno.EEXIST)}: "
-        f"'{blocked.parent / 'originals'}' (file unchanged)",
+        f"  Could not write a.jpg: “{blocked.parent / 'originals'}” already exists and is not "
+        "a backup directory of gpxfoto (file unchanged)",
         "  Could not write damaged.jpg: damaged JPEG structure (file unchanged)",
         *written(1, 2),
     ]
@@ -597,7 +596,7 @@ def test_damaged_jpeg_and_unusable_backup_directory_are_reported(photo, gpx):
         assert f.read_bytes() == content
     assert sorted(os.listdir(blocked.parent)) == ["a.jpg", "originals"]
     assert sorted(os.listdir(good.parent)) == ["b.jpg", "blocked", "damaged.jpg", "originals"]
-    assert os.listdir(good.parent / "originals") == ["b.jpg"]
+    assert sorted(os.listdir(good.parent / "originals")) == [".gpxfoto", "b.jpg"]
     assert read_tags(good, "GPS:GPSLatitude") == {
         "GPSLatitude": pytest.approx(50.0005, abs=1e-7)}
 

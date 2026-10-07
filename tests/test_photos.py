@@ -249,14 +249,23 @@ def test_find_photos_recursive_walks_sorted_subdirectories_after_files(photo_tre
 
 @pytest.mark.parametrize("recursive", [False, True])
 def test_find_photos_skips_backups_and_temporary_files(photo_tree, recursive):
-    for name in ["originals/z.jpg", "a_dir/originals/m.jpg", ".gpxfoto-k2j4.jpg",
-                 "b_dir/.gpxfoto-x1.jpg", "originals/.gpxfoto-c.jpg"]:
+    for name in ["originals/z.jpg", "originals/.gpxfoto", "a_dir/originals/m.jpg",
+                 "a_dir/originals/.gpxfoto", ".gpxfoto-k2j4.jpg", "b_dir/.gpxfoto-x1.jpg",
+                 "originals/.gpxfoto-c.jpg"]:
         (photo_tree / name).parent.mkdir(parents=True, exist_ok=True)
         (photo_tree / name).write_bytes(b"")
     root = str(photo_tree)
     expected = RECURSIVE_ORDER if recursive else RECURSIVE_ORDER[:4]
     assert find_photos([root], recursive=recursive) == [
         os.path.join(root, *n.split("/")) for n in expected]
+
+
+def test_find_photos_searches_own_directories_named_like_the_backups(tmp_path):
+    """Only directories gpxfoto marked as its backups are skipped."""
+    (tmp_path / "originals").mkdir()
+    (tmp_path / "originals" / "DSC_0001.jpg").write_bytes(b"")
+    assert find_photos([str(tmp_path)], recursive=True) == [
+        str(tmp_path / "originals" / "DSC_0001.jpg")]
 
 
 def test_find_photos_searches_a_backup_directory_given_explicitly(tmp_path):

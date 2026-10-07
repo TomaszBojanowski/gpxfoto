@@ -10,7 +10,7 @@ import pytest
 
 from conftest import latin2_name, make_jpeg, needs_exiftool, read_tags, set_tags
 from gpxfoto.engine import writer
-from gpxfoto.engine.writer import BACKUP_DIR, image_checksum, write_location
+from gpxfoto.engine.writer import BACKUP_DIR, BACKUP_MARKER, image_checksum, write_location
 
 TIME = datetime(2026, 6, 1, 8, 30, 15, tzinfo=timezone.utc)
 MTIME_NS = 1_700_000_000_123_456_789
@@ -37,6 +37,18 @@ def state(path):
     """Bytes, mtime and permission bits of a file."""
     info = os.stat(path)
     return path.read_bytes(), info.st_mtime_ns, stat.S_IMODE(info.st_mode)
+
+
+def backups(directory):
+    """Names in the backup directory, without its marker."""
+    return sorted(set(os.listdir(directory / BACKUP_DIR)) - {BACKUP_MARKER})
+
+
+def backup_dir(directory):
+    """A backup directory, marked as gpxfoto marks it."""
+    (directory / BACKUP_DIR).mkdir()
+    (directory / BACKUP_DIR / BACKUP_MARKER).write_text("")
+    return directory / BACKUP_DIR
 
 
 def add_comment(data):
@@ -451,43 +463,102 @@ def test_backup_is_copy_of_original(tmp_path, photo, fake_exiftool):
     write_location(photo, 50.0, 19.0, 200.0, TIME, backup=True)
     assert BACKUP_DIR == "originals"
     assert sorted(os.listdir(tmp_path)) == ["originals", "photo.jpg"]
-    assert os.listdir(tmp_path / "originals") == ["photo.jpg"]
+    assert backups(tmp_path) == ["photo.jpg"]
     assert state(tmp_path / "originals" / "photo.jpg") == before
     assert state(photo) == (add_comment(before[0]), MTIME_NS, 0o640)
 
 
 def test_backup_into_existing_directory(tmp_path, photo, fake_exiftool):
-    other = tmp_path / "originals" / "other.jpg"
-    other.parent.mkdir()
+    other = backup_dir(tmp_path) / "other.jpg"
     other.write_bytes(b"other")
     original = photo.read_bytes()
     fake_exiftool()
     write_location(photo, 50.0, 19.0, 200.0, TIME, backup=True)
-    assert sorted(os.listdir(tmp_path / "originals")) == ["other.jpg", "photo.jpg"]
+    assert backups(tmp_path) == ["other.jpg", "photo.jpg"]
     assert (tmp_path / "originals" / "photo.jpg").read_bytes() == original
     assert other.read_bytes() == b"other"
 
 
-def test_failed_backup_keeps_original(tmp_path, photo, fake_exiftool):
-    (tmp_path / "originals").write_bytes(b"a file, not a directory")
+@pytest.mark.parametrize("make", [
+    pytest.param(lambda p: p.write_bytes(b"a file, not a directory"), id="file"),
+    pytest.param(lambda p: (p.mkdir(), (p / "x.jpg").write_bytes(b"")), id="unmarked directory"),
+    pytest.param(lambda p: os.symlink("elsewhere", p), id="broken link"),
+])
+def test_failed_backup_keeps_original(tmp_path, photo, fake_exiftool, make):
+    """Something not made by gpxfoto in place of the backup directory."""
+    make(tmp_path / "originals")
     before = state(photo)
     fake_exiftool()
-    with pytest.raises(FileExistsError):
+    with pytest.raises(RuntimeError) as raised:
         write_location(photo, 50.0, 19.0, 200.0, TIME, backup=True)
+    assert str(raised.value) == (f"“{tmp_path / 'originals'}” already exists and is not a "
+                                 "backup directory of gpxfoto")
     assert state(photo) == before
     assert sorted(os.listdir(tmp_path)) == ["originals", "photo.jpg"]
 
 
+def test_new_backup_directory_is_marked_and_owned_like_its_parent(tmp_path, photo, fake_exiftool,
+                                                                   monkeypatch):
+    album = tmp_path / "album"
+    album.mkdir()
+    album.chmod(0o750)
+    os.rename(photo, album / "photo.jpg")
+    owners = []
+    real_chown = os.chown
+
+    def chown(path, uid, gid):
+        owners.append((os.path.basename(path), uid, gid))
+        return real_chown(path, uid, gid)
+
+    fake_exiftool()
+    monkeypatch.setattr(writer.os, "chown", chown)
+    write_location(album / "photo.jpg", 50.0, 19.0, 200.0, TIME, backup=True)
+    backups_dir = album / BACKUP_DIR
+    assert stat.S_IMODE(os.stat(backups_dir).st_mode) == 0o750
+    parent = os.stat(album)
+    assert (os.path.basename(owners[0][0]).startswith(".gpxfoto-"), owners[0][1:]) == (
+        True, (parent.st_uid, parent.st_gid))
+    assert "gpxfoto never changes or replaces these copies." in (
+        backups_dir / BACKUP_MARKER).read_text()
+    assert sorted(os.listdir(album)) == ["originals", "photo.jpg"]
+
+
+def test_file_in_a_backup_directory_is_never_written(tmp_path, photo, fake_exiftool):
+    backups_dir = backup_dir(tmp_path)
+    copy = backups_dir / "photo.jpg"
+    copy.write_bytes(photo.read_bytes())
+    link = tmp_path / "link.jpg"
+    os.symlink(copy, link)
+    before = state(copy)
+    fake = fake_exiftool()
+    for path in (copy, link):
+        with pytest.raises(RuntimeError, match="^this file is a backup copy made by gpxfoto, "
+                                               "which is never changed$"):
+            write_location(path, 50.0, 19.0, 200.0, TIME, backup=True)
+    assert state(copy) == before
+    assert fake.commands == []
+
+
+def test_own_directory_named_like_the_backups_is_written_normally(tmp_path, fake_exiftool):
+    """Only directories gpxfoto marked are protected."""
+    own = tmp_path / "originals"
+    own.mkdir()
+    path = own / "photo.jpg"
+    path.write_bytes(make_jpeg())
+    fake_exiftool()
+    write_location(path, 50.0, 19.0, 200.0, TIME, backup=False)
+    assert path.read_bytes() == add_comment(make_jpeg())
+
+
 def test_existing_backup_is_never_replaced(tmp_path, photo, fake_exiftool):
     """An earlier copy has the same image but other metadata."""
-    backup = tmp_path / "originals" / "photo.jpg"
-    backup.parent.mkdir()
+    backup = backup_dir(tmp_path) / "photo.jpg"
     backup.write_bytes(make_jpeg(comment=b"the real original"))
     expected = add_comment(photo.read_bytes())
     fake_exiftool()
     write_location(photo, 50.0, 19.0, 200.0, TIME, backup=True)
     assert backup.read_bytes() == make_jpeg(comment=b"the real original")
-    assert os.listdir(backup.parent) == ["photo.jpg"]
+    assert backups(tmp_path) == ["photo.jpg"]
     assert photo.read_bytes() == expected
 
 
@@ -502,8 +573,7 @@ def test_existing_backup_is_never_replaced(tmp_path, photo, fake_exiftool):
 ])
 def test_something_else_in_place_of_the_backup_stops_the_write(tmp_path, photo, fake_exiftool,
                                                                make):
-    backup = tmp_path / "originals" / "photo.jpg"
-    backup.parent.mkdir()
+    backup = backup_dir(tmp_path) / "photo.jpg"
     make(backup, photo)
     before = state(photo)
     fake = fake_exiftool()
@@ -512,7 +582,7 @@ def test_something_else_in_place_of_the_backup_stops_the_write(tmp_path, photo, 
     assert str(raised.value) == f"“{backup}” already exists and is not a copy of this photo"
     assert state(photo) == before
     assert sorted(os.listdir(tmp_path)) == ["originals", "photo.jpg"]
-    assert os.listdir(backup.parent) == ["photo.jpg"]
+    assert backups(tmp_path) == ["photo.jpg"]
     assert len(fake.commands) == 1
 
 
@@ -527,7 +597,7 @@ def test_new_backup_is_checked_against_the_photo(tmp_path, photo, fake_exiftool,
     with pytest.raises(RuntimeError, match="^the backup copy differs from the photo$"):
         write_location(photo, 50.0, 19.0, 200.0, TIME, backup=True)
     assert state(photo) == before
-    assert os.listdir(tmp_path / "originals") == []
+    assert backups(tmp_path) == []
 
 
 def test_repeated_writes_keep_the_first_backup(tmp_path, photo, fake_exiftool):
@@ -536,7 +606,7 @@ def test_repeated_writes_keep_the_first_backup(tmp_path, photo, fake_exiftool):
     write_location(photo, 50.0, 19.0, 200.0, TIME, backup=True)
     write_location(photo, 51.0, 20.0, 300.0, TIME, backup=True)
     assert state(tmp_path / "originals" / "photo.jpg") == original
-    assert os.listdir(tmp_path / "originals") == ["photo.jpg"]
+    assert backups(tmp_path) == ["photo.jpg"]
 
 
 def test_interrupted_backup_leaves_no_partial_copy(tmp_path, photo, fake_exiftool, monkeypatch):
@@ -551,7 +621,7 @@ def test_interrupted_backup_leaves_no_partial_copy(tmp_path, photo, fake_exiftoo
     with pytest.raises(OSError, match="No space left on device"):
         write_location(photo, 50.0, 19.0, 200.0, TIME, backup=True)
     assert state(photo) == before
-    assert os.listdir(tmp_path / "originals") == []
+    assert backups(tmp_path) == []
     assert sorted(os.listdir(tmp_path)) == ["originals", "photo.jpg"]
 
 
@@ -722,7 +792,7 @@ def test_file_name_that_is_not_utf8(tmp_path):
     write_location(path, 50.0614, 19.9366, 219.4, TIME, backup=True)
     assert image_checksum(path) == checksum
     assert gps_tags(path)["GPSLatitude"] == 50.0614
-    assert os.listdir(os.path.join(tmp_path, BACKUP_DIR)) == [os.path.basename(path)]
+    assert backups(tmp_path) == [os.path.basename(path)]
 
 
 @needs_exiftool

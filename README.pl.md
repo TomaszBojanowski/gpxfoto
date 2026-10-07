@@ -70,6 +70,12 @@ zakończeniu albo w przerwie w zapisie trasy. Zdjęcie wykonane w czasie
 takiej przerwy otrzymuje jednak położenie, jeśli w trakcie przerwy zapisane
 położenie zmieniło się o mniej niż 100 m.
 
+Z opcją `--backup` kopia każdego zdjęcia sprzed zapisu trafia do katalogu
+`originals` obok niego. gpxfoto oznacza ten katalog plikiem `.gpxfoto`,
+nigdy nie zmienia znajdujących się w nim kopii i pomija go przy
+wyszukiwaniu z opcją `-r`. Istniejąca kopia musi zawierać ten sam obraz co
+zdjęcie; jeśli w jej miejscu jest coś innego, zdjęcie nie zostaje zapisane.
+
 Program jest po angielsku, z polskim tłumaczeniem; język wynika z ustawień
 systemu.
 
