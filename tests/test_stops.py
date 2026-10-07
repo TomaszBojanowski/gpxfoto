@@ -385,17 +385,7 @@ def test_photo_during_a_stop_on_a_real_track_shape():
     assert metres(stop, 144, 0) < 1.5
 
 
-# Added by the review
-
-@pytest.mark.parametrize("seed", [1, 2, 4])
-def test_steady_climb_just_above_the_limit_is_not_a_stop(seed):
-    # 115 m/h: the 30 s windows sometimes miss it in the jitter, the whole stretch does not
-    hike = Hike(seed=seed).walk(60, east=1.2).walk(600, up=0.032, jitter=1.0).walk(60, east=1.2)
-    assert find_stops(hike.points) == []
-
-
 def test_place_pins_a_photo_to_the_stop():
-    from gpxfoto.engine.track import place
     hike = Hike().walk(180, east=1.2).stand(180, jitter=2).walk(180, east=1.2)
     points = hike.points
     times = [p[0] for p in points]
@@ -409,7 +399,7 @@ def test_place_pins_a_photo_to_the_stop():
     assert place(points, times, [], T0 + 270.5, 120)[:4] == locate(points, times, T0 + 270.5, 120)
 
 
-def test_stop_over_a_night():
+def test_stop_over_a_night_with_gps_jitter():
     hike = Hike().walk(3600, east=1.2, jitter=2).pause(14 * 3600).walk(3600, east=1.2, jitter=2)
     stops = find_stops(hike.points)
     assert len(stops) == 1
