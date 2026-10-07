@@ -8,7 +8,7 @@ msgstr ""
 "Project-Id-Version: gpxfoto\n"
 "Report-Msgid-Bugs-To: "
 "https://github.com/tomaszbojanowski/gpxfoto/issues\n"
-"POT-Creation-Date: 2026-10-07 20:56+0000\n"
+"POT-Creation-Date: 2026-10-07 20:59+0000\n"
 "PO-Revision-Date: 2026-10-06 23:45+0200\n"
 "Last-Translator: Tomasz <t.bojanowski@protonmail.com>\n"
 "Language-Team: Polish\n"
@@ -20,17 +20,17 @@ msgstr ""
 "(n%100<10 || n%100>=20) ? 1 : 2);\n"
 
 #. Translators: {option} is the command-line option --timezone
-#: gpxfoto/cli.py:26
+#: gpxfoto/cli.py:27
 #, python-brace-format
 msgid "time zone from {option}"
 msgstr "strefa czasowa z opcji {option}"
 
-#: gpxfoto/cli.py:27
+#: gpxfoto/cli.py:28
 msgid "computer’s time zone (not in EXIF)"
 msgstr "strefa czasowa komputera (brak w EXIF)"
 
 #. Translators: {option} is the command-line option --timezone
-#: gpxfoto/cli.py:34
+#: gpxfoto/cli.py:35
 #, python-brace-format
 msgid ""
 "Either the time zone given with {option} or the camera’s time zone "
@@ -39,7 +39,7 @@ msgstr ""
 "Błędna jest strefa czasowa podana w opcji {option} albo ustawienie "
 "strefy czasowej w aparacie."
 
-#: gpxfoto/cli.py:36
+#: gpxfoto/cli.py:37
 msgid ""
 "EXIF has no time zone, so this computer’s time zone was used; either "
 "it or the camera’s time zone setting is wrong."
@@ -47,7 +47,7 @@ msgstr ""
 "W EXIF brak strefy czasowej, więc użyto strefy czasowej komputera; "
 "błędna jest ona albo ustawienie strefy czasowej w aparacie."
 
-#: gpxfoto/cli.py:38
+#: gpxfoto/cli.py:39
 msgid ""
 "Another program may have changed the capture time or the time zone in "
 "EXIF; the locations follow the time in EXIF."
@@ -55,67 +55,67 @@ msgstr ""
 "Czas wykonania lub strefa czasowa w EXIF mogły zostać zmienione przez "
 "inny program; położenie ustalono według czasu z EXIF."
 
-#: gpxfoto/cli.py:46
+#: gpxfoto/cli.py:47
 msgid "usage: "
 msgstr "użycie: "
 
-#: gpxfoto/cli.py:47
+#: gpxfoto/cli.py:48
 #, python-format
 msgid "%(heading)s:"
 msgstr "%(heading)s:"
 
-#: gpxfoto/cli.py:48
+#: gpxfoto/cli.py:49
 msgid "positional arguments"
 msgstr "argumenty pozycyjne"
 
-#: gpxfoto/cli.py:49
+#: gpxfoto/cli.py:50
 msgid "options"
 msgstr "opcje"
 
-#: gpxfoto/cli.py:50
+#: gpxfoto/cli.py:51
 msgid "show this help message and exit"
 msgstr "wyświetla ten komunikat pomocy i kończy działanie"
 
-#: gpxfoto/cli.py:51
+#: gpxfoto/cli.py:52
 #, python-format
 msgid "%(prog)s: error: %(message)s\n"
 msgstr "%(prog)s: błąd: %(message)s\n"
 
-#: gpxfoto/cli.py:52
+#: gpxfoto/cli.py:53
 #, python-format
 msgid "argument %(argument_name)s: %(message)s"
 msgstr "argument %(argument_name)s: %(message)s"
 
-#: gpxfoto/cli.py:53
+#: gpxfoto/cli.py:54
 #, python-format
 msgid "the following arguments are required: %s"
 msgstr "wymagane są następujące argumenty: %s"
 
-#: gpxfoto/cli.py:54
+#: gpxfoto/cli.py:55
 #, python-format
 msgid "unrecognized arguments: %s"
 msgstr "nierozpoznane argumenty: %s"
 
-#: gpxfoto/cli.py:55
+#: gpxfoto/cli.py:56
 #, python-format
 msgid "ignored explicit argument %r"
 msgstr "zignorowano jawnie podany argument %r"
 
-#: gpxfoto/cli.py:56
+#: gpxfoto/cli.py:57
 msgid "expected one argument"
 msgstr "oczekiwano jednego argumentu"
 
-#: gpxfoto/cli.py:57
+#: gpxfoto/cli.py:58
 #, python-format
 msgid "invalid %(type)s value: %(value)r"
 msgstr "nieprawidłowa wartość typu %(type)s: %(value)r"
 
-#: gpxfoto/cli.py:73
+#: gpxfoto/cli.py:74
 #, python-brace-format
 msgid "not a valid number of seconds: {value}"
 msgstr "nieprawidłowa liczba sekund: {value}"
 
-#: gpxfoto/cli.py:80
+#: gpxfoto/cli.py:81
 #, python-brace-format
 msgid "must not be negative: {value}"
 msgstr "wartość nie może być ujemna: {value}"
@@ -124,12 +124,12 @@ msgstr "wartość nie może być ujemna: {value}"
 #. and %X follow the system's regional settings; replace them only if
 #. those are wrong for your language, as they are for Polish on macOS
 #. (%-d is the day without a leading zero).
-#: gpxfoto/cli.py:105
+#: gpxfoto/cli.py:106
 #, no-python-format
 msgid "%x %X"
 msgstr "%-d.%m.%Y %H:%M:%S"
 
-#: gpxfoto/cli.py:134
+#: gpxfoto/cli.py:135
 msgid ""
 "Adds locations from GPX tracks to photos without changing the image "
 "data."
@@ -139,21 +139,21 @@ msgstr ""
 
 #. Translators: placeholder for arguments in the usage line of --help;
 #. keep it a single word
-#: gpxfoto/cli.py:138
+#: gpxfoto/cli.py:139
 msgid "PHOTO"
 msgstr "ZDJĘCIE"
 
-#: gpxfoto/cli.py:139
+#: gpxfoto/cli.py:140
 msgid "JPEG files or directories with photos"
 msgstr "pliki JPEG lub katalogi ze zdjęciami"
 
 #. Translators: placeholder for a track file or directory in --help; keep
 #. it a single word
-#: gpxfoto/cli.py:142
+#: gpxfoto/cli.py:143
 msgid "TRACK"
 msgstr "TRASA"
 
-#: gpxfoto/cli.py:143
+#: gpxfoto/cli.py:144
 msgid ""
 "GPX file with the track, or a directory with GPX files: each photo "
 "then gets the track that covers its time (can be given more than once)"
@@ -162,7 +162,7 @@ msgstr ""
 "wybierana jest trasa obejmująca czas jego wykonania (można podać "
 "wielokrotnie)"
 
-#: gpxfoto/cli.py:147
+#: gpxfoto/cli.py:148
 msgid ""
 "write the locations to the files (without this option only a preview "
 "is shown)"
@@ -171,22 +171,22 @@ msgstr ""
 "podgląd)"
 
 #. Translators: placeholder for a number in --help; keep it a single word
-#: gpxfoto/cli.py:150 gpxfoto/cli.py:166
+#: gpxfoto/cli.py:151 gpxfoto/cli.py:167
 msgid "SECONDS"
 msgstr "SEKUNDY"
 
-#: gpxfoto/cli.py:151
+#: gpxfoto/cli.py:152
 msgid "camera clock correction in seconds, added to the capture time"
 msgstr ""
 "poprawka zegara aparatu w sekundach, dodawana do czasu wykonania "
 "zdjęcia"
 
 #. Translators: placeholder in --help; HH stands for hours, MM for minutes
-#: gpxfoto/cli.py:153
+#: gpxfoto/cli.py:154
 msgid "+HH:MM"
 msgstr "+GG:MM"
 
-#: gpxfoto/cli.py:154
+#: gpxfoto/cli.py:155
 msgid ""
 "camera time zone for all photos (default: read from each photo’s EXIF "
 "data)"
@@ -194,11 +194,11 @@ msgstr ""
 "strefa czasowa aparatu dla wszystkich zdjęć (domyślnie: odczytywana z "
 "danych EXIF każdego zdjęcia)"
 
-#: gpxfoto/cli.py:156
+#: gpxfoto/cli.py:157
 msgid "FILE"
 msgstr "PLIK"
 
-#: gpxfoto/cli.py:157
+#: gpxfoto/cli.py:158
 #, python-brace-format
 msgid ""
 "photo of an accurate clock, such as the watch that records the track, "
@@ -209,11 +209,11 @@ msgstr ""
 "{option})"
 
 #. Translators: placeholder for a time in --help; keep it a single word
-#: gpxfoto/cli.py:161
+#: gpxfoto/cli.py:162
 msgid "TIME"
 msgstr "CZAS"
 
-#: gpxfoto/cli.py:162
+#: gpxfoto/cli.py:163
 #, python-brace-format
 msgid ""
 "time shown on the clock in the {option} photo, 24-hour, for example "
@@ -223,7 +223,7 @@ msgstr ""
 "formacie 24-godzinnym, na przykład 14:03:27, 14:03:27+02:00 lub "
 "2026-10-06T14:03:27+02:00"
 
-#: gpxfoto/cli.py:167
+#: gpxfoto/cli.py:168
 #, python-brace-format
 msgid ""
 "largest allowed time between a photo and the nearest track point "
@@ -232,7 +232,7 @@ msgstr ""
 "największy dopuszczalny odstęp czasu między zdjęciem a najbliższym "
 "punktem trasy (domyślnie: {seconds} s)"
 
-#: gpxfoto/cli.py:170
+#: gpxfoto/cli.py:171
 msgid ""
 "do not look for stops; every photo gets the track’s position at its "
 "time"
@@ -240,11 +240,11 @@ msgstr ""
 "nie wyszukuje postojów; każde zdjęcie otrzymuje położenie z trasy w "
 "chwili wykonania"
 
-#: gpxfoto/cli.py:173
+#: gpxfoto/cli.py:174
 msgid "also change photos that already have a location"
 msgstr "zmienia także zdjęcia, które mają już zapisane położenie"
 
-#: gpxfoto/cli.py:176
+#: gpxfoto/cli.py:177
 #, python-brace-format
 msgid ""
 "keep copies of the original files in a “{directory}” subdirectory "
@@ -253,25 +253,25 @@ msgstr ""
 "zachowuje kopie oryginalnych plików w podkatalogu „{directory}” obok "
 "każdego zdjęcia; istniejąca kopia nigdy nie jest zastępowana"
 
-#: gpxfoto/cli.py:180
+#: gpxfoto/cli.py:181
 msgid "also look for photos and tracks in subdirectories"
 msgstr "wyszukuje zdjęcia i trasy także w podkatalogach"
 
 #. Translators: a note on the line of a photo; {zone} is a UTC offset
 #. such as +02:00
-#: gpxfoto/cli.py:189
+#: gpxfoto/cli.py:190
 #, python-brace-format
 msgid "camera’s UTC time suggests {zone}"
 msgstr "czas UTC z aparatu wskazuje strefę {zone}"
 
 #. Translators: a note on the line of a photo; {duration} is a time span
 #. such as “10 min”
-#: gpxfoto/cli.py:193
+#: gpxfoto/cli.py:194
 #, python-brace-format
 msgid "differs by {duration} from the camera’s UTC time"
 msgstr "różni się o {duration} od czasu UTC z aparatu"
 
-#: gpxfoto/cli.py:205
+#: gpxfoto/cli.py:206
 #, python-brace-format
 msgid ""
 "Warning: {count} photo has a capture time that does not match the UTC "
@@ -291,7 +291,7 @@ msgstr[2] ""
 
 #. Translators: {option} is a command-line option with its value,
 #. such as --timezone=+02:00
-#: gpxfoto/cli.py:215
+#: gpxfoto/cli.py:216
 #, python-brace-format
 msgid "Both times would match with {option}."
 msgstr "Oba czasy byłyby zgodne przy opcji {option}."
@@ -299,20 +299,20 @@ msgstr "Oba czasy byłyby zgodne przy opcji {option}."
 #. Translators: a note on the line of a photo taken during a stop, which
 #. gets the stop's position; {start} and {end} are times such as
 #. “12:31:05”, with the date when the stop lasts over midnight
-#: gpxfoto/cli.py:230
+#: gpxfoto/cli.py:231
 #, python-brace-format
 msgid "stop {start} – {end}"
 msgstr "postój {start} – {end}"
 
 #. Translators: shown after the file name of a photo; {reason} says
 #. why the photo was skipped, e.g. “already has a location”
-#: gpxfoto/cli.py:261
+#: gpxfoto/cli.py:262
 #, python-brace-format
 msgid "skipped: {reason}"
 msgstr "pominięte: {reason}"
 
 #. Translators: elevation in metres
-#: gpxfoto/cli.py:266
+#: gpxfoto/cli.py:267
 #, python-brace-format
 msgid "{elevation} m"
 msgstr "{elevation} m"
@@ -320,26 +320,26 @@ msgstr "{elevation} m"
 #. Translators: {correction} is a time span with a sign, such as
 #. “+2 min 12 s”; {option} is the same as a command-line option, such as
 #. “--offset=132”
-#: gpxfoto/cli.py:278
+#: gpxfoto/cli.py:279
 #, python-brace-format
 msgid "Clock correction: {correction} (equivalent to {option})"
 msgstr "Poprawka zegara: {correction} (odpowiada opcji {option})"
 
 #. Translators: a UTC offset as shown to the user; {offset} is, for
 #. example, “+02:00”
-#: gpxfoto/cli.py:285
+#: gpxfoto/cli.py:286
 #, python-brace-format
 msgid "UTC{offset}"
 msgstr "UTC{offset}"
 
 #. Translators: {name} is the file name of the clock photo; {camera} and
 #. {clock} are the date and time the camera and the clock showed
-#: gpxfoto/cli.py:290
+#: gpxfoto/cli.py:291
 #, python-brace-format
 msgid "Clock photo {name}: camera {camera}, clock {clock}"
 msgstr "Zdjęcie zegara {name}: aparat {camera}, zegar {clock}"
 
-#: gpxfoto/cli.py:297
+#: gpxfoto/cli.py:298
 msgid ""
 "The time on the clock was given without seconds, so the middle of the "
 "minute was used; the correction may be off by up to 30 s."
@@ -347,7 +347,7 @@ msgstr ""
 "Czas na zegarze podano bez sekund, więc przyjęto środek minuty; "
 "poprawka może się różnić od właściwej o najwyżej 30 s."
 
-#: gpxfoto/cli.py:310
+#: gpxfoto/cli.py:311
 #, python-brace-format
 msgid ""
 "Track {name}: {count} point, {start} – {end} (this computer’s time "
@@ -367,7 +367,7 @@ msgstr[2] ""
 
 #. Translators: {start} and {end} are the date and time of the first and the
 #. last track point
-#: gpxfoto/cli.py:316
+#: gpxfoto/cli.py:317
 #, python-brace-format
 msgid "Track: {count} point, {start} – {end} (this computer’s time zone)"
 msgid_plural "Track: {count} points, {start} – {end} (this computer’s time zone)"
@@ -377,12 +377,26 @@ msgstr[2] "Trasa: {count} punktów, {start} – {end} (strefa czasowa komputera)
 
 #. Translators: {correction} is a time span with a sign, such as
 #. “+2 min 12 s”, added to the capture time of every photo
-#: gpxfoto/cli.py:331
+#: gpxfoto/cli.py:332
 #, python-brace-format
 msgid "Clock correction: {correction}"
 msgstr "Poprawka zegara: {correction}"
 
-#: gpxfoto/cli.py:346
+#. Translators: reason why a photo was skipped; {duration} is
+#. a time span such as “10 min”
+#: gpxfoto/cli.py:367
+#, python-brace-format
+msgid "{duration} after the end of the nearest track"
+msgstr "{duration} po zakończeniu najbliższej trasy"
+
+#. Translators: reason why a photo was skipped; {duration} is
+#. a time span such as “10 min”
+#: gpxfoto/cli.py:371
+#, python-brace-format
+msgid "{duration} before the start of the nearest track"
+msgstr "{duration} przed początkiem najbliższej trasy"
+
+#: gpxfoto/cli.py:379
 msgid "The GPX file contains no track points with timestamps."
 msgid_plural "The GPX files contain no track points with timestamps."
 msgstr[0] "Plik GPX nie zawiera punktów trasy ze znacznikami czasu."
@@ -390,25 +404,25 @@ msgstr[1] "Pliki GPX nie zawierają punktów trasy ze znacznikami czasu."
 msgstr[2] "Pliki GPX nie zawierają punktów trasy ze znacznikami czasu."
 
 #. Translators: {option} and {other} are command-line options
-#: gpxfoto/cli.py:358
+#: gpxfoto/cli.py:391
 #, python-brace-format
 msgid "{option} must be used together with {other}"
 msgstr "opcji {option} należy użyć razem z opcją {other}"
 
 #. Translators: {option} and {other} are command-line options
-#: gpxfoto/cli.py:362
+#: gpxfoto/cli.py:395
 #, python-brace-format
 msgid "{option} cannot be used together with {other}"
 msgstr "opcji {option} nie można użyć razem z opcją {other}"
 
-#: gpxfoto/cli.py:366
+#: gpxfoto/cli.py:399
 #, python-brace-format
 msgid "exiftool is not installed. On Fedora, install it with: {command}"
 msgstr ""
 "Program exiftool nie jest zainstalowany. W systemie Fedora można go "
 "zainstalować poleceniem: {command}"
 
-#: gpxfoto/cli.py:375
+#: gpxfoto/cli.py:408
 msgid ""
 "The time zone must be in the form +HH:MM, for example +02:00 or "
 "-05:00."
@@ -416,17 +430,17 @@ msgstr ""
 "Strefę czasową należy podać w postaci +GG:MM, na przykład +02:00 lub "
 "-05:00."
 
-#: gpxfoto/cli.py:386
+#: gpxfoto/cli.py:419
 msgid "No GPX files found."
 msgstr "Nie znaleziono plików GPX."
 
-#: gpxfoto/cli.py:411
+#: gpxfoto/cli.py:444
 msgid "No JPEG photos found."
 msgstr "Nie znaleziono zdjęć JPEG."
 
 #. Translators: {used} is how many of the {total} GPX files given or
 #. found have a track at the time of some photo
-#: gpxfoto/cli.py:453
+#: gpxfoto/cli.py:487
 #, python-brace-format
 msgid "Tracks covering the photos: {used} of {total} GPX file"
 msgid_plural "Tracks covering the photos: {used} of {total} GPX files"
@@ -434,14 +448,14 @@ msgstr[0] "Trasy obejmujące czas zdjęć: {used} z {total} pliku GPX"
 msgstr[1] "Trasy obejmujące czas zdjęć: {used} z {total} plików GPX"
 msgstr[2] "Trasy obejmujące czas zdjęć: {used} z {total} plików GPX"
 
-#: gpxfoto/cli.py:473
+#: gpxfoto/cli.py:507
 #, python-brace-format
 msgid "Matched: {matched}, skipped: {skipped}"
 msgstr "Dopasowano: {matched}, pominięto: {skipped}"
 
 #. Translators: how many of the matched photos were taken during stops;
 #. a wrong camera clock puts fewer of them there
-#: gpxfoto/cli.py:478
+#: gpxfoto/cli.py:512
 #, python-brace-format
 msgid "During stops: {count} of {matched} matched photo"
 msgid_plural "During stops: {count} of {matched} matched photos"
@@ -450,7 +464,7 @@ msgstr[1] "Na postojach: {count} z {matched} dopasowanych zdjęć"
 msgstr[2] "Na postojach: {count} z {matched} dopasowanych zdjęć"
 
 #. Translators: {option} is the command-line option --write
-#: gpxfoto/cli.py:487
+#: gpxfoto/cli.py:521
 #, python-brace-format
 msgid ""
 "This was a preview; no files were changed. Use {option} to write the "
@@ -459,17 +473,17 @@ msgstr ""
 "To był podgląd, nie zmieniono żadnych plików. Aby zapisać położenie, "
 "należy użyć opcji {option}."
 
-#: gpxfoto/cli.py:503
+#: gpxfoto/cli.py:537
 #, python-brace-format
 msgid "Could not write {name}: {error} (file unchanged)"
 msgstr "Nie można zapisać pliku {name}: {error} (plik bez zmian)"
 
-#: gpxfoto/cli.py:505
+#: gpxfoto/cli.py:539
 #, python-brace-format
 msgid "Written: {written}, errors: {errors}"
 msgstr "Zapisano: {written}, błędy: {errors}"
 
-#: gpxfoto/cli.py:508
+#: gpxfoto/cli.py:542
 msgid "The image data of every written file was verified as unchanged."
 msgstr ""
 "Sprawdzono, że dane obrazu w każdym zapisanym pliku pozostały bez "
@@ -601,19 +615,19 @@ msgid "invalid capture time in EXIF: {value}"
 msgstr "nieprawidłowa data wykonania w EXIF: {value}"
 
 #. Translators: reason why a photo was skipped; {name} is a GPX file
-#: gpxfoto/engine/track.py:324
+#: gpxfoto/engine/track.py:363
 #, python-brace-format
 msgid "the track {name} cannot be read"
 msgstr "nie można odczytać trasy {name}"
 
 #. Translators: reason why a photo was skipped
-#: gpxfoto/engine/track.py:327
+#: gpxfoto/engine/track.py:366
 msgid "no track covers this time"
 msgstr "żadna trasa nie obejmuje tego czasu"
 
 #. Translators: reason why a photo was skipped; {first} and
 #. {second} are track files, {distance} is such as “1.8 km”
-#: gpxfoto/engine/track.py:350
+#: gpxfoto/engine/track.py:389
 #, python-brace-format
 msgid "the tracks {first} and {second} put this photo {distance} apart"
 msgstr ""
@@ -621,28 +635,28 @@ msgstr ""
 "o {distance}"
 
 #. Translators: {error} describes the problem, e.g. “No such file or directory”
-#: gpxfoto/engine/track.py:384
+#: gpxfoto/engine/track.py:423
 #, python-brace-format
 msgid "Cannot read the GPX file {path}: {error}"
 msgstr "Nie można odczytać pliku GPX {path}: {error}"
 
 #. Translators: reason why a photo was skipped; {duration} is
 #. a time span such as “10 min”
-#: gpxfoto/engine/track.py:459
+#: gpxfoto/engine/track.py:498
 #, python-brace-format
 msgid "{duration} before the start of the track"
 msgstr "{duration} przed początkiem trasy"
 
 #. Translators: reason why a photo was skipped; {duration} is
 #. a time span such as “10 min”
-#: gpxfoto/engine/track.py:463
+#: gpxfoto/engine/track.py:502
 #, python-brace-format
 msgid "{duration} after the end of the track"
 msgstr "{duration} po zakończeniu trasy"
 
 #. Translators: reason why a photo was skipped; {duration} is a time
 #. span such as “10 min”
-#: gpxfoto/engine/track.py:473
+#: gpxfoto/engine/track.py:512
 #, python-brace-format
 msgid "gap in the track recording, nearest point {duration} away"
 msgstr "przerwa w zapisie trasy, najbliższy punkt oddalony o {duration}"

@@ -14,7 +14,8 @@ from gpxfoto.engine.matching import corrected_times, match_photos, summarize
 from gpxfoto.engine.photos import (
     TZ_CAMERA, TZ_MANUAL, TZ_SYSTEM, check_exiftool, find_photos, format_utc_offset,
     parse_utc_offset, photo_from_metadata, read_metadata, summarize_time_checks)
-from gpxfoto.engine.track import find_tracks, load_track, quick_span, tracks_needed
+from gpxfoto.engine.track import (
+    find_tracks, load_track, nearest_track, quick_span, tracks_needed)
 from gpxfoto.engine.writer import BACKUP_DIR, write_location
 from gpxfoto.i18n import N_
 
@@ -342,6 +343,38 @@ def covering(tracks, results, max_gap):
                   key=lambda track: track.first)
 
 
+def with_nearest_tracks(results, tracks, spans, stops):
+    """results, where a photo no track covers names the nearest track file."""
+    loaded = {}
+
+    def load(path):
+        if path not in loaded:
+            loaded[path] = load_track([path], named=False, stops=stops)
+        return loaded[path]
+
+    singles = [track for track in tracks if len(track.files) == 1]
+    unread = {path: span for path, span in spans.items()
+              if not any(track.files[0] == path for track in singles)}
+    changed = []
+    for result in results:
+        if not result.covered:
+            nearest = nearest_track(result.time.timestamp(), singles, unread, load)
+            if nearest is not None:
+                seconds, path, after = nearest
+                if after:
+                    # Translators: reason why a photo was skipped; {duration} is
+                    # a time span such as “10 min”
+                    reason = _("{duration} after the end of the nearest track")
+                else:
+                    # Translators: reason why a photo was skipped; {duration} is
+                    # a time span such as “10 min”
+                    reason = _("{duration} before the start of the nearest track")
+                result = result._replace(reason=reason.format(duration=i18n.duration(seconds)),
+                                         files=(path,))
+        changed.append(result)
+    return changed
+
+
 def no_points(count):
     return ngettext("The GPX file contains no track points with timestamps.",
                     "The GPX files contain no track points with timestamps.", count)
@@ -441,10 +474,11 @@ def main():
                 continue
             if track is not None:
                 tracks.append(track)
-        labels = file_labels([path for track in tracks for path in track.files]
-                             + [path for path, _span in unreadable])
+        labels = file_labels(named + found)
     results = match_photos(photos, tracks, correction, args.max_gap, overwrite=args.overwrite,
                            label=labels.get, unreadable=unreadable)
+    if found:
+        results = with_nearest_tracks(results, tracks, spans, not args.no_stops)
     if found:
         used = covering(tracks, results, args.max_gap)
         total = len(named) + len(found)

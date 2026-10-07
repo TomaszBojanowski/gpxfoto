@@ -232,7 +232,8 @@ def test_recursive_also_finds_tracks_in_subdirectories(photo, track_dir):
     assert flat.returncode == deep.returncode == 0, flat.stderr + deep.stderr
     assert flat.stdout.splitlines()[:2] == [
         "Tracks covering the photos: 0 of 3 GPX files",
-        "  a.jpg            12:00:50  skipped: no track covers this time"]
+        "  a.jpg            12:00:50  skipped: 17 h 59 min after the end of the nearest track "
+        "(day2.GPX)"]
     assert deep.stdout.splitlines()[:3] == [
         "Tracks covering the photos: 1 of 4 GPX files",
         "Track day3.gpx: 2 points, 05/03/24 12:00:00 – 05/03/24 12:01:40 "
@@ -308,6 +309,23 @@ def test_track_file_of_unknown_time_that_cannot_be_read_stops_the_run(photo, tra
     assert result.stdout == ""
     assert result.stderr.startswith(f"Cannot read the GPX file {track_dir / 'broken.gpx'}: ")
     assert path.read_bytes() == before
+
+
+@needs_exiftool
+def test_photo_no_track_covers_names_the_nearest_one(photo, track_dir):
+    early = photo("early.jpg", taken("11:00:00"))
+    photo("late.jpg", taken("12:30:00"))
+    photo("far.jpg", taken("12:00:00", date="2024:04:25"))
+
+    result = run_cli(early.parent, "-g", track_dir)
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.splitlines()[1:4] == [
+        "  early.jpg        11:00:00  skipped: 60 min before the start of the nearest track "
+        "(day1.gpx)",
+        "  far.jpg          12:00:00  skipped: no track covers this time",
+        "  late.jpg         12:30:00  skipped: 28 min after the end of the nearest track "
+        "(day1.gpx)"]
 
 
 @needs_exiftool

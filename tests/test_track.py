@@ -819,3 +819,36 @@ def test_photo_in_the_time_of_an_unreadable_track_is_not_placed():
     assert (found.lat, found.reason) == (None, "the track broken.gpx cannot be read")
     found = track_module.match([mine], T0 + 300, 60, unreadable=unreadable)
     assert (found.track, found.reason) == (mine, None)
+
+
+
+def test_nearest_track_reads_only_what_may_be_nearer():
+    near = straight(T0, 600, 50.0, files=["near.gpx"])
+    other = straight(T0 + 7200, 600, 51.0, files=["other.gpx"])
+    loaded = []
+
+    def load(path):
+        loaded.append(path)
+        if path == "bad.gpx":
+            raise ValueError("Cannot read the GPX file bad.gpx")
+        return {"other.gpx": other}.get(path)
+
+    spans = {"other.gpx": (T0 + 7200, T0 + 7800), "far.gpx": (T0 + 200000, T0 + 200100)}
+    # 1000 s after near.gpx; other.gpx may be at most 6000 s away, so it is not read
+    assert track_module.nearest_track(T0 + 1600, [near], spans, load) == (1000, "near.gpx", True)
+    assert loaded == []
+    # 600 s before other.gpx, which must be read to know
+    assert track_module.nearest_track(T0 + 6600, [near], spans, load) == (600, "other.gpx", False)
+    assert loaded == ["other.gpx"]
+    # Nothing within 24 h
+    assert track_module.nearest_track(T0 + 120000, [], {"far.gpx": (T0 + 300000, T0 + 300100)},
+                                      load) is None
+    # A file that cannot be read gives no hint
+    assert track_module.nearest_track(T0 + 1600, [], {"bad.gpx": (T0, T0 + 600)}, load) is None
+
+
+def test_nearest_track_prefers_after_the_end_on_a_tie():
+    before = straight(T0 + 1000, 100, 50.0, files=["before.gpx"])
+    after = straight(T0, 100, 51.0, files=["after.gpx"])
+    assert track_module.nearest_track(T0 + 550, [before, after], {}, None) == (
+        450, "after.gpx", True)

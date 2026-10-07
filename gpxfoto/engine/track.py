@@ -260,6 +260,45 @@ def tracks_needed(spans, times, max_gap):
     return needed
 
 
+# A photo no track covers gets the nearest track within this time, in s
+HINT_LIMIT = 24 * 3600
+
+
+def nearest_track(t, tracks, spans, load):
+    """The track file nearest in time to Unix time t, which no track covers.
+
+    tracks are the loaded Tracks of one file each, spans the quick spans
+    of the other files, and load(path) reads one of them (a Track, None,
+    or ValueError); only files that may be nearer than the best so far
+    are read. Returns (seconds, path, after), where after tells whether t
+    is after the end of the file's track, or None when no track lies
+    within HINT_LIMIT.
+    """
+    def distance(first, last):
+        return max(first - t, t - last, 0.0)
+
+    candidates = [(distance(track.first, track.last), track.files[0], track) for track in tracks]
+    candidates += [(distance(*span), path, None) for path, span in spans.items() if span]
+    candidates.sort(key=lambda c: c[0])
+    best = None
+    for bound, path, track in candidates:
+        if bound > HINT_LIMIT or (best is not None and bound > best[0]):
+            break
+        if track is None:
+            try:
+                track = load(path)
+            except ValueError:
+                continue
+            if track is None:
+                continue
+        after = t > track.last
+        found = (distance(track.first, track.last), path, after)
+        # On a tie, after the end of a track is the likelier mistake
+        if best is None or (found[0], not found[2]) < (best[0], not best[2]):
+            best = found
+    return best if best is not None and best[0] <= HINT_LIMIT else None
+
+
 def load_track(paths, named=True, stops=True):
     """Return the Track of the GPX files at paths, or None if they hold no points.
 
