@@ -42,6 +42,24 @@ ARGPARSE_MESSAGES = (
 )
 
 
+def seconds(text):
+    """argparse type: a finite number of seconds that fits a time span."""
+    try:
+        value = float(text)
+        timedelta(seconds=value)        # fails for NaN, infinity and huge values
+    except (ValueError, OverflowError):
+        raise argparse.ArgumentTypeError(
+            _("not a valid number of seconds: {value}").format(value=text)) from None
+    return value
+
+
+def non_negative_seconds(text):
+    value = seconds(text)
+    if value < 0:
+        raise argparse.ArgumentTypeError(_("must not be negative: {value}").format(value=text))
+    return value
+
+
 def build_parser():
     parser = argparse.ArgumentParser(
         prog="gpxfoto",
@@ -58,13 +76,13 @@ def build_parser():
                         help=_("write the locations to the files (without this option "
                                "only a preview is shown)"))
     # Translators: placeholder for a number in --help; keep it a single word
-    parser.add_argument("--offset", type=float, default=0.0, metavar=_("SECONDS"),
+    parser.add_argument("--offset", type=seconds, default=0.0, metavar=_("SECONDS"),
                         help=_("camera clock correction in seconds, added to the capture time"))
     # Translators: placeholder in --help; HH stands for hours, MM for minutes
     parser.add_argument("--timezone", metavar=_("+HH:MM"),
                         help=_("camera time zone for all photos (default: read from each "
                                "photo’s EXIF data)"))
-    parser.add_argument("--max-gap", type=float, default=float(DEFAULT_MAX_GAP),
+    parser.add_argument("--max-gap", type=non_negative_seconds, default=float(DEFAULT_MAX_GAP),
                         metavar=_("SECONDS"),
                         help=_("largest allowed time between a photo and the nearest track "
                                "point (default: {seconds} s)").format(seconds=DEFAULT_MAX_GAP))
@@ -138,7 +156,14 @@ def main():
             print(f"  {name:<16} " + _("skipped: {reason}").format(reason=detail))
             skipped += 1
             continue
-        taken += timedelta(seconds=args.offset)
+        try:
+            taken += timedelta(seconds=args.offset)
+        except OverflowError:
+            # Translators: reason why a photo was skipped
+            reason = _("the corrected capture time is out of range")
+            print(f"  {name:<16} " + _("skipped: {reason}").format(reason=reason))
+            skipped += 1
+            continue
         result = locate(points, times, taken.timestamp(), args.max_gap)
         if result[0] is None:
             print(f"  {name:<16} {taken:%X}  "

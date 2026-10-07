@@ -221,6 +221,36 @@ def test_offset_shifts_capture_time(photo, gpx, offset, local_time, match_line):
         TRACK_LINE, match_line, "Matched: 1, skipped: 0", PREVIEW_LINE]
 
 
+
+@needs_exiftool
+def test_offset_beyond_the_calendar_skips_the_photo(photo, gpx):
+    path = photo("a.jpg", taken("12:00:50"))
+
+    result = run_cli(path, "-g", gpx, "--offset", "1e12")
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.splitlines() == [
+        TRACK_LINE,
+        "  a.jpg            skipped: the corrected capture time is out of range",
+        "Matched: 0, skipped: 1",
+    ]
+
+
+@needs_exiftool
+def test_max_gap_of_zero_matches_only_exact_times(photo, gpx):
+    photo("a.jpg", taken("12:00:00"))
+    path = photo("b.jpg", taken("12:00:01"))
+
+    result = run_cli(path.parent, "-g", gpx, "--max-gap", "0")
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.splitlines()[1:4] == [
+        "  a.jpg            12:00:00  50.000000, 20.000000    200 m",
+        "  b.jpg            12:00:01  skipped: gap in the track recording, "
+        "nearest point 1 s away",
+        "Matched: 1, skipped: 1",
+    ]
+
 @needs_exiftool
 def test_timezone_overrides_the_one_from_exif(photo, gpx):
     path = photo("a.jpg", taken("12:00:50", "+05:00"))
@@ -558,9 +588,21 @@ def test_exiftool_without_output(tmp_path, gpx, jpeg_file):
     (("a.jpg",), "the following arguments are required: -g/--gpx"),
     (("-g", "t.gpx"), "the following arguments are required: PHOTO"),
     (("a.jpg", "-g"), "argument -g/--gpx: expected one argument"),
-    (("a.jpg", "-g", "t.gpx", "--offset", "abc"), "argument --offset: invalid float value: 'abc'"),
+    (("a.jpg", "-g", "t.gpx", "--offset", "abc"),
+     "argument --offset: not a valid number of seconds: abc"),
+    (("a.jpg", "-g", "t.gpx", "--offset", "nan"),
+     "argument --offset: not a valid number of seconds: nan"),
+    (("a.jpg", "-g", "t.gpx", "--offset=-inf"),
+     "argument --offset: not a valid number of seconds: -inf"),
+    (("a.jpg", "-g", "t.gpx", "--offset", "1e300"),
+     "argument --offset: not a valid number of seconds: 1e300"),
     (("a.jpg", "-g", "t.gpx", "--max-gap", "1m"),
-     "argument --max-gap: invalid float value: '1m'"),
+     "argument --max-gap: not a valid number of seconds: 1m"),
+    (("a.jpg", "-g", "t.gpx", "--max-gap", "NaN"),
+     "argument --max-gap: not a valid number of seconds: NaN"),
+    (("a.jpg", "-g", "t.gpx", "--max-gap", "inf"),
+     "argument --max-gap: not a valid number of seconds: inf"),
+    (("a.jpg", "-g", "t.gpx", "--max-gap", "-5"), "argument --max-gap: must not be negative: -5"),
     (("a.jpg", "-g", "t.gpx", "--bogus"), "unrecognized arguments: --bogus"),
 ])
 def test_usage_errors_exit_with_status_2(tmp_path, args, message):

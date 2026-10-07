@@ -382,7 +382,7 @@ def test_help_is_polish(polish_cli, capsys):
     (["-g", "t.gpx", "a.jpg", "--o", "1"],
      "niejednoznaczna opcja: --o może oznaczać --offset, --overwrite"),
     (["-g", "t.gpx", "a.jpg", "--offset", "abc"],
-     "argument --offset: nieprawidłowa wartość typu float: 'abc'"),
+     "argument --offset: nieprawidłowa liczba sekund: abc"),
     (["a.jpg", "-g"], "argument -g/--gpx: oczekiwano jednego argumentu"),
     (["-g", "t.gpx", "a.jpg", "--write=yes"],
      "argument --write: zignorowano jawnie podany argument 'yes'"),
