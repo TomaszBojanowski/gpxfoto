@@ -147,11 +147,11 @@ def test_result_goes_through_temp_file_in_same_directory(
 
     assert len(replace_calls) == 1
     temp, target = replace_calls[0]
-    assert target == path
-    assert os.path.samefile(os.path.dirname(temp), os.path.dirname(os.path.abspath(path)))
+    assert target == os.path.realpath(path)
+    assert os.path.dirname(temp) == os.path.dirname(target)
     assert os.path.basename(temp).startswith(".gpxfoto-")
     assert temp.endswith(".jpg")
-    assert fake.commands[0][-4:] == ["-o", temp, "--", path]
+    assert fake.commands[0][-4:] == ["-o", temp, "--", target]
     assert fake.temp_existed == [False]              # exiftool -o refuses existing files
     assert not os.path.exists(temp)
 
@@ -356,6 +356,38 @@ def test_location_at_the_limits_is_written(photo, fake_exiftool, lat, lon):
     fake = fake_exiftool()
     write_location(photo, lat, lon, None, TIME, backup=False)
     assert len(fake.commands) == 1
+
+
+def test_symbolic_link_leads_to_the_photo(tmp_path, photo, fake_exiftool):
+    library = tmp_path / "library"
+    library.mkdir()
+    real = library / "photo.jpg"
+    os.rename(photo, real)
+    album = tmp_path / "album"
+    album.mkdir()
+    link = album / "photo.jpg"
+    os.symlink(os.path.join("..", "library", "photo.jpg"), link)
+    before = state(real)
+    fake_exiftool()
+    write_location(link, 50.0, 19.0, 200.0, TIME, backup=True)
+    assert os.path.islink(link)
+    assert state(real) == (add_comment(before[0]), MTIME_NS, 0o640)
+    assert state(library / BACKUP_DIR / "photo.jpg") == before
+    assert os.listdir(album) == ["photo.jpg"]
+
+
+def test_photo_with_several_hard_links_is_refused(tmp_path, photo, fake_exiftool):
+    other = tmp_path / "other.jpg"
+    os.link(photo, other)
+    before = state(photo)
+    fake = fake_exiftool()
+    with pytest.raises(RuntimeError) as raised:
+        write_location(photo, 50.0, 19.0, 200.0, TIME, backup=True)
+    assert str(raised.value) == "the file has several hard links; writing it would separate them"
+    assert fake.commands == []
+    assert state(photo) == state(other) == before
+    assert os.stat(photo).st_nlink == 2
+    assert sorted(os.listdir(tmp_path)) == ["other.jpg", "photo.jpg"]
 
 
 def test_backup_is_copy_of_original(tmp_path, photo, fake_exiftool):

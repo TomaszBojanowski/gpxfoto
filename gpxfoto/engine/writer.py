@@ -48,8 +48,13 @@ def write_location(path, lat, lon, ele, time_utc, backup):
     if not (-90 <= lat <= 90 and -180 <= lon <= 180 and (ele is None or math.isfinite(ele))):
         location = f"{lat}, {lon}" if ele is None else f"{lat}, {lon}, {ele} m"
         raise ValueError(_("invalid location: {location}").format(location=location))
+    # Through a symbolic link, the file it points to is written
+    path = os.path.realpath(path)
+    if os.stat(path).st_nlink > 1:
+        # A new file replaces the photo, which would separate the links
+        raise RuntimeError(_("the file has several hard links; writing it would separate them"))
     before = image_checksum(path)
-    directory = os.path.dirname(os.path.abspath(path))
+    directory = os.path.dirname(path)
     fd, temp = tempfile.mkstemp(prefix=TEMP_PREFIX, suffix=".jpg", dir=directory)
     os.close(fd)
     os.unlink(temp)                  # exiftool -o requires that the file does not exist
