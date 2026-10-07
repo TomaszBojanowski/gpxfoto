@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: gpxfoto 0.1.0\n"
 "Report-Msgid-Bugs-To: https://github.com/tomaszbojanowski/gpxfoto/issues\n"
-"POT-Creation-Date: 2026-10-07 21:50+0000\n"
+"POT-Creation-Date: 2026-10-07 22:10+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -715,19 +715,29 @@ msgid "gap in the track recording, nearest point {duration} away"
 msgstr ""
 
 #. Translators: why a photo gets no direction of travel
-#: gpxfoto/engine/track.py:761
-msgid "the track winds too much here"
+#: gpxfoto/engine/track.py:763
+msgid "the track points around this place come from different files"
 msgstr ""
 
 #. Translators: why a photo gets no direction of travel
 #: gpxfoto/engine/track.py:767
+msgid "the track has a break in recording here"
+msgstr ""
+
+#. Translators: why a photo gets no direction of travel
+#: gpxfoto/engine/track.py:770
+msgid "the track winds too much here"
+msgstr ""
+
+#. Translators: why a photo gets no direction of travel
+#: gpxfoto/engine/track.py:776
 msgid "too close to the start or end of the track"
 msgstr ""
 
 #. Translators: why a photo gets no direction of travel; {distance}
 #. is a distance such as “20 m” and {duration} a time span such as
 #. “60 s”
-#: gpxfoto/engine/track.py:787
+#: gpxfoto/engine/track.py:796
 #, python-brace-format
 msgid ""
 "the track stays within {distance} of this place for {duration} before or "
@@ -736,7 +746,7 @@ msgstr ""
 
 #. Translators: why a photo gets no direction of travel; {duration}
 #. is a time span such as “60 s”
-#: gpxfoto/engine/track.py:792
+#: gpxfoto/engine/track.py:801
 #, python-brace-format
 msgid "no track points within {duration} before or after the photo"
 msgstr ""

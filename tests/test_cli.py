@@ -1706,9 +1706,27 @@ def test_jump_warning_names_three_pairs(count, more):
 
 
 # --- direction of travel -------------------------------------------------
+# TRACK recorded once a second: the same line, so the same positions
+
+def dense(first, last, seconds=100):
+    (t0, lat0, lon0, ele0), (_, lat1, lon1, ele1) = first, last
+    start = datetime.fromisoformat(t0.replace("Z", "+00:00"))
+    return [(f"{start + timedelta(seconds=k):%Y-%m-%dT%H:%M:%SZ}",
+             lat0 + (lat1 - lat0) * k / seconds, lon0 + (lon1 - lon0) * k / seconds,
+             None if ele0 is None else ele0 + (ele1 - ele0) * k / seconds)
+            for k in range(seconds + 1)]
+
+
+@pytest.fixture
+def dense_gpx(tmp_path):
+    return write_gpx(tmp_path / "track.gpx", dense(*TRACK))
+
+
+DENSE_TRACK_LINE = TRACK_LINE.replace("2 points", "101 points")
 
 @needs_exiftool
-def test_travel_direction_is_shown_and_written(photo, gpx):
+def test_travel_direction_is_shown_and_written(photo, dense_gpx):
+    gpx = dense_gpx
     a = photo("a.jpg", taken("12:00:50"))
     # An old direction of travel, from another program
     b = photo("b.jpg", [*taken("12:00:05"), "-GPSTrack=200", "-GPSTrackRef=M"])
@@ -1718,7 +1736,7 @@ def test_travel_direction_is_shown_and_written(photo, gpx):
 
     assert preview.returncode == 0, preview.stderr
     assert preview.stdout.splitlines() == [
-        TRACK_LINE,
+        DENSE_TRACK_LINE,
         MATCH_LINE + "  direction of travel  52°",
         "  b.jpg            12:00:05  50.000050, 20.000100    200 m"
         "  [no direction of travel: too close to the start or end of the track]",
@@ -1746,7 +1764,8 @@ def test_travel_direction_is_shown_and_written(photo, gpx):
 
 
 @needs_exiftool
-def test_without_the_option_an_old_direction_of_travel_stays(photo, gpx):
+def test_without_the_option_an_old_direction_of_travel_stays(photo, dense_gpx):
+    gpx = dense_gpx
     b = photo("b.jpg", [*taken("12:00:05"), "-GPSTrack=200", "-GPSTrackRef=M"])
     assert run_cli(b, "-g", gpx, "--write").returncode == 0
     assert read_tags(b, "GPSTrack", "GPSTrackRef") == {"GPSTrack": 200, "GPSTrackRef": "M"}
@@ -1773,10 +1792,10 @@ def test_no_direction_of_travel_at_a_stop(photo, stop_gpx):
 
 @needs_exiftool
 def test_direction_of_travel_after_the_track_files(tmp_path, photo):
-    north = write_gpx(tmp_path / "north.gpx", [("2024-05-01T10:00:00Z", 50.0, 20.0, None),
-                                               ("2024-05-01T10:01:40Z", 50.001, 20.0, None)])
-    west = write_gpx(tmp_path / "west-longer-name.gpx", [
-        ("2024-05-01T11:00:00Z", 50.1, 20.1, None), ("2024-05-01T11:01:40Z", 50.1, 20.098, None)])
+    north = write_gpx(tmp_path / "north.gpx", dense(("2024-05-01T10:00:00Z", 50.0, 20.0, None),
+                                                    ("2024-05-01T10:01:40Z", 50.001, 20.0, None)))
+    west = write_gpx(tmp_path / "west-longer-name.gpx", dense(
+        ("2024-05-01T11:00:00Z", 50.1, 20.1, None), ("2024-05-01T11:01:40Z", 50.1, 20.098, None)))
     a = photo("a.jpg", taken("12:00:50"))
     photo("c.jpg", taken("13:00:50"))
 
@@ -1791,7 +1810,8 @@ def test_direction_of_travel_after_the_track_files(tmp_path, photo):
 
 
 @needs_exiftool
-def test_a_photo_with_a_location_gets_a_direction_only_with_overwrite(photo, gpx):
+def test_a_photo_with_a_location_gets_a_direction_only_with_overwrite(photo, dense_gpx):
+    gpx = dense_gpx
     a = photo("a.jpg", [*taken("12:00:50"), "-GPSLatitude=1", "-GPSLatitudeRef=N",
                         "-GPSLongitude=2", "-GPSLongitudeRef=E"])
     kept = run_cli(a, "-g", gpx, "--travel-direction")
@@ -1800,3 +1820,28 @@ def test_a_photo_with_a_location_gets_a_direction_only_with_overwrite(photo, gpx
         "Matched: 0, skipped: 1"]
     replaced = run_cli(a, "-g", gpx, "--travel-direction", "--overwrite")
     assert replaced.stdout.splitlines()[1] == MATCH_LINE + "  direction of travel  52°"
+
+
+@needs_exiftool
+def test_no_direction_of_travel_from_two_files_recorded_at_the_same_time(tmp_path,
+                                                                         photo_series):
+    # A watch and a phone 60 m apart record the same walk; given together,
+    # the track zigzags between them
+    watch = hike_gpx(tmp_path / "watch.gpx", Hike(seed=14).walk(600, east=1.4).points)
+    north = position(0.0, 60.0)
+    phone = hike_gpx(tmp_path / "phone.gpx",
+                     Hike(seed=15, lat=north[0], lon=north[1]).walk(600, east=1.4).points)
+    photo_series([T0 + 300, T0 + 310.5])
+    lines = run_cli("photos", "-g", watch, "-g", phone, "--travel-direction").stdout.splitlines()
+    assert [line.split("  [")[-1] for line in lines[1:3]] == [
+        "no direction of travel: the track points around this place come from different "
+        "files]"] * 2
+    assert lines[4] == "With a direction of travel: 0, without: 2"
+
+
+@needs_exiftool
+def test_no_direction_of_travel_across_a_break_in_recording(photo, gpx):
+    # TRACK has two points 100 s apart: the way between them is not known
+    a = photo("a.jpg", taken("12:00:50"))
+    assert run_cli(a, "-g", gpx, "--travel-direction").stdout.splitlines()[1] == (
+        MATCH_LINE + "  [no direction of travel: the track has a break in recording here]")

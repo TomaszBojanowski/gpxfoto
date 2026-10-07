@@ -201,7 +201,9 @@ the direction the camera faced, which gpxfoto cannot know, so
 track clearly passes through its place: within a minute before and after
 the photo the track gets 20 m away, and the way between those two points is
 at most 20% longer than a straight line. Photos taken at a stop, at a sharp
-turn or on switchbacks get none, and the preview says why. With the option,
+turn, on switchbacks or in a break in recording get none, nor do photos
+between the points of two files recorded at the same time, and the preview
+says why. With the option,
 an older direction of travel in a written photo, also in XMP, is removed,
 so that it cannot pass for one from the track. On the author’s hike, 84% of
 the photos taken while walking got a direction.

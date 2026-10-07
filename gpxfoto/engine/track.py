@@ -738,13 +738,14 @@ def place(points, times, stops, t, max_gap):
     return stop.lat, stop.lon, ele if stop.elevation is None else stop.elevation, gap, stop
 
 
-def travel_direction(points, times, t, lat, lon):
+def travel_direction(points, times, t, lat, lon, sources=None):
     """Return (degrees, None) or (None, reason).
 
     degrees is the direction of travel through the photo's place, a whole
     number from 0 to 359 clockwise from true north. points and times are
     what locate() got, t the same time and (lat, lon) the position it
-    gave.
+    gave. sources is, as in Track, the index of each point's file, or
+    None for one file.
     """
     if not times or not times[0] <= t <= times[-1]:
         return None, _too_close_to_an_end()
@@ -756,6 +757,14 @@ def travel_direction(points, times, t, lat, lon):
     last, reason = _away(points, times, t, here, range(i, len(points)))
     if last is None:
         return None, reason
+    # Two files recorded at the same time zigzag between their places
+    if sources is not None and len(set(sources[first:last + 1])) > 1:
+        # Translators: why a photo gets no direction of travel
+        return None, _("the track points around this place come from different files")
+    # Where recording stopped, the way in between is not known
+    if any(times[j + 1] - times[j] > RECORDING_BREAK for j in range(first, last)):
+        # Translators: why a photo gets no direction of travel
+        return None, _("the track has a break in recording here")
     if _length(points, first, last) > TRAVEL_MAX_WINDING * _distance_m(points[first], points[last]):
         # Translators: why a photo gets no direction of travel
         return None, _("the track winds too much here")

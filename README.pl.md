@@ -207,8 +207,10 @@ aparat, bo tego gpxfoto nie może wiedzieć; pole `GPSImgDirection` nigdy nie
 jest zapisywane. Zdjęcie dostaje kierunek tylko tam, gdzie trasa wyraźnie
 przechodzi przez jego miejsce: w ciągu minuty przed zdjęciem i po nim
 oddala się o 20 m, a droga między tymi dwoma punktami jest najwyżej o 20%
-dłuższa od linii prostej. Zdjęcia zrobione na postoju, na ostrym zakręcie
-lub na serpentynach nie dostają kierunku, a podgląd podaje przyczynę.
+dłuższa od linii prostej. Zdjęcia zrobione na postoju, na ostrym zakręcie,
+na serpentynach lub w przerwie w zapisie trasy nie dostają kierunku,
+podobnie jak zdjęcia między punktami dwóch plików nagranych w tym samym
+czasie, a podgląd podaje przyczynę.
 Z tą opcją starszy kierunek ruchu w zapisywanym zdjęciu, także w XMP,
 zostaje usunięty, żeby nie uchodził za wyznaczony z trasy. Na wycieczce
 autora kierunek dostało 84% zdjęć zrobionych w marszu.

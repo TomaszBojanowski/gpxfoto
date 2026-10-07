@@ -567,7 +567,7 @@ def directions(results, tracks):
         else:
             track = owner[result.files[0]]
             found.append(travel_direction(track.points, track.times, result.time.timestamp(),
-                                          result.lat, result.lon))
+                                          result.lat, result.lon, track.sources))
     return found
 
 

@@ -14,6 +14,8 @@ EDGE = "too close to the start or end of the track"
 STILL = "the track stays within 20 m of this place for 60 s before or after the photo"
 NO_POINTS = "no track points within 60 s before or after the photo"
 WINDING = "the track winds too much here"
+FILES = "the track points around this place come from different files"
+BREAK = "the track has a break in recording here"
 
 
 def walk(legs, start=(50.0, 20.0), noise=None):
@@ -132,6 +134,39 @@ def test_no_direction_in_a_break_in_recording():
     after = [(resumed + k, before[-1][1] + k / M_PER_DEGREE, before[-1][2], None)
              for k in range(120)]
     assert direction_at(before + after, resumed - 300) == (None, NO_POINTS)
+
+
+@pytest.mark.parametrize("pause, t", [(100, 210), (40, 150), (40, 180)])
+def test_no_direction_across_a_short_break_in_recording(pause, t):
+    # Walking east for 160 s, then an auto-pause; recording resumes 45 m to
+    # the north. The way between is not known, so north is no direction.
+    before = walk([(160, 1.0, 90)])
+    last = before[-1]
+    lat = last[1] + 45 / M_PER_DEGREE
+    after = [(last[0] + pause + p[0] - T0, p[1], p[2], None)
+             for p in walk([(120, 1.0, 90)], start=(lat, last[2]))]
+    assert direction_at(before + after, T0 + t) == (None, BREAK)
+    assert direction_at(before + after, T0 + 100) == (90, None)
+
+
+def test_no_direction_from_two_files_recorded_at_the_same_time():
+    # A watch and a phone 60 m apart, both recording the same walk east:
+    # merged, the track zigzags between them
+    watch = walk([(300, 1.4, 90)])
+    phone = walk([(300, 1.4, 90)], start=(50.0 + 60 / M_PER_DEGREE, 20.0))
+    merged = sorted([(p, 0) for p in watch] + [(p, 1) for p in phone], key=lambda x: x[0][0])
+    points = [p for p, _ in merged]
+    sources = [source for _, source in merged]
+    times = [p[0] for p in points]
+    t = T0 + 150.5
+    lat, lon = locate(points, times, t, 120)[:2]
+    # Points 1 s apart but 60 m apart: the chord between them points south
+    assert travel_direction(points, times, t, lat, lon)[0] in range(170, 190)
+    assert travel_direction(points, times, t, lat, lon, sources) == (None, FILES)
+    # One file alone is fine
+    alone = [p for p, source in merged if source == 0]
+    assert travel_direction(alone, [p[0] for p in alone], t, *locate(
+        alone, [p[0] for p in alone], t, 120)[:2], [0] * len(alone)) == (90, None)
 
 
 @pytest.mark.parametrize("seed", [1, 2, 3, 4, 5])
