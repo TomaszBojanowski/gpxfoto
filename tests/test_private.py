@@ -10,11 +10,14 @@ import os
 import re
 import shutil
 import time
+from datetime import datetime, timezone
 
 import pytest
 
 from conftest import needs_exiftool, read_tags, run_cli
-from gpxfoto.engine.track import load_gpx
+from gpxfoto.engine.matching import match_photos
+from gpxfoto.engine.photos import TZ_CAMERA, Photo
+from gpxfoto.engine.track import load_track
 from gpxfoto.engine.writer import image_checksum
 
 PRIVATE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "prywatne")
@@ -42,14 +45,35 @@ def test_track_loads_quickly(path):
     elapsed = []
     for _ in range(3):
         start = time.perf_counter()
-        points = load_gpx([path])
+        track = load_track([path])
         elapsed.append(time.perf_counter() - start)
     elapsed = min(elapsed)
-    assert points
+    points = track.points
     assert [p[0] for p in points] == sorted(p[0] for p in points)
     assert all(-90 <= p[1] <= 90 and -180 <= p[2] <= 180 for p in points)
-    # Plan target: 20 000 points in under 0.5 s
+    # Plan target: 20 000 points in under 0.5 s, stops included
     assert elapsed < 0.5 * max(1, len(points) / 20000)
+    for a, b in zip(track.stops, track.stops[1:]):
+        assert a.last < b.first
+    assert all(points[s.first][0] == s.start and points[s.last][0] == s.end for s in track.stops)
+
+
+@needs_tracks
+@pytest.mark.parametrize("path", TRACKS, ids=os.path.basename)
+def test_matching_1000_photos_is_quick(path):
+    track = load_track([path])
+    step = (track.last - track.first) / 1000
+    photos = [Photo(f"{i}.jpg", datetime.fromtimestamp(track.first + step * (i + 0.5),
+                                                        timezone.utc), TZ_CAMERA, None, False)
+              for i in range(1000)]
+    elapsed = []
+    for correction in range(3):
+        start = time.perf_counter()
+        results = match_photos(photos, [track], correction, 120)
+        elapsed.append(time.perf_counter() - start)
+    assert sum(result.reason is None for result in results) == 1000
+    # Plan target: matching 1000 photos again after the time slider moves
+    assert min(elapsed) < 0.016
 
 
 @needs_exiftool
