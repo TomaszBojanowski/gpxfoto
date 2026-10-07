@@ -154,12 +154,19 @@ def main():
     times = [p[0] for p in points]
     start = datetime.fromtimestamp(times[0]).astimezone()
     end = datetime.fromtimestamp(times[-1]).astimezone()
+    # Translators: date and time of a track point as a strftime format. %x
+    # and %X follow the system's regional settings; replace them only if
+    # those are wrong for your language, as they are for Polish on macOS
+    # (%-d is the day without a leading zero).
+    # xgettext:no-python-format
+    time_format = _("%x %X")
     # Translators: {start} and {end} are the date and time of the first and the
     # last track point
     print(ngettext("Track: {count} point, {start} – {end} (this computer’s time zone)",
                    "Track: {count} points, {start} – {end} (this computer’s time zone)",
                    len(points)).format(count=i18n.number(len(points)),
-                                       start=f"{start:%x %X}", end=f"{end:%x %X}"))
+                                       start=start.strftime(time_format),
+                                       end=end.strftime(time_format)))
 
     try:
         files = find_photos(args.photos, args.recursive)
