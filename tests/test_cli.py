@@ -4,21 +4,20 @@ import math
 import os
 import shutil
 import stat
-import subprocess
 import sys
 from datetime import datetime, timedelta, timezone
 
 import pytest
 
 from conftest import (
-    latin2_name, make_jpeg, needs_exiftool, read_tags, run_cli, set_panasonic_time_stamp,
-    set_tags, write_gpx)
+    hike_gpx, latin2_name, make_jpeg, needs_exiftool, read_tags, run_cli,
+    set_panasonic_time_stamp, set_tags, write_gpx)
 from gpxfoto import cli, i18n
-from gpxfoto.engine.checks import Motion, ShiftHint, Shot
+from gpxfoto.engine.checks import Jump, Motion, ShiftHint, Shot
 from gpxfoto.engine.clock import correction_from, parse_reading
 from gpxfoto.engine.writer import image_checksum
 from test_checks import at_stops, in_pauses, pauses_hike, stops_hike
-from test_stops import T0
+from test_stops import T0, Hike, position
 
 # run_cli uses Europe/Warsaw, which is UTC+2 on these dates, and the C
 # locale (dates as MM/DD/YY).
@@ -1484,11 +1483,6 @@ def test_summary_counts_follow_the_locale(tmp_path, monkeypatch, capsys):
 # The hike of test_checks.py: 200 min walking east at 1.2 m/s from T0
 # (12:00 at UTC+02:00) with 2-min stops 20, 35, 54, 76, 118 and 161 min in
 
-def hike_gpx(path, points):
-    return write_gpx(path, [(datetime.fromtimestamp(t, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-                             lat, lon, ele) for t, lat, lon, ele in points])
-
-
 @pytest.fixture(scope="module")
 def hike_points():
     return stops_hike()
@@ -1497,24 +1491,6 @@ def hike_points():
 @pytest.fixture
 def hike(tmp_path, hike_points):
     return hike_gpx(tmp_path / "hike.gpx", hike_points)
-
-
-@pytest.fixture
-def photo_series(jpeg_file):
-    """Create photos/pNN.jpg taken at the given Unix times, with their
-    UTC offsets as in EXIF; exiftool runs once for all of them."""
-    def create(times, zone="+02:00"):
-        zones = [zone] * len(times) if isinstance(zone, str) else zone
-        command = ["exiftool"]
-        for k, (t, offset) in enumerate(zip(times, zones)):
-            path = jpeg_file(f"photos/p{k + 1:02d}.jpg")
-            local = datetime.fromtimestamp(t, cli.parse_utc_offset(offset))
-            if command[-1] != "exiftool":
-                command.append("-execute")
-            command += [f"-DateTimeOriginal={local:%Y:%m:%d %H:%M:%S}",
-                        f"-OffsetTimeOriginal={offset}", str(path)]
-        subprocess.run(command + ["-common_args", "-q", "-overwrite_original"], check=True)
-    return create
 
 
 def warnings(output):
@@ -1646,9 +1622,9 @@ def test_shift_with_a_clock_photo(reading, shift, option):
     assert lines[1] == f"  To apply this correction, run again with {option}."
 
 
-MOTION_ADVICE = ("  Photos are usually taken at stops or while slowing down. Check the camera clock, "
-                 "for example with a photo of the watch that records the track and the options "
-                 "--clock-photo and --clock-time.")
+MOTION_ADVICE = ("  Photos are usually taken at stops or while slowing down. Check the camera "
+                 "clock, for example with a photo of the watch that records the track and the "
+                 "options --clock-photo and --clock-time.")
 
 
 @needs_exiftool
@@ -1673,3 +1649,56 @@ def test_motion_warning_with_a_clock_photo():
     assert cli.motion_lines(Motion(1, 1, 1, 1), clock)[1] == (
         "  Photos are usually taken at stops or while slowing down. Check the time on the clock "
         "given with --clock-time, and its UTC offset.")
+
+
+JUMP_WARNING = "Warning: photos taken less than a minute apart are placed implausibly far apart:"
+JUMP_ADVICE = ("  Check the time zones of these photos, and whether the GPX files record different "
+               "trips at the same time.")
+
+
+@needs_exiftool
+@pytest.mark.parametrize("options", [(), ("--no-stops",)])
+def test_photos_with_different_time_zones_jump(photo_series, tmp_path, options):
+    # Walking at 1.2 m/s. p02.jpg was taken 4 s after p01.jpg, but its EXIF
+    # time zone is an hour behind, so it is placed an hour further on
+    walk = hike_gpx(tmp_path / "walk.gpx", Hike(seed=9).walk(7200, east=1.2).points)
+    photo_series([T0 + 1000, T0 + 1004 + 3600], zone=["+02:00", "+01:00"])
+    result = run_cli("photos", "-g", walk, *options)
+    assert warnings(result.stdout) == [
+        JUMP_WARNING,
+        "  p01.jpg and p02.jpg: taken 4 s apart, placed 4.3 km apart, time zones UTC+02:00 and "
+        "UTC+01:00", JUMP_ADVICE]
+
+
+@needs_exiftool
+def test_two_tracks_recorded_at_the_same_time_jump(photo_series, tmp_path):
+    # Two GPX files given together cover the same hour 5 km apart, one at
+    # even and one at odd seconds, so the track zigzags between them
+    a = hike_gpx(tmp_path / "a.gpx", [p for p in Hike(seed=12).walk(3600, east=1.2).points
+                                      if p[0] % 2 == 0])
+    b = hike_gpx(tmp_path / "b.gpx", [(t, lat, lon + 0.07, ele) for t, lat, lon, ele
+                                      in Hike(seed=13).walk(3600, east=1.2).points if t % 2])
+    photo_series([T0 + 600.5 + 7 * k for k in range(8)])
+    lines = warnings(run_cli("photos", "-g", a, "-g", b).stdout)
+    assert lines == [JUMP_WARNING,
+                     "  p01.jpg and p02.jpg: taken 7 s apart, placed 5.1 km apart",
+                     "  p02.jpg and p03.jpg: taken 7 s apart, placed 5.1 km apart",
+                     "  p03.jpg and p04.jpg: taken 7 s apart, placed 5.1 km apart",
+                     "  and 4 more pairs", JUMP_ADVICE]
+
+
+def jump_shots(count, zone=7200):
+    return [Shot(T0 + k, T0 + k + zone, *position(5000 * (k % 2), 0)) for k in range(count)]
+
+
+@pytest.mark.parametrize("count, more", [(3, []), (4, ["  and 1 more pair"]),
+                                         (6, ["  and 3 more pairs"])])
+def test_jump_warning_names_three_pairs(count, more):
+    shots = jump_shots(count + 1)
+    names = [f"p{k}.jpg" for k in range(count + 1)]
+    jumps = [Jump(k, k + 1, 1.0, 5000.0) for k in range(count)]
+    assert cli.jump_lines(jumps, shots, names) == [
+        JUMP_WARNING,
+        *(f"  p{k}.jpg and p{k + 1}.jpg: taken 1 s apart, placed 5.0 km apart"
+          for k in range(min(count, 3))),
+        *more, JUMP_ADVICE]

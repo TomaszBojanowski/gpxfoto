@@ -21,6 +21,8 @@ from gpxfoto.engine.writer import BACKUP_DIR, write_location
 from gpxfoto.i18n import N_
 
 DEFAULT_MAX_GAP = 120
+# At most this many pairs of photos are named in the warning about jumps
+JUMP_EXAMPLES = 3
 
 # Notes shown next to photos whose time zone did not come from the camera
 TZ_NOTES = {
@@ -409,9 +411,10 @@ def suspicion(results, tracks, shots, args):
     one = used or tracks
     if len(one) == 1 and not args.no_stops:
         track = one[0]
+        top = None if track.sources is None else checks.top_speed(track.points, track.sources)
         return checks.suspicious_match(track.points, track.times, track.stops, shots,
-                                       args.max_gap)
-    top = max((checks.pace(track.points, track.stops).top for track in used), default=0.0)
+                                       args.max_gap, top=top)
+    top = max((checks.top_speed(track.points, track.sources) for track in used), default=0.0)
     return checks.Suspicion(None, None, checks.jumps(shots, top))
 
 
@@ -488,6 +491,39 @@ def motion_lines(motion, clock):
     return lines + ["  " + advice]
 
 
+def jump_lines(jumps, shots, names):
+    """The warning about photos taken one after the other but placed far apart."""
+    lines = [_("Warning: photos taken less than a minute apart are placed implausibly far "
+               "apart:")]
+    for jump in jumps[:JUMP_EXAMPLES]:
+        first, second = shots[jump.first], shots[jump.second]
+        zones = [timedelta(seconds=round(shot.clock - shot.time)) for shot in (first, second)]
+        values = dict(first=names[jump.first], second=names[jump.second],
+                      interval=i18n.exact_duration(jump.clock_gap),
+                      distance=i18n.distance(jump.distance))
+        if zones[0] == zones[1]:
+            # Translators: {first} and {second} are file names; {interval} is
+            # a time span such as “4 s”; {distance} is a distance such as “1.3 km”
+            line = _("{first} and {second}: taken {interval} apart, placed {distance} "
+                     "apart").format(**values)
+        else:
+            # Translators: {first_zone} and {second_zone} are UTC offsets as
+            # shown to the user, such as “UTC+02:00”
+            line = _("{first} and {second}: taken {interval} apart, placed {distance} apart, "
+                     "time zones {first_zone} and {second_zone}").format(
+                         first_zone=_("UTC{offset}").format(offset=format_utc_offset(zones[0])),
+                         second_zone=_("UTC{offset}").format(offset=format_utc_offset(zones[1])),
+                         **values)
+        lines.append("  " + line)
+    more = len(jumps) - JUMP_EXAMPLES
+    if more > 0:
+        lines.append("  " + ngettext("and {count} more pair", "and {count} more pairs",
+                                     more).format(count=i18n.number(more)))
+    lines.append("  " + _("Check the time zones of these photos, and whether the GPX files "
+                          "record different trips at the same time."))
+    return lines
+
+
 def warning_lines(found, shots, names, correction, clock):
     """The lines about the signs of a suspicious match; they change nothing."""
     lines = []
@@ -495,6 +531,8 @@ def warning_lines(found, shots, names, correction, clock):
         lines += shift_lines(found.shift, shots, correction, clock)
     if found.motion is not None:
         lines += motion_lines(found.motion, clock)
+    if found.jumps:
+        lines += jump_lines(found.jumps, shots, names)
     return lines
 
 

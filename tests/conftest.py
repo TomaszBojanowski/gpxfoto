@@ -4,6 +4,7 @@ import shutil
 import struct
 import subprocess
 import sys
+from datetime import datetime, timezone
 
 import pytest
 
@@ -116,6 +117,12 @@ def write_gpx(path, points, namespace=GPX_NAMESPACE, garmin=False):
     return path
 
 
+def hike_gpx(path, points):
+    """Write a GPX file of (unix_time, lat, lon, elevation) points."""
+    return write_gpx(path, [(f"{datetime.fromtimestamp(t, timezone.utc):%Y-%m-%dT%H:%M:%SZ}",
+                             lat, lon, ele) for t, lat, lon, ele in points])
+
+
 def latin2_name(directory, name="zdj\xeacie.jpg"):
     """A path whose file name is not valid UTF-8 ("zdjęcie" in ISO 8859-2).
 
@@ -154,4 +161,24 @@ def jpeg_file(tmp_path):
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(make_jpeg(**kwargs))
         return path
+    return create
+
+
+@pytest.fixture
+def photo_series(jpeg_file):
+    """Create photos/pNN.jpg taken at the given Unix times, with their
+    UTC offsets as in EXIF; exiftool runs once for all of them."""
+    from gpxfoto.engine.photos import parse_utc_offset
+
+    def create(times, zone="+02:00"):
+        zones = [zone] * len(times) if isinstance(zone, str) else zone
+        command = ["exiftool"]
+        for k, (t, offset) in enumerate(zip(times, zones)):
+            path = jpeg_file(f"photos/p{k + 1:02d}.jpg")
+            local = datetime.fromtimestamp(t, parse_utc_offset(offset))
+            if command[-1] != "exiftool":
+                command.append("-execute")
+            command += [f"-DateTimeOriginal={local:%Y:%m:%d %H:%M:%S}",
+                        f"-OffsetTimeOriginal={offset}", str(path)]
+        subprocess.run(command + ["-common_args", "-q", "-overwrite_original"], check=True)
     return create

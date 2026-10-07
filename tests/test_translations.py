@@ -13,8 +13,9 @@ import types
 import pytest
 
 from conftest import (
-    ROOT, make_jpeg, needs_exiftool, set_panasonic_time_stamp, set_tags, write_gpx)
+    ROOT, hike_gpx, make_jpeg, needs_exiftool, set_panasonic_time_stamp, set_tags, write_gpx)
 from gpxfoto import cli, i18n
+from test_checks import at_stops, in_pauses, pauses_hike, stops_hike
 from test_cli import AT_STOP, stop_track
 
 PO_DIR = os.path.join(ROOT, "po")
@@ -730,3 +731,42 @@ def test_polish_locale_without_language_variable(polish_cli, tmp_path, capsys):
         "opcji --write.",
     ]
     assert thousands.isspace()
+
+
+@needs_exiftool
+def test_shift_warning_is_polish(polish_cli, tmp_path, capsys, photo_series):
+    hike = hike_gpx(tmp_path / "hike.gpx", stops_hike())
+    photo_series(at_stops(-3600))
+    polish_cli("photos", "-g", hike)
+    assert capsys.readouterr().out.splitlines()[-4:-1] == [
+        "Ostrzeżenie: po przesunięciu czasu zdjęć o +1 h wyraźnie więcej zdjęć wypada na "
+        "postojach: 12 z 12 zamiast 0.",
+        "  Różnica dokładnie jednej godziny zwykle oznacza, że w aparacie nie przestawiono czasu "
+        "na letni lub zimowy albo że ustawiono w nim złą strefę czasową.",
+        "  Aby zastosować tę poprawkę, należy uruchomić program ponownie z opcją --offset=3600 "
+        "albo --timezone=+01:00.",
+    ]
+
+
+@needs_exiftool
+def test_motion_and_jump_warnings_are_polish(polish_cli, tmp_path, capsys, photo_series):
+    # 20 photos while walking, by a clock 90 s behind, and one more taken
+    # 4 s after the first, with a time zone an hour behind
+    walk = hike_gpx(tmp_path / "walk.gpx", pauses_hike())
+    times = in_pauses(20, -90)
+    photo_series(times + [times[0] + 4 + 3600], zone=["+02:00"] * 20 + ["+01:00"])
+    polish_cli("photos", "-g", walk)
+    # The decimal point follows the locale, here C.UTF-8
+    assert capsys.readouterr().out.splitlines()[-6:-1] == [
+        "Ostrzeżenie: zegar aparatu może być przesunięty. 21 z 21 dopasowanych zdjęć zrobiono, "
+        "gdy według trasy poruszano się pełnym tempem.",
+        "  Zdjęcia robi się zwykle na postojach albo przy zwalnianiu. Należy sprawdzić zegar "
+        "aparatu, na przykład za pomocą zdjęcia zegarka, który zapisuje trasę, i opcji "
+        "--clock-photo oraz --clock-time.",
+        "Ostrzeżenie: zdjęcia zrobione w odstępie krótszym niż minuta są umieszczone "
+        "nieprawdopodobnie daleko od siebie:",
+        "  p01.jpg i p21.jpg: zrobione w odstępie 4 s, umieszczone 4.1 km od siebie, strefy "
+        "czasowe UTC+02:00 i UTC+01:00",
+        "  Należy sprawdzić strefy czasowe tych zdjęć oraz to, czy pliki GPX nie zapisują różnych "
+        "wycieczek w tym samym czasie.",
+    ]
