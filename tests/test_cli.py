@@ -4,7 +4,9 @@ import math
 import os
 import shutil
 import stat
+import subprocess
 import sys
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
@@ -12,7 +14,11 @@ from conftest import (
     latin2_name, make_jpeg, needs_exiftool, read_tags, run_cli, set_panasonic_time_stamp,
     set_tags, write_gpx)
 from gpxfoto import cli, i18n
+from gpxfoto.engine.checks import ShiftHint, Shot
+from gpxfoto.engine.clock import correction_from, parse_reading
 from gpxfoto.engine.writer import image_checksum
+from test_checks import at_stops, stops_hike
+from test_stops import T0
 
 # run_cli uses Europe/Warsaw, which is UTC+2 on these dates, and the C
 # locale (dates as MM/DD/YY).
@@ -1472,3 +1478,169 @@ def test_summary_counts_follow_the_locale(tmp_path, monkeypatch, capsys):
         "  Could not write 5.jpg: failure 5 (file unchanged)",
     ]
     assert lines[-2:] == written("1.000", "1.000")
+
+
+# --- warnings about a suspicious match ---------------------------------
+# The hike of test_checks.py: 200 min walking east at 1.2 m/s from T0
+# (12:00 at UTC+02:00) with 2-min stops 20, 35, 54, 76, 118 and 161 min in
+
+def hike_gpx(path, points):
+    return write_gpx(path, [(datetime.fromtimestamp(t, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                             lat, lon, ele) for t, lat, lon, ele in points])
+
+
+@pytest.fixture(scope="module")
+def hike_points():
+    return stops_hike()
+
+
+@pytest.fixture
+def hike(tmp_path, hike_points):
+    return hike_gpx(tmp_path / "hike.gpx", hike_points)
+
+
+@pytest.fixture
+def photo_series(jpeg_file):
+    """Create photos/pNN.jpg taken at the given Unix times, with their
+    UTC offsets as in EXIF; exiftool runs once for all of them."""
+    def create(times, zone="+02:00"):
+        zones = [zone] * len(times) if isinstance(zone, str) else zone
+        command = ["exiftool"]
+        for k, (t, offset) in enumerate(zip(times, zones)):
+            path = jpeg_file(f"photos/p{k + 1:02d}.jpg")
+            local = datetime.fromtimestamp(t, cli.parse_utc_offset(offset))
+            if command[-1] != "exiftool":
+                command.append("-execute")
+            command += [f"-DateTimeOriginal={local:%Y:%m:%d %H:%M:%S}",
+                        f"-OffsetTimeOriginal={offset}", str(path)]
+        subprocess.run(command + ["-common_args", "-q", "-overwrite_original"], check=True)
+    return create
+
+
+def warnings(output):
+    """The warnings and their explanations, from the first warning to the preview line."""
+    lines = output.splitlines()
+    first = next((i for i, line in enumerate(lines) if line.startswith("Warning:")), len(lines))
+    return [line for line in lines[first:] if line != PREVIEW_LINE]
+
+
+SHIFT_WARNING = ("Warning: with the photo times shifted by +1 h, clearly more photos fall during "
+                 "stops: 12 of 12 instead of 0.")
+ONE_HOUR = ("  A difference of exactly one hour usually means that the camera was not switched "
+            "to or from summer time, or that its time zone is set wrong.")
+
+
+@needs_exiftool
+def test_clock_an_hour_behind_gets_a_shift_and_the_options_that_apply_it(photo_series, hike):
+    # The camera showed 11:20 when the watch showed 12:20
+    photo_series(at_stops(-3600))
+    result = run_cli("photos", "-g", hike)
+    assert result.returncode == 0, result.stderr
+    assert "During stops: 0 of 6 matched photos" in result.stdout.splitlines()
+    assert warnings(result.stdout) == [
+        SHIFT_WARNING, ONE_HOUR,
+        "  To apply this correction, run again with --offset=3600 or --timezone=+01:00."]
+    assert result.stdout.splitlines()[-1] == PREVIEW_LINE
+    for option in ("--offset=3600", "--timezone=+01:00"):
+        result = run_cli("photos", "-g", hike, option)
+        assert "During stops: 12 of 12 matched photos" in result.stdout.splitlines()
+        assert warnings(result.stdout) == []
+
+
+@needs_exiftool
+def test_shift_with_a_clock_photo_moves_the_clock_s_utc_offset(photo_series, hike, jpeg_file):
+    # The time on the clock was read without its UTC offset and taken for
+    # the camera's: the clock photo gives +10 s instead of +1 h 10 s
+    clock = jpeg_file("clock.jpg")
+    set_tags(clock, *taken("12:00:00", date="2026:06:01"))
+    photo_series(at_stops(-3610))
+    result = run_cli("photos", "-g", hike, "--clock-photo", clock, "--clock-time", "12:00:10")
+    assert warnings(result.stdout) == [
+        SHIFT_WARNING, ONE_HOUR,
+        "  To apply this correction, run again with --clock-time=12:00:10+01:00."]
+    result = run_cli("photos", "-g", hike, "--clock-photo", clock,
+                     "--clock-time=12:00:10+01:00")
+    assert "Clock correction: +1 h 0 min 10 s (equivalent to --offset=3610)" in result.stdout
+    assert warnings(result.stdout) == []
+
+
+@needs_exiftool
+def test_warnings_only_in_the_preview(photo_series, hike):
+    photo_series(at_stops(-3600))
+    result = run_cli("photos", "-g", hike, "--write")
+    assert result.returncode == 0, result.stderr
+    assert warnings(result.stdout) == []
+    assert result.stdout.splitlines()[-2:] == written(6, 0)
+
+
+@needs_exiftool
+def test_no_shift_from_photos_placed_by_two_tracks(photo_series, tmp_path, hike_points):
+    # One more photo, 5 h after the start, falls into a short track of its
+    # own; the stops of the hike say nothing about that photo's clock
+    tracks = tmp_path / "tracks"
+    tracks.mkdir()
+    hike = hike_gpx(tracks / "hike.gpx", hike_points)
+    later = T0 + 5 * 3600
+    hike_gpx(tracks / "later.gpx", [(later + k, 49.3, 20.0, 500.0) for k in range(600)])
+    photo_series(at_stops(-3600) + [later + 300])
+    result = run_cli("photos", "-g", tracks)
+    assert "Tracks covering the photos: 2 of 2 GPX files" in result.stdout.splitlines()
+    assert warnings(result.stdout) == []
+    result = run_cli("photos", "-g", hike)
+    assert warnings(result.stdout)[0] == SHIFT_WARNING
+
+
+@needs_exiftool
+def test_no_shift_without_stops(photo_series, hike):
+    photo_series(at_stops(-3600))
+    assert warnings(run_cli("photos", "-g", hike, "--no-stops").stdout) == []
+
+
+def shift_shots(zones=(7200,), count=12):
+    zones = [zones[k % len(zones)] for k in range(count)]
+    return [Shot(T0 + 60 * k, T0 + 60 * k + zone, 49.2, 20.0) for k, zone in enumerate(zones)]
+
+
+def shift_advice(hint, shots, correction=0.0, clock=None):
+    return cli.shift_lines(hint, shots, correction, clock)[1:]
+
+
+WHOLE_HOURS = ("  A difference of whole hours or of half an hour usually means that the time "
+               "zone set in the camera is wrong, for example still the home one while travelling.")
+
+
+@pytest.mark.parametrize("shift, zones, correction, advice", [
+    (-1800, (7200,), 0.0, "--offset=-1800 or --timezone=+02:30"),
+    (7200, (7200,), 0.0, "--offset=7200 or --timezone=+00:00"),
+    (3 * 3600, (-5 * 3600,), 0.0, "--offset=10800 or --timezone=-08:00"),
+    # A correction already given: --timezone would drop it
+    (3600, (7200,), 131.5, "--offset=3731.5"),
+    (3600, (7200,), -3600.0, "--offset=0"),
+    # Photos from different time zones
+    (3600, (7200, 3600), 0.0, "--offset=3600"),
+    # No time zone is 15 h ahead of UTC
+    (-3600, (14 * 3600,), 0.0, "--offset=-3600"),
+])
+def test_options_that_apply_a_shift(shift, zones, correction, advice):
+    lines = shift_advice(ShiftHint(shift, 12, 12, 6, 0), shift_shots(zones), correction)
+    assert lines[0] == (ONE_HOUR if abs(shift) == 3600 else WHOLE_HOURS)
+    assert lines[1] == f"  To apply this correction, run again with {advice}."
+
+
+CAMERA_TIME = datetime(2026, 6, 1, 12, 0, tzinfo=timezone(timedelta(hours=2)))
+
+
+@pytest.mark.parametrize("reading, shift, option", [
+    ("12:00:10", 3600, "--clock-time=12:00:10+01:00"),
+    ("12:00", -1800, "--clock-time=12:00+02:30"),
+    ("2026-06-01T12:00:10+02:00", 3600, "--clock-time=2026-06-01T12:00:10+01:00"),
+    # Beyond two hours, the date is needed
+    ("12:00:10", 3 * 3600, "--clock-time=2026-06-01T12:00:10-01:00"),
+    ("23:30:00+14:00", -3600, "--offset=-3600"),
+])
+def test_shift_with_a_clock_photo(reading, shift, option):
+    clock = correction_from(CAMERA_TIME, parse_reading(reading))
+    lines = shift_advice(ShiftHint(shift, 12, 12, 6, 0), shift_shots(), clock.seconds, clock)
+    if option.startswith("--offset"):
+        option = "--offset=" + cli.offset_value(clock.seconds + shift)
+    assert lines[1] == f"  To apply this correction, run again with {option}."

@@ -5,11 +5,12 @@ import os
 import re
 import shutil
 import sys
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from gettext import gettext as _, ngettext
 
 from gpxfoto import i18n
-from gpxfoto.engine.clock import ClockError, measure, parse_reading
+from gpxfoto.engine import checks
+from gpxfoto.engine.clock import MAX_WITHOUT_DATE, ClockError, measure, parse_reading
 from gpxfoto.engine.matching import corrected_times, match_photos, summarize
 from gpxfoto.engine.photos import (
     TZ_CAMERA, TZ_MANUAL, TZ_SYSTEM, check_exiftool, find_photos, format_utc_offset,
@@ -375,6 +376,102 @@ def with_nearest_tracks(results, tracks, spans, stops):
     return changed
 
 
+def usable_offset(offset):
+    """Whether a timedelta is a UTC offset that --timezone and --clock-time take."""
+    return abs(offset) <= timedelta(hours=14) and not offset % timedelta(minutes=1)
+
+
+def shots_of(results):
+    """The photos with a capture time as the checks of a suspicious match
+    see them, and their names."""
+    shots, names = [], []
+    for result in results:
+        if result.time is not None:
+            time = result.time.timestamp()
+            shots.append(checks.Shot(time, time + result.time.utcoffset().total_seconds(),
+                                     result.lat, result.lon))
+            names.append(printable(os.path.basename(result.photo.path)))
+    return shots, names
+
+
+def suspicion(results, tracks, shots, args):
+    """The signs of a suspicious match.
+
+    The whole-hour shift and the photos in motion are looked for only on
+    the track that placed every matched photo (or the only track when
+    none was matched), as they need its stops and speeds.
+    """
+    owner = {path: track for track in tracks for path in track.files}
+    used = []
+    for result in results:
+        if result.reason is None and owner[result.files[0]] not in used:
+            used.append(owner[result.files[0]])
+    one = used or tracks
+    if len(one) == 1 and not args.no_stops:
+        track = one[0]
+        return checks.suspicious_match(track.points, track.times, track.stops, shots,
+                                       args.max_gap)
+    top = max((checks.pace(track.points, track.stops).top for track in used), default=0.0)
+    return checks.Suspicion(None, None, checks.jumps(shots, top))
+
+
+def shift_lines(hint, shots, correction, clock):
+    """The warning about a whole-hour shift, with the option that applies it."""
+    # Translators: {shift} is a whole number of hours or half an hour with a
+    # sign, such as “+1 h” or “-30 min”; {pinned}, {matched} and {now} are
+    # numbers of photos
+    lines = [_("Warning: with the photo times shifted by {shift}, clearly more photos fall "
+               "during stops: {pinned} of {matched} instead of {now}.").format(
+                   shift=i18n.exact_duration(hint.shift, sign=True),
+                   pinned=i18n.number(hint.pinned), matched=i18n.number(hint.matched),
+                   now=i18n.number(hint.pinned_now))]
+    if abs(hint.shift) == 3600:
+        lines.append("  " + _("A difference of exactly one hour usually means that the camera "
+                              "was not switched to or from summer time, or that its time zone "
+                              "is set wrong."))
+    else:
+        lines.append("  " + _("A difference of whole hours or of half an hour usually means "
+                              "that the time zone set in the camera is wrong, for example "
+                              "still the home one while travelling."))
+    shifted = correction + hint.shift
+    option = "--offset=" + offset_value(shifted)
+    other = None
+    if clock is not None:
+        # --offset cannot be used with --clock-photo: the clock's UTC offset
+        # moves by the shift instead
+        zone = clock.clock_time.utcoffset() - timedelta(seconds=hint.shift)
+        if usable_offset(zone):
+            reading = clock.reading
+            if reading.day is None and abs(shifted) > MAX_WITHOUT_DATE.total_seconds():
+                reading = reading._replace(day=clock.clock_time.date())
+            option = "--clock-time=" + reading.text(utc_offset=timezone(zone))
+    elif not correction:
+        zones = {round(shot.clock - shot.time) for shot in shots}
+        if len(zones) == 1:
+            zone = timedelta(seconds=zones.pop() - hint.shift)
+            if usable_offset(zone):
+                other = "--timezone=" + format_utc_offset(zone)
+    if other is None:
+        # Translators: {option} is a command-line option with its value, such
+        # as --offset=3600
+        lines.append("  " + _("To apply this correction, run again with {option}.").format(
+            option=option))
+    else:
+        # Translators: {option} and {other} are command-line options with
+        # their values, such as --offset=3600 and --timezone=+01:00
+        lines.append("  " + _("To apply this correction, run again with {option} or "
+                              "{other}.").format(option=option, other=other))
+    return lines
+
+
+def warning_lines(found, shots, names, correction, clock):
+    """The lines about the signs of a suspicious match; they change nothing."""
+    lines = []
+    if found.shift is not None:
+        lines += shift_lines(found.shift, shots, correction, clock)
+    return lines
+
+
 def no_points(count):
     return ngettext("The GPX file contains no track points with timestamps.",
                     "The GPX files contain no track points with timestamps.", count)
@@ -516,6 +613,10 @@ def main():
     for line in time_check_lines(results):
         print(line)
     if not args.write:
+        shots, names = shots_of(results)
+        found = suspicion(results, tracks, shots, args)
+        for line in warning_lines(found, shots, names, correction, clock):
+            print(line)
         if plan:
             # Translators: {option} is the command-line option --write
             print(_("This was a preview; no files were changed. "
