@@ -340,13 +340,14 @@ def test_polish_plural_forms(polish_mo, n, word):
 
 # ---- Polish output of gpxfoto.cli.main() ------------------------------------
 
-USAGE = ("użycie: gpxfoto [-h] -g PLIK [--write] [--offset SEKUNDY] [--timezone +GG:MM] "
+USAGE = ("użycie: gpxfoto [-h] -g TRASA [--write] [--offset SEKUNDY] [--timezone +GG:MM] "
          "[--clock-photo PLIK] [--clock-time CZAS] "
          "[--max-gap SEKUNDY] [--no-stops] [--overwrite] [--backup] [-r] ZDJĘCIE [ZDJĘCIE ...]")
 HELP = {
     "ZDJĘCIE": "pliki JPEG lub katalogi ze zdjęciami",
     "--help": "wyświetla ten komunikat pomocy i kończy działanie",
-    "--gpx": "plik GPX z trasą (można podać wielokrotnie)",
+    "--gpx": "plik GPX z trasą lub katalog z plikami GPX; wtedy dla każdego zdjęcia wybierana "
+             "jest trasa obejmująca czas jego wykonania (można podać wielokrotnie)",
     "--write": "zapisuje położenie w plikach (bez tej opcji wyświetlany jest tylko podgląd)",
     "--offset": "poprawka zegara aparatu w sekundach, dodawana do czasu wykonania zdjęcia",
     "--timezone": "strefa czasowa aparatu dla wszystkich zdjęć (domyślnie: odczytywana z danych "
@@ -363,7 +364,7 @@ HELP = {
     "--overwrite": "zmienia także zdjęcia, które mają już zapisane położenie",
     "--backup": "zachowuje kopie oryginalnych plików w podkatalogu „originals” obok każdego "
                 "zdjęcia; istniejąca kopia nigdy nie jest zastępowana",
-    "--recursive": "wyszukuje zdjęcia także w podkatalogach",
+    "--recursive": "wyszukuje zdjęcia i trasy także w podkatalogach",
 }
 
 
@@ -648,6 +649,28 @@ def test_count_during_stops_is_polish(polish_cli, exiftool_present, tmp_path, ca
     monkeypatch.setattr(cli, "read_metadata", lambda files: metadata)
     polish_cli("-g", gpx, "photos")
     assert capsys.readouterr().out.splitlines()[count + 2] == "Na postojach: " + text
+
+
+@needs_exiftool
+def test_directory_of_tracks_is_polish(polish_cli, tmp_path, capsys):
+    tracks = tmp_path / "trasy"
+    tracks.mkdir()
+    write_gpx(tracks / "dzien1.gpx", TRACK)
+    write_gpx(tracks / "dzien2.gpx", [("2024-05-02T10:00:00Z", 51.0, 21.0, None)])
+    path = photo(tmp_path / "photos", "a.jpg", "-DateTimeOriginal=2024:05:01 12:00:50",
+                 "-OffsetTimeOriginal=+02:00")
+    polish_cli("-g", tracks, path)
+    assert capsys.readouterr().out.splitlines()[:3] == [
+        "Trasy obejmujące czas zdjęć: 1 z 2 plików GPX",
+        TRACK_LINE.replace("track.gpx", "dzien1.gpx"),
+        "  a.jpg            12:00:50  50.000500, 20.001000    205 m  dzien1.gpx",
+    ]
+
+
+def test_no_gpx_files_message_is_polish(polish_cli, exiftool_present, tmp_path):
+    with pytest.raises(SystemExit) as exit_info:
+        polish_cli("-g", tmp_path, tmp_path / "a.jpg")
+    assert exit_info.value.code == "Nie znaleziono plików GPX."
 
 
 @needs_exiftool

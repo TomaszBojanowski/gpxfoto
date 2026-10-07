@@ -714,3 +714,25 @@ def test_only_equally_good_placements_are_compared():
     other = straight(T0, 200, 50.01)
     found = track_module.match([mine, other], T0 + 300, 120)
     assert (found.track, found.reason) == (mine, None)
+
+
+# find_tracks
+
+def test_find_tracks(tmp_path):
+    tracks = tmp_path / "tracks"
+    for name in ["b.gpx", "a.GPX", "notes.txt", ".hidden.gpx", "sub/c.gpx", ".git/d.gpx"]:
+        (tracks / name).parent.mkdir(parents=True, exist_ok=True)
+        (tracks / name).write_text("")
+    (tracks / "dir.gpx").mkdir()
+    os.symlink(tracks / "sub", tracks / "link")
+    named = tmp_path / "named.gpx"
+    named.write_text("")
+    os.symlink(named, tracks / "named-link.gpx")
+    paths = [str(named), str(tracks), str(tracks / "b.gpx"), str(named)]
+    assert track_module.find_tracks(paths, recursive=False) == (
+        [str(named), str(tracks / "b.gpx")], [str(tracks / "a.GPX")])
+    assert track_module.find_tracks(paths, recursive=True) == (
+        [str(named), str(tracks / "b.gpx")], [str(tracks / "a.GPX"), str(tracks / "sub" / "c.gpx")])
+    # A missing file is named, so that reading it reports the error
+    assert track_module.find_tracks([str(tmp_path / "missing.gpx")], False) == (
+        [str(tmp_path / "missing.gpx")], [])

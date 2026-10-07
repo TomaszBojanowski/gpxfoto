@@ -1,5 +1,6 @@
 """Command-line tool."""
 import argparse
+import bisect
 import os
 import re
 import shutil
@@ -13,7 +14,7 @@ from gpxfoto.engine.matching import match_photos, summarize
 from gpxfoto.engine.photos import (
     TZ_CAMERA, TZ_MANUAL, TZ_SYSTEM, check_exiftool, find_photos, format_utc_offset,
     parse_utc_offset, photo_from_metadata, read_metadata, summarize_time_checks)
-from gpxfoto.engine.track import load_track
+from gpxfoto.engine.track import find_tracks, load_track
 from gpxfoto.engine.writer import BACKUP_DIR, write_location
 from gpxfoto.i18n import N_
 
@@ -136,9 +137,12 @@ def build_parser():
     # keep it a single word
     parser.add_argument("photos", nargs="+", metavar=_("PHOTO"),
                         help=_("JPEG files or directories with photos"))
-    # Translators: placeholder for a file name in --help; keep it a single word
-    parser.add_argument("-g", "--gpx", action="append", required=True, metavar=_("FILE"),
-                        help=_("GPX file with the track (can be given more than once)"))
+    # Translators: placeholder for a track file or directory in --help; keep
+    # it a single word
+    parser.add_argument("-g", "--gpx", action="append", required=True, metavar=_("TRACK"),
+                        help=_("GPX file with the track, or a directory with GPX files: each "
+                               "photo then gets the track that covers its time (can be given "
+                               "more than once)"))
     parser.add_argument("--write", action="store_true",
                         help=_("write the locations to the files (without this option "
                                "only a preview is shown)"))
@@ -173,7 +177,7 @@ def build_parser():
                                "subdirectory next to each photo; an existing copy is never "
                                "replaced").format(directory=BACKUP_DIR))
     parser.add_argument("-r", "--recursive", action="store_true",
-                        help=_("also look for photos in subdirectories"))
+                        help=_("also look for photos and tracks in subdirectories"))
     return parser
 
 
@@ -295,6 +299,54 @@ def clock_lines(clock):
     return lines
 
 
+def track_line(track, labels, by_name):
+    """The line about one track; by_name names it even when it has several files."""
+    start = datetime.fromtimestamp(track.first).astimezone()
+    end = datetime.fromtimestamp(track.last).astimezone()
+    if by_name or len(track.files) == 1:
+        # Translators: {name} is the file name of the track; {start} and {end}
+        # are the date and time of its first and last point
+        line = ngettext(
+            "Track {name}: {count} point, {start} – {end} (this computer’s time zone)",
+            "Track {name}: {count} points, {start} – {end} (this computer’s time zone)",
+            len(track.points))
+    else:
+        # Translators: {start} and {end} are the date and time of the first and the
+        # last track point
+        line = ngettext("Track: {count} point, {start} – {end} (this computer’s time zone)",
+                        "Track: {count} points, {start} – {end} (this computer’s time zone)",
+                        len(track.points))
+    return line.format(name=", ".join(labels[path] for path in track.files),
+                       count=i18n.number(len(track.points)), start=date_and_time(start),
+                       end=date_and_time(end))
+
+
+def correction_lines(clock, correction):
+    """The lines about the clock correction, if there is one."""
+    if clock is not None:
+        return clock_lines(clock)
+    if correction:
+        # Translators: {correction} is a time span with a sign, such as
+        # “+2 min 12 s”, added to the capture time of every photo
+        return [_("Clock correction: {correction}").format(
+            correction=i18n.exact_duration(correction, sign=True))]
+    return []
+
+
+def covering(tracks, results, max_gap):
+    """The tracks whose time, widened by max_gap, holds some photo's, by start."""
+    times = sorted(result.time.timestamp() for result in results if result.time is not None)
+    return sorted((track for track in tracks
+                   if bisect.bisect_right(times, track.last + max_gap)
+                   > bisect.bisect_left(times, track.first - max_gap)),
+                  key=lambda track: track.first)
+
+
+def no_points(count):
+    return ngettext("The GPX file contains no track points with timestamps.",
+                    "The GPX files contain no track points with timestamps.", count)
+
+
 def main():
     i18n.setup()
     parser = build_parser()
@@ -329,39 +381,25 @@ def main():
             sys.exit(printable(str(e)))
     correction = clock.seconds if clock is not None else (args.offset or 0.0)
 
-    try:
-        track = load_track(args.gpx, stops=not args.no_stops)
-    except ValueError as e:
-        sys.exit(str(e))
-    if track is None:
-        sys.exit(ngettext("The GPX file contains no track points with timestamps.",
-                          "The GPX files contain no track points with timestamps.",
-                          len(args.gpx)))
-    start = datetime.fromtimestamp(track.first).astimezone()
-    end = datetime.fromtimestamp(track.last).astimezone()
-    labels = file_labels(track.files)
-    if len(track.files) == 1:
-        # Translators: {name} is the file name of the track; {start} and {end}
-        # are the date and time of its first and last point
-        header = ngettext(
-            "Track {name}: {count} point, {start} – {end} (this computer’s time zone)",
-            "Track {name}: {count} points, {start} – {end} (this computer’s time zone)",
-            len(track.points))
-    else:
-        # Translators: {start} and {end} are the date and time of the first and the
-        # last track point
-        header = ngettext("Track: {count} point, {start} – {end} (this computer’s time zone)",
-                          "Track: {count} points, {start} – {end} (this computer’s time zone)",
-                          len(track.points))
-    print(header.format(name=labels[track.files[0]], count=i18n.number(len(track.points)),
-                        start=date_and_time(start), end=date_and_time(end)))
-    if clock is not None:
-        print("\n".join(clock_lines(clock)))
-    elif correction:
-        # Translators: {correction} is a time span with a sign, such as
-        # “+2 min 12 s”, added to the capture time of every photo
-        print(_("Clock correction: {correction}").format(
-            correction=i18n.exact_duration(correction, sign=True)))
+    named, found = find_tracks(args.gpx, args.recursive)
+    if not named and not found:
+        sys.exit(_("No GPX files found."))
+    tracks = []
+    if named:
+        try:
+            track = load_track(named, stops=not args.no_stops)
+        except ValueError as e:
+            sys.exit(str(e))
+        if track is not None:
+            tracks.append(track)
+        elif not found:
+            sys.exit(no_points(len(named)))
+    if not found:
+        # Without a directory of tracks, the track is known before the photos
+        labels = file_labels(named)
+        print(track_line(tracks[0], labels, by_name=False))
+        for line in correction_lines(clock, correction):
+            print(line)
 
     try:
         files = find_photos(args.photos, args.recursive)
@@ -382,11 +420,36 @@ def main():
     except RuntimeError as e:
         sys.exit(str(e))
 
+    if found:
+        for path in found:
+            try:
+                track = load_track([path], named=False, stops=not args.no_stops)
+            except ValueError as e:
+                sys.exit(str(e))
+            if track is not None:
+                tracks.append(track)
+        if not tracks:
+            sys.exit(no_points(len(named) + len(found)))
+        labels = file_labels([path for track in tracks for path in track.files])
+
     photos = [photo_from_metadata(meta, manual_tz) for meta in metadata]
-    results = match_photos(photos, [track], correction, args.max_gap,
-                           overwrite=args.overwrite)
+    results = match_photos(photos, tracks, correction, args.max_gap, overwrite=args.overwrite,
+                           label=labels.get)
+    if found:
+        used = covering(tracks, results, args.max_gap)
+        total = len(named) + len(found)
+        # Translators: {used} is how many of the {total} GPX files given or
+        # found have a track at the time of some photo
+        print(ngettext("Tracks covering the photos: {used} of {total} GPX file",
+                       "Tracks covering the photos: {used} of {total} GPX files", total).format(
+            used=i18n.number(sum(len(track.files) for track in used)),
+            total=i18n.number(total)))
+        for track in used:
+            print(track_line(track, labels, by_name=True))
+        for line in correction_lines(clock, correction):
+            print(line)
     # With several track files, each photo line names its own
-    if len(track.files) > 1:
+    if found or len(named) > 1:
         width = max((len(", ".join(labels[path] for path in result.files))
                      for result in results if result.reason is None), default=0)
         for result in results:
@@ -399,7 +462,7 @@ def main():
 
     print(_("Matched: {matched}, skipped: {skipped}").format(
         matched=i18n.number(summary.matched), skipped=i18n.number(summary.skipped)))
-    if track.stops and summary.matched:
+    if any(track.stops for track in tracks) and summary.matched:
         # Translators: how many of the matched photos were taken during stops;
         # a wrong camera clock puts fewer of them there
         print(ngettext("During stops: {count} of {matched} matched photo",

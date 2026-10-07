@@ -1,4 +1,5 @@
 """Matching photos to tracks: the rule every interface uses."""
+import os
 from collections import namedtuple
 from datetime import timedelta, timezone
 from gettext import gettext as _
@@ -24,11 +25,12 @@ PhotoResult = namedtuple("PhotoResult",
 Summary = namedtuple("Summary", "matched skipped at_stops")
 
 
-def match_photo(photo, tracks, correction, max_gap, overwrite=False):
+def match_photo(photo, tracks, correction, max_gap, overwrite=False, label=os.path.basename):
     """Return the PhotoResult of photo on tracks.
 
     correction is added to the capture time, in seconds. A photo that
-    already has a location is skipped unless overwrite is set.
+    already has a location is skipped unless overwrite is set. label
+    gives the name of a track file in reasons.
     """
     if photo.has_location and not overwrite:
         # Translators: reason why a photo was skipped
@@ -46,7 +48,7 @@ def match_photo(photo, tracks, correction, max_gap, overwrite=False):
         # Translators: reason why a photo was skipped
         return PhotoResult(photo, reason=_("the corrected capture time is out of range"),
                            time_check=time_check)
-    found = match(tracks, time.timestamp(), max_gap)
+    found = match(tracks, time.timestamp(), max_gap, label)
     if found.reason is not None:
         return PhotoResult(photo, time, time_utc, reason=found.reason, time_check=time_check,
                            files=found.files)

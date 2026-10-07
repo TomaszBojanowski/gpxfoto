@@ -10,6 +10,9 @@ from itertools import accumulate
 
 from gpxfoto.i18n import distance, duration
 
+# Extensions of the track files looked for in directories, in any case
+GPX_EXTENSIONS = {".gpx"}
+
 # Elevations further from sea level, in metres, are errors in the track:
 # balloons rise to about 40 km, and the deepest sea is 11 km deep
 MAX_ELEVATION = 100_000.0
@@ -122,6 +125,41 @@ class Track:
         else:
             used = {self.sources[j] for j in (i - 1, i) if 0 <= j < len(self.times)}
         return tuple(self.files[j] for j in sorted(used))
+
+
+def find_tracks(paths, recursive):
+    """Split the paths given for tracks into named files and found files.
+
+    Returns (named, found): the paths that are not directories, as given,
+    and the GPX files in the directories, with recursive also in their
+    subdirectories, sorted by name. Hidden files and directories and
+    symbolic links to directories inside are skipped. A file reached
+    twice is used once; a found file that is also named counts as named.
+    """
+    named, found, seen = [], [], set()
+    for path in paths:
+        if not os.path.isdir(path):
+            real = os.path.realpath(path)
+            if real not in seen:
+                seen.add(real)
+                named.append(path)
+    for path in paths:
+        if not os.path.isdir(path):
+            continue
+        for directory, subdirs, files in os.walk(path):
+            subdirs[:] = sorted(d for d in subdirs if not d.startswith("."))
+            for name in sorted(files):
+                track = os.path.join(directory, name)
+                if (name.startswith(".") or os.path.splitext(name)[1].lower() not in GPX_EXTENSIONS
+                        or not os.path.isfile(track)):
+                    continue
+                real = os.path.realpath(track)
+                if real not in seen:
+                    seen.add(real)
+                    found.append(track)
+            if not recursive:
+                break
+    return named, found
 
 
 def load_track(paths, named=True, stops=True):

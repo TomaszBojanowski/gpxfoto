@@ -184,6 +184,74 @@ def test_several_gpx_files_name_the_source_of_each_photo(tmp_path, photo):
     ]
 
 
+@pytest.fixture
+def track_dir(tmp_path):
+    """tracks/ with day0.gpx (30 April), day1.gpx, day2.gpx (Chile), sub/day3.gpx and others."""
+    tracks = tmp_path / "tracks"
+    (tracks / "sub").mkdir(parents=True)
+    write_gpx(tracks / "day0.gpx", [("2024-04-30T10:00:00Z", 49.0, 19.0, None),
+                                    ("2024-04-30T11:00:00Z", 49.1, 19.0, None)])
+    write_gpx(tracks / "day1.gpx", TRACK)
+    write_gpx(tracks / "day2.GPX", [("2024-05-02T16:00:00Z", -33.0, -70.0, -10.0),
+                                    ("2024-05-02T16:01:40Z", -33.001, -70.002, -20.0)])
+    write_gpx(tracks / "sub" / "day3.gpx", [("2024-05-03T10:00:00Z", 51.0, 21.0, None),
+                                            ("2024-05-03T10:01:40Z", 51.001, 21.0, None)])
+    write_gpx(tracks / ".hidden.gpx", TRACK)
+    (tracks / "notes.txt").write_text("not a track")
+    return tracks
+
+
+@needs_exiftool
+def test_directory_of_tracks_gives_each_photo_its_track(photo, track_dir):
+    a = photo("a.jpg", taken("12:00:50"))
+    photo("chile.jpg", taken("12:00:50", "-04:00", date="2024:05:02"))
+
+    result = run_cli(a.parent, "-g", track_dir)
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.splitlines() == [
+        "Tracks covering the photos: 2 of 3 GPX files",
+        "Track day1.gpx: 2 points, 05/01/24 12:00:00 – 05/01/24 12:01:40 "
+        "(this computer’s time zone)",
+        "Track day2.GPX: 2 points, 05/02/24 18:00:00 – 05/02/24 18:01:40 "
+        "(this computer’s time zone)",
+        MATCH_LINE + "  day1.gpx",
+        "  chile.jpg        12:00:50  -33.000500, -70.001000    -15 m  day2.GPX",
+        "Matched: 2, skipped: 0",
+        PREVIEW_LINE,
+    ]
+
+
+@needs_exiftool
+def test_recursive_also_finds_tracks_in_subdirectories(photo, track_dir):
+    path = photo("a.jpg", taken("12:00:50", date="2024:05:03"))
+
+    flat = run_cli(path, "-g", track_dir)
+    deep = run_cli(path, "-g", track_dir, "-r")
+
+    assert flat.returncode == deep.returncode == 0, flat.stderr + deep.stderr
+    assert flat.stdout.splitlines()[:2] == [
+        "Tracks covering the photos: 0 of 3 GPX files",
+        "  a.jpg            12:00:50  skipped: 17 h 59 min after the end of the track"]
+    assert deep.stdout.splitlines()[:3] == [
+        "Tracks covering the photos: 1 of 4 GPX files",
+        "Track day3.gpx: 2 points, 05/03/24 12:00:00 – 05/03/24 12:01:40 "
+        "(this computer’s time zone)",
+        "  a.jpg            12:00:50  51.000500, 21.000000        —  day3.gpx"]
+
+
+@needs_exiftool
+def test_directory_without_tracks(photo, tmp_path):
+    path = photo("a.jpg", taken("12:00:50"))
+    (tmp_path / "empty").mkdir()
+
+    result = run_cli(path, "-g", tmp_path / "empty")
+
+    assert result.returncode == 1
+    assert result.stdout == ""
+    assert result.stderr == "No GPX files found.\n"
+
+
 def test_file_labels():
     assert cli.file_labels(["a/x.gpx", "b/y.gpx", "c/x.gpx"]) == {
         "a/x.gpx": "a/x.gpx", "b/y.gpx": "y.gpx", "c/x.gpx": "c/x.gpx"}
