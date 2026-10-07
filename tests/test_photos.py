@@ -240,6 +240,34 @@ def test_capture_time_unreadable_date_does_not_fall_back_to_create_date():
     assert capture_time(meta, None) == (None, "invalid capture time in EXIF: 0000:00:00 00:00:00")
 
 
+# photo_from_metadata
+
+@pytest.mark.parametrize("meta, manual, expected", [
+    ({"SourceFile": "a.jpg", "DateTimeOriginal": "2024:05:01 12:00:00",
+      "OffsetTimeOriginal": "+02:00"}, None,
+     photos.Photo("a.jpg", datetime(2024, 5, 1, 12, tzinfo=zone(2)), TZ_CAMERA, None, False)),
+    ({"SourceFile": "b.jpg", "DateTimeOriginal": "2024:05:01 12:00:00", "GPSLatitude": 50.0},
+     zone(-5),
+     photos.Photo("b.jpg", datetime(2024, 5, 1, 12, tzinfo=zone(-5)), TZ_MANUAL, None, True)),
+    ({"SourceFile": "c.jpg", "GPSLatitude": 50.0}, None,
+     photos.Photo("c.jpg", None, None, "no capture time in EXIF", True)),
+    ({"SourceFile": "d.jpg", "DateTimeOriginal": "yesterday"}, zone(2),
+     photos.Photo("d.jpg", None, None, "invalid capture time in EXIF: yesterday", False)),
+    ({"SourceFile": "e.jpg", "Error": "File format error"}, None,
+     photos.Photo("e.jpg", None, None, "cannot be read: File format error", False)),
+])
+def test_photo_from_metadata(meta, manual, expected):
+    assert photos.photo_from_metadata(meta, manual) == expected
+
+
+def test_photo_from_metadata_in_the_system_time_zone(system_tz):
+    system_tz("XYZ-05:30")
+    photo = photos.photo_from_metadata(
+        {"SourceFile": "a.jpg", "DateTimeOriginal": "2024:05:01 12:00:00"}, None)
+    assert photo == photos.Photo("a.jpg", datetime(2024, 5, 1, 12, tzinfo=zone(5, 30)),
+                                 TZ_SYSTEM, None, False)
+
+
 # find_photos
 
 @pytest.fixture

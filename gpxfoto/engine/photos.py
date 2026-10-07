@@ -3,6 +3,7 @@ import json
 import os
 import re
 import subprocess
+from collections import namedtuple
 from datetime import datetime, timedelta, timezone
 from gettext import gettext as _
 
@@ -14,6 +15,12 @@ EXTENSIONS = {".jpg", ".jpeg"}
 TZ_CAMERA = "camera"     # OffsetTimeOriginal or OffsetTime in EXIF
 TZ_MANUAL = "manual"     # given by the user
 TZ_SYSTEM = "system"     # missing in EXIF, the computer's time zone is used
+
+# What the matching needs to know about a photo. taken is the capture
+# time from capture_time(), before any correction, and tz_source where its
+# time zone came from; without a usable time, taken and tz_source are None
+# and reason says why. has_location: the photo already has a location.
+Photo = namedtuple("Photo", "path taken tz_source reason has_location")
 
 
 def find_photos(paths, recursive):
@@ -125,6 +132,14 @@ def parse_utc_offset(text):
     if offset > timedelta(hours=14):
         raise ValueError(f"not a UTC offset: {text!r}")
     return timezone(-offset if match[1] == "-" else offset)
+
+
+def photo_from_metadata(meta, manual_tz):
+    """Return the Photo described by exiftool's metadata of one file."""
+    taken, detail = capture_time(meta, manual_tz)
+    if taken is None:
+        return Photo(meta["SourceFile"], None, None, detail, "GPSLatitude" in meta)
+    return Photo(meta["SourceFile"], taken, detail, None, "GPSLatitude" in meta)
 
 
 def capture_time(meta, manual_tz):
