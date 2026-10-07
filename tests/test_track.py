@@ -375,6 +375,19 @@ def test_locate_with_fractional_time():
         (50.4975, 20.99, 199.5, 0.5))
 
 
+@pytest.mark.parametrize("first, second, offset, lon, gap", [
+    (179.9995, -179.9995, 2.5, 179.99975, 2.5),
+    (179.9995, -179.9995, 5, 180.0, 5),
+    (179.9995, -179.9995, 7.5, -179.99975, 2.5),
+    (-179.9995, 179.9995, 2.5, -179.99975, 2.5),
+    (-179.9995, 179.9995, 7.5, 179.99975, 2.5),
+])
+def test_locate_across_the_180th_meridian(first, second, offset, lon, gap):
+    # The two points are about 107 m apart, not around the whole globe
+    points, times = track((T0, -16.5, first, None), (T0 + 10, -16.5, second, None))
+    assert locate(points, times, T0 + offset, 120) == pytest.approx((-16.5, lon, None, gap))
+
+
 @pytest.mark.parametrize("before_ele, after_ele, expected", [
     (None, 200.0, 200.0),
     (100.0, None, 100.0),

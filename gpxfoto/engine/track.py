@@ -120,7 +120,17 @@ def locate(points, times, t, max_gap):
     span = after[0] - before[0]
     u = (t - before[0]) / span if span > 0 else 0.0
     lat = before[1] + (after[1] - before[1]) * u
-    lon = before[2] + (after[2] - before[2]) * u
+    # The shorter way round, which crosses the 180° meridian when needed
+    lon_change = after[2] - before[2]
+    if lon_change > 180:
+        lon_change -= 360
+    elif lon_change < -180:
+        lon_change += 360
+    lon = before[2] + lon_change * u
+    if lon > 180:
+        lon -= 360
+    elif lon < -180:
+        lon += 360
     if before[3] is not None and after[3] is not None:
         ele = before[3] + (after[3] - before[3]) * u
     else:
