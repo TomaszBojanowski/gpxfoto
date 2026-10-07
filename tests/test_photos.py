@@ -208,6 +208,33 @@ def test_capture_time_unreadable_date(value):
     assert capture_time(meta, None) == (None, f"invalid capture time in EXIF: {value}")
 
 
+@pytest.mark.parametrize("value, subseconds", [
+    ("0001:01:01 23:59:59", ""),
+    ("9999:12:31 00:00:00", ""),
+    ("9999:12:30 23:59:59", "9999999"),     # rounded up to the next day
+    ("9999:12:31 23:59:59", "9999999"),     # rounded up beyond the calendar
+])
+@pytest.mark.parametrize("system_zone", ["UTC0", "<+14>-14", "<-12>12"])
+@pytest.mark.parametrize("camera, manual", [(None, None), ("+14:00", None), (None, zone(-12))])
+def test_capture_time_within_a_day_of_the_ends_of_the_calendar(value, subseconds, system_zone,
+                                                               camera, manual, system_tz):
+    # Python cannot convert such a time between local time and UTC
+    system_tz(system_zone)
+    meta = {"DateTimeOriginal": value, "SubSecTimeOriginal": subseconds}
+    if camera:
+        meta["OffsetTimeOriginal"] = camera
+    assert capture_time(meta, manual) == (None, f"invalid capture time in EXIF: {value}")
+
+
+@pytest.mark.parametrize("value", ["0001:01:02 00:00:00", "9999:12:30 23:59:59"])
+@pytest.mark.parametrize("system_zone", ["UTC0", "<+14>-14", "<-12>12"])
+def test_capture_time_near_the_ends_of_the_calendar(value, system_zone, system_tz):
+    system_tz(system_zone)
+    taken, source = capture_time({"DateTimeOriginal": value}, None)
+    assert source == TZ_SYSTEM
+    assert taken.replace(tzinfo=None) == datetime.strptime(value, "%Y:%m:%d %H:%M:%S")
+
+
 def test_capture_time_unreadable_date_does_not_fall_back_to_create_date():
     meta = {"DateTimeOriginal": "0000:00:00 00:00:00", "CreateDate": "2024:05:01 12:00:00"}
     assert capture_time(meta, None) == (None, "invalid capture time in EXIF: 0000:00:00 00:00:00")

@@ -198,6 +198,7 @@ def main():
             continue
         try:
             taken += timedelta(seconds=args.offset)
+            time_utc = taken.astimezone(timezone.utc)
         except OverflowError:
             # Translators: reason why a photo was skipped
             reason = _("the corrected capture time is out of range")
@@ -221,7 +222,7 @@ def main():
         if detail in TZ_NOTES:
             note = "  [" + _(TZ_NOTES[detail]).format(option="--timezone") + "]"
         print(f"  {name:<16} {taken:%X}  {position} {ele_text}{note}")
-        plan.append((path, lat, lon, ele, taken.astimezone(timezone.utc), "GPSLatitude" in meta))
+        plan.append((path, lat, lon, ele, time_utc, "GPSLatitude" in meta))
 
     print(_("Matched: {matched}, skipped: {skipped}").format(
         matched=i18n.number(len(plan)), skipped=i18n.number(skipped)))

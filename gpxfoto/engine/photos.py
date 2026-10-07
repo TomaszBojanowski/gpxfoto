@@ -137,12 +137,16 @@ def capture_time(meta, manual_tz):
         return None, _("no capture time in EXIF")
     try:
         time = datetime.strptime(str(raw)[:19], "%Y:%m:%d %H:%M:%S")
-    except ValueError:
+        fraction = str(meta.get("SubSecTimeOriginal", "")).strip()
+        if fraction.isascii() and fraction.isdigit():
+            time += timedelta(seconds=float("0." + fraction))
+    except (ValueError, OverflowError):     # overflow: rounded up beyond the calendar
+        time = None
+    # Python cannot convert a time within a day of the ends of the calendar
+    # between local time and UTC
+    if time is None or not datetime(1, 1, 2) <= time < datetime(9999, 12, 31):
         # Translators: reason why a photo was skipped; {value} is the text found
         return None, _("invalid capture time in EXIF: {value}").format(value=raw)
-    fraction = str(meta.get("SubSecTimeOriginal", "")).strip()
-    if fraction.isascii() and fraction.isdigit():
-        time += timedelta(seconds=float("0." + fraction))
     if manual_tz is not None:
         return time.replace(tzinfo=manual_tz), TZ_MANUAL
     for name in ("OffsetTimeOriginal", "OffsetTime"):

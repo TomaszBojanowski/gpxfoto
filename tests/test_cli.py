@@ -257,6 +257,22 @@ def test_offset_beyond_the_calendar_skips_the_photo(photo, gpx):
 
 
 @needs_exiftool
+def test_offset_to_the_first_day_of_the_calendar_skips_the_photo(tmp_path, photo):
+    # In UTC, the corrected time would fall before the year 1
+    gpx = write_gpx(tmp_path / "early.gpx", [("0001-01-03T00:00:00Z", 50.0, 20.0, None)])
+    path = photo("a.jpg", taken("00:00:00", offset=None, date="0001:01:03"))
+
+    result = run_cli(path, "-g", gpx, "--timezone", "+14:00", "--offset=-172800",
+                     "--max-gap", "1e6")
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.splitlines()[1:] == [
+        "  a.jpg            skipped: the corrected capture time is out of range",
+        "Matched: 0, skipped: 1",
+    ]
+
+
+@needs_exiftool
 def test_max_gap_of_zero_matches_only_exact_times(photo, gpx):
     photo("a.jpg", taken("12:00:00"))
     path = photo("b.jpg", taken("12:00:01"))
