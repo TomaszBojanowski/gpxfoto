@@ -479,15 +479,55 @@ def test_failed_backup_keeps_original(tmp_path, photo, fake_exiftool):
 
 
 def test_existing_backup_is_never_replaced(tmp_path, photo, fake_exiftool):
+    """An earlier copy has the same image but other metadata."""
     backup = tmp_path / "originals" / "photo.jpg"
     backup.parent.mkdir()
-    backup.write_bytes(b"the real original")
+    backup.write_bytes(make_jpeg(comment=b"the real original"))
     expected = add_comment(photo.read_bytes())
     fake_exiftool()
     write_location(photo, 50.0, 19.0, 200.0, TIME, backup=True)
-    assert backup.read_bytes() == b"the real original"
+    assert backup.read_bytes() == make_jpeg(comment=b"the real original")
     assert os.listdir(backup.parent) == ["photo.jpg"]
     assert photo.read_bytes() == expected
+
+
+@pytest.mark.parametrize("make", [
+    pytest.param(lambda p, photo: p.write_bytes(make_jpeg(quantization=range(2, 66))),
+                 id="other image"),
+    pytest.param(lambda p, photo: p.write_bytes(b"the real original"), id="not a JPEG"),
+    pytest.param(lambda p, photo: p.write_bytes(make_jpeg()[:40]), id="cut off"),
+    pytest.param(lambda p, photo: p.mkdir(), id="directory"),
+    pytest.param(lambda p, photo: os.symlink("missing.jpg", p), id="broken link"),
+    pytest.param(lambda p, photo: os.symlink(photo, p), id="link to the photo"),
+])
+def test_something_else_in_place_of_the_backup_stops_the_write(tmp_path, photo, fake_exiftool,
+                                                               make):
+    backup = tmp_path / "originals" / "photo.jpg"
+    backup.parent.mkdir()
+    make(backup, photo)
+    before = state(photo)
+    fake = fake_exiftool()
+    with pytest.raises(RuntimeError) as raised:
+        write_location(photo, 50.0, 19.0, 200.0, TIME, backup=True)
+    assert str(raised.value) == f"“{backup}” already exists and is not a copy of this photo"
+    assert state(photo) == before
+    assert sorted(os.listdir(tmp_path)) == ["originals", "photo.jpg"]
+    assert os.listdir(backup.parent) == ["photo.jpg"]
+    assert len(fake.commands) == 1
+
+
+def test_new_backup_is_checked_against_the_photo(tmp_path, photo, fake_exiftool, monkeypatch):
+    def wrong_copy(source, target):
+        with open(target, "wb") as f:
+            f.write(make_jpeg(quantization=range(2, 66)))
+
+    before = state(photo)
+    fake_exiftool()
+    monkeypatch.setattr(writer.shutil, "copyfile", wrong_copy)
+    with pytest.raises(RuntimeError, match="^the backup copy differs from the photo$"):
+        write_location(photo, 50.0, 19.0, 200.0, TIME, backup=True)
+    assert state(photo) == before
+    assert os.listdir(tmp_path / "originals") == []
 
 
 def test_repeated_writes_keep_the_first_backup(tmp_path, photo, fake_exiftool):

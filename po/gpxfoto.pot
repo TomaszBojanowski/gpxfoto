@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: gpxfoto 0.1.0\n"
 "Report-Msgid-Bugs-To: https://github.com/tomaszbojanowski/gpxfoto/issues\n"
-"POT-Creation-Date: 2026-10-07 07:22+0000\n"
+"POT-Creation-Date: 2026-10-07 07:29+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -351,4 +351,13 @@ msgstr ""
 
 #: gpxfoto/engine/writer.py:100
 msgid "exiftool changed the image data; the result was discarded"
+msgstr ""
+
+#: gpxfoto/engine/writer.py:147
+msgid "the backup copy differs from the photo"
+msgstr ""
+
+#: gpxfoto/engine/writer.py:163
+#, python-brace-format
+msgid "“{path}” already exists and is not a copy of this photo"
 msgstr ""

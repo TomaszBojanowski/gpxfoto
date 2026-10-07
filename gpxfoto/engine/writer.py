@@ -100,7 +100,7 @@ def write_location(path, lat, lon, ele, time_utc, backup, replace=False):
             raise RuntimeError(_("exiftool changed the image data; the result was discarded"))
         _copy_attributes(path, original, temp)
         if backup:
-            _back_up(path, directory, original)
+            _back_up(path, directory, original, before)
         os.replace(temp, path)       # atomic replacement
     finally:
         if os.path.exists(temp):
@@ -124,24 +124,41 @@ def _copy_attributes(path, original, target):
     os.utime(target, ns=(original.st_atime_ns, original.st_mtime_ns))
 
 
-def _back_up(path, directory, original):
-    """Copy the photo into BACKUP_DIR unless a copy is already there.
+def _back_up(path, directory, original, checksum):
+    """Make sure BACKUP_DIR holds a copy of the photo as it is now.
 
-    The first copy is the true original, so it is never replaced. The copy
-    gets its final name only once complete, so an interrupted copy never
-    looks like a finished one.
+    The first copy is the true original, so it is never replaced. As
+    gpxfoto changes only metadata, an earlier copy holds the same image;
+    anything else in its place stops the write. A new copy is checked
+    against the photo and gets its final name only once complete, so an
+    interrupted copy never looks like a finished one.
     """
     target_dir = os.path.join(directory, BACKUP_DIR)
     target = os.path.join(target_dir, os.path.basename(path))
     if os.path.lexists(target):
+        _check_backup(target, checksum)
         return
     os.makedirs(target_dir, exist_ok=True)
     fd, temp = tempfile.mkstemp(prefix=TEMP_PREFIX, suffix=".jpg", dir=target_dir)
-    os.close(fd)
     try:
+        os.close(fd)
         shutil.copyfile(path, temp)
+        if image_checksum(temp) != checksum:
+            raise RuntimeError(_("the backup copy differs from the photo"))
         _copy_attributes(path, original, temp)
         os.replace(temp, target)
     finally:
         if os.path.exists(temp):
             os.unlink(temp)
+
+
+def _check_backup(target, checksum):
+    """An existing backup must be a regular file holding the photo's image."""
+    try:
+        same = (not os.path.islink(target) and os.path.isfile(target)
+                and image_checksum(target) == checksum)
+    except (OSError, ValueError):
+        same = False
+    if not same:
+        raise RuntimeError(_("“{path}” already exists and is not a copy of this photo").format(
+            path=target))

@@ -8,7 +8,7 @@ import sys
 
 import pytest
 
-from conftest import latin2_name, needs_exiftool, read_tags, run_cli, set_tags, write_gpx
+from conftest import make_jpeg, latin2_name, needs_exiftool, read_tags, run_cli, set_tags, write_gpx
 from gpxfoto import cli, i18n
 from gpxfoto.engine.writer import image_checksum
 
@@ -515,6 +515,26 @@ def test_photo_exiftool_cannot_read_is_skipped_with_a_reason(photo, gpx):
     assert result.stdout.splitlines()[1:4] == [
         MATCH_LINE, "  empty.jpg        skipped: cannot be read: File is empty",
         "Matched: 1, skipped: 1"]
+
+
+@needs_exiftool
+def test_reused_file_name_does_not_lose_the_backup(photo, gpx):
+    """Camera file numbers repeat; the backup of another photo is no backup."""
+    path = photo("IMG_0001.jpg", taken("12:00:50"))
+    first = run_cli(path, "-g", gpx, "--write", "--backup")
+    path.write_bytes(make_jpeg(quantization=range(3, 67)))
+    set_tags(path, *taken("12:00:50"))
+    other = path.read_bytes()
+
+    second = run_cli(path, "-g", gpx, "--write", "--backup")
+
+    assert first.returncode == 0, first.stderr
+    assert second.returncode == 1
+    backup = path.parent / "originals" / "IMG_0001.jpg"
+    assert second.stdout.splitlines()[-2:] == [
+        f"  Could not write IMG_0001.jpg: “{backup}” already exists and is not a copy of "
+        "this photo (file unchanged)", "Written: 0, errors: 1"]
+    assert path.read_bytes() == other
 
 @needs_exiftool
 @needs_posix_shell
