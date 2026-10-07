@@ -61,6 +61,7 @@ gpxfoto ~/Obrazy/2026-10-06 -g activity.gpx --write
 | `--clock-photo PLIK` | zdjęcie dokładnego zegara, na przykład zegarka zapisującego trasę; razem z `--clock-time` służy do wyznaczenia poprawki zegara aparatu |
 | `--clock-time CZAS` | czas widoczny na zegarze na tym zdjęciu, w formacie 24-godzinnym: `14:03:27`, `14:03:27+02:00` lub `2026-10-06T14:03:27+02:00` |
 | `--max-gap SEKUNDY` | największy dopuszczalny odstęp czasu między zdjęciem a najbliższym punktem trasy (domyślnie: 120 s) |
+| `--no-stops` | nie wyszukuje postojów; każde zdjęcie otrzymuje położenie z trasy w chwili wykonania |
 | `--overwrite` | zmienia także zdjęcia, które mają już zapisane położenie |
 | `--backup` | zachowuje kopie oryginalnych plików w podkatalogu `originals` obok każdego zdjęcia; istniejąca kopia nigdy nie jest zastępowana |
 | `-r`, `--recursive` | wyszukuje zdjęcia także w podkatalogach |
@@ -116,6 +117,25 @@ punktu trasy więcej niż `--max-gap`: przed początkiem trasy, po jej
 zakończeniu albo w przerwie w zapisie trasy. Zdjęcie wykonane w czasie
 takiej przerwy otrzymuje jednak położenie, jeśli w trakcie przerwy zapisane
 położenie zmieniło się o mniej niż 100 m.
+
+### Postoje
+
+Zdjęcie zrobione podczas postoju otrzymuje stabilniejsze położenie.
+gpxfoto wyszukuje na trasie postoje: odcinki trwające co najmniej około
+pół minuty, na których trasa przesuwa się wolniej niż 0,2 m/s, a jeśli ma
+wysokość z barometru, także wznosi się lub opada wolniej niż 0,03 m/s,
+dzięki czemu powolne, strome podejście nie jest postojem. Postojem jest też
+przerwa w zapisie trasy, której oba końce dzieli najwyżej 10 m. Zdjęcie
+wykonane w czasie postoju, gdy trasa znajduje się najwyżej 20 m od niego
+i najwyżej 5 m wyżej lub niżej, otrzymuje położenie postoju, czyli medianę
+jego punktów, a w jego wierszu podane są godziny postoju. Położenie
+pozostałych zdjęć się nie zmienia. Przerwy krótsze niż około minuty zwykle
+nie są postojami.
+
+Pod listą zdjęć wiersz „Na postojach: N z M dopasowanych zdjęć” podaje, ile
+zdjęć wykonano podczas postojów. Zdjęcia robi się przeważnie na postoju,
+więc przy źle ustawionym zegarze aparatu ta liczba jest zwykle mniejsza.
+Opcja `--no-stops` wyłącza postoje.
 
 Z opcją `--backup` kopia każdego zdjęcia sprzed zapisu trafia do katalogu
 `originals` obok niego. gpxfoto oznacza ten katalog plikiem `.gpxfoto`,

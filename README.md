@@ -61,6 +61,7 @@ gpxfoto ~/Pictures/2026-10-06 -g activity.gpx --write
 | `--clock-photo FILE` | photo of an accurate clock, such as the watch that records the track; with `--clock-time`, it gives the camera clock correction |
 | `--clock-time TIME` | time shown on the clock in that photo, 24-hour: `14:03:27`, `14:03:27+02:00` or `2026-10-06T14:03:27+02:00` |
 | `--max-gap SECONDS` | largest allowed time between a photo and the nearest track point (default: 120 s) |
+| `--no-stops` | do not look for stops; every photo gets the track’s position at its time |
 | `--overwrite` | also change photos that already have a location |
 | `--backup` | keep copies of the original files in an `originals` subdirectory next to each photo; an existing copy is never replaced |
 | `-r`, `--recursive` | also look for photos in subdirectories |
@@ -115,6 +116,24 @@ A photo is skipped when its capture time is more than `--max-gap` away from
 the nearest track point: before the track starts, after it ends, or in a
 break in recording. A photo taken during such a break still gets a location
 if the recorded position moved less than 100 m during the break.
+
+### Stops
+
+A photo taken while standing still gets a steadier position. gpxfoto
+finds the stops of a track: stretches of about half a minute or more in
+which the track moves slower than 0.2 m/s and, when the track has
+barometric elevations, climbs or descends slower than 0.03 m/s, so that
+slow, steep climbing does not count. A break in recording whose two ends
+are within 10 m is a stop too. A photo taken during a stop, while the track
+is within 20 m and 5 m of height of it, gets the stop’s position, the
+median of its points, and its line shows the times of the stop. The
+positions of other photos do not change. Pauses shorter than about a
+minute are usually not stops.
+
+After the list, “During stops: N of M matched photos” says how many photos
+were taken during stops. Photos are mostly taken while standing, so with a
+wrong camera clock this number is usually lower. `--no-stops` turns stops
+off.
 
 With `--backup`, a copy of each photo as it was before goes into an
 `originals` directory next to it. gpxfoto marks that directory with a
