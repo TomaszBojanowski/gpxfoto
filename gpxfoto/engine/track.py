@@ -5,6 +5,8 @@ import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
 from gettext import gettext as _
 
+from gpxfoto.i18n import duration
+
 # Elevations further from sea level, in metres, are errors in the track:
 # balloons rise to about 40 km, and the deepest sea is 11 km deep
 MAX_ELEVATION = 100_000.0
@@ -116,7 +118,7 @@ def locate(points, times, t, max_gap):
                 # Translators: reason why a photo was skipped; {duration} is
                 # a time span such as “10 min”
                 reason = _("{duration} after the end of the track")
-            return None, reason.format(duration=_format_duration(gap))
+            return None, reason.format(duration=duration(gap))
         return p[1], p[2], p[3], gap
 
     gap = min(t - before[0], after[0] - t)
@@ -126,7 +128,7 @@ def locate(points, times, t, max_gap):
         # Translators: reason why a photo was skipped; {duration} is a time
         # span such as “10 min”
         return None, _("gap in the track recording, nearest point {duration} away").format(
-            duration=_format_duration(gap))
+            duration=duration(gap))
     span = after[0] - before[0]
     u = (t - before[0]) / span if span > 0 else 0.0
     lat = _between(before[1], after[1], u)
@@ -151,12 +153,3 @@ def locate(points, times, t, max_gap):
 def _between(a, b, u):
     """The value at fraction u of the way from a to b, kept between them despite rounding."""
     return min(max(a + (b - a) * u, min(a, b)), max(a, b))
-
-
-def _format_duration(s):
-    s = int(round(s))
-    if s < 120:
-        return _("{seconds} s").format(seconds=s)
-    if s < 7200:
-        return _("{minutes} min").format(minutes=s // 60)
-    return _("{hours} h {minutes} min").format(hours=s // 3600, minutes=s % 3600 // 60)

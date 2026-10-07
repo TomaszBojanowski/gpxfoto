@@ -1,4 +1,4 @@
-"""GPX parsing (load_gpx, _parse_time), position lookup (locate) and durations."""
+"""GPX parsing (load_gpx, _parse_time) and position lookup (locate)."""
 import os
 import time
 from datetime import datetime, timezone
@@ -6,8 +6,9 @@ from datetime import datetime, timezone
 import pytest
 
 from conftest import write_gpx
+from gpxfoto import i18n
 from gpxfoto.engine import track as track_module
-from gpxfoto.engine.track import _distance_m, _format_duration, _parse_time, load_gpx, locate
+from gpxfoto.engine.track import _distance_m, _parse_time, load_gpx, locate
 
 
 def utc(*fields):
@@ -553,32 +554,6 @@ def test_locate_on_loaded_track(tmp_path):
         1012.5, 0.5))
 
 
-# _format_duration
-
-@pytest.mark.parametrize("seconds, text", [
-    (0, "0 s"),
-    (0.4, "0 s"),
-    (59, "59 s"),
-    (119, "119 s"),
-    (119.4, "119 s"),
-    (119.6, "2 min"),
-    (120, "2 min"),
-    (179, "2 min"),
-    (180, "3 min"),
-    (3600, "60 min"),
-    (7199, "119 min"),
-    (7199.4, "119 min"),
-    (7199.6, "2 h 0 min"),
-    (7200, "2 h 0 min"),
-    (7259, "2 h 0 min"),
-    (7260, "2 h 1 min"),
-    (10799, "2 h 59 min"),
-    (90061, "25 h 1 min"),
-])
-def test_format_duration(seconds, text):
-    assert _format_duration(seconds) == text
-
-
 MESSAGES = {
     "{duration} before the start of the track",
     "{duration} after the end of the track",
@@ -596,6 +571,7 @@ def marked(monkeypatch):
         assert text in MESSAGES, text  # looked up before formatting
         return f"«{text}»"
     monkeypatch.setattr(track_module, "_", translate)
+    monkeypatch.setattr(i18n, "_", translate)
 
 
 @pytest.mark.parametrize("t, reason", [

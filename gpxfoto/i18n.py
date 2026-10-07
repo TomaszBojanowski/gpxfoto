@@ -2,6 +2,7 @@
 import gettext
 import locale
 import os
+from gettext import gettext as _
 
 DOMAIN = "gpxfoto"
 # realpath: in a strict editable install this file is a symbolic link
@@ -35,6 +36,48 @@ def coordinates(lat, lon):
     """
     separator = "; " if locale.localeconv()["decimal_point"] == "," else ", "
     return number(lat, 6) + separator + number(lon, 6)
+
+
+def duration(seconds):
+    """A time span in whole seconds, minutes or hours and minutes, e.g. “2 min”."""
+    s = int(round(seconds))
+    if s < 120:
+        return _("{seconds} s").format(seconds=s)
+    if s < 7200:
+        return _("{minutes} min").format(minutes=s // 60)
+    return _("{hours} h {minutes} min").format(hours=s // 3600, minutes=s % 3600 // 60)
+
+
+def exact_duration(seconds, sign=False):
+    """A time span to the millisecond, e.g. “1 h 0 min 5 s” or, with sign, “+2 min 11.52 s”.
+
+    Parts that are zero at the end are left out, so 3600 s is “1 h”. The
+    numbers follow the regional settings.
+    """
+    milliseconds = round(abs(seconds) * 1000)
+    hours, rest = divmod(milliseconds, 3_600_000)
+    minutes, rest = divmod(rest, 60_000)
+    if rest % 1000:
+        point = locale.localeconv()["decimal_point"]
+        second_text = number(rest / 1000, 3).rstrip("0").rstrip(point)
+    else:
+        second_text = number(rest // 1000)
+    if hours and rest:
+        text = _("{hours} h {minutes} min {seconds} s").format(
+            hours=number(hours), minutes=number(minutes), seconds=second_text)
+    elif hours and minutes:
+        text = _("{hours} h {minutes} min").format(hours=number(hours), minutes=number(minutes))
+    elif hours:
+        text = _("{hours} h").format(hours=number(hours))
+    elif minutes and rest:
+        text = _("{minutes} min {seconds} s").format(minutes=number(minutes), seconds=second_text)
+    elif minutes:
+        text = _("{minutes} min").format(minutes=number(minutes))
+    else:
+        text = _("{seconds} s").format(seconds=second_text)
+    if sign and milliseconds:
+        text = ("+" if seconds > 0 else "-") + text
+    return text
 
 
 def N_(message):

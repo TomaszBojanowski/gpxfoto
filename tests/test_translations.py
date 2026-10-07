@@ -252,7 +252,8 @@ def test_every_message_is_translated(language):
 
 # Messages whose Polish translation is the English text itself
 SAME_IN_POLISH = {"%(heading)s:", "argument %(argument_name)s: %(message)s", "{elevation} m",
-                  "{seconds} s", "{minutes} min", "{hours} h {minutes} min"}
+                  "{seconds} s", "{minutes} min", "{hours} h {minutes} min", "{hours} h",
+                  "{minutes} min {seconds} s", "{hours} h {minutes} min {seconds} s"}
 
 
 def test_polish_messages_are_not_copies_of_the_english_ones():

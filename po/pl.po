@@ -8,7 +8,7 @@ msgstr ""
 "Project-Id-Version: gpxfoto\n"
 "Report-Msgid-Bugs-To: "
 "https://github.com/tomaszbojanowski/gpxfoto/issues\n"
-"POT-Creation-Date: 2026-10-07 14:43+0000\n"
+"POT-Creation-Date: 2026-10-07 19:23+0000\n"
 "PO-Revision-Date: 2026-10-06 23:45+0200\n"
 "Last-Translator: Tomasz <t.bojanowski@protonmail.com>\n"
 "Language-Team: Polish\n"
@@ -318,46 +318,31 @@ msgid "invalid capture time in EXIF: {value}"
 msgstr "nieprawidłowa data wykonania w EXIF: {value}"
 
 #. Translators: {error} describes the problem, e.g. “No such file or directory”
-#: gpxfoto/engine/track.py:44
+#: gpxfoto/engine/track.py:46
 #, python-brace-format
 msgid "Cannot read the GPX file {path}: {error}"
 msgstr "Nie można odczytać pliku GPX {path}: {error}"
 
 #. Translators: reason why a photo was skipped; {duration} is
 #. a time span such as “10 min”
-#: gpxfoto/engine/track.py:114
+#: gpxfoto/engine/track.py:116
 #, python-brace-format
 msgid "{duration} before the start of the track"
 msgstr "{duration} przed początkiem trasy"
 
 #. Translators: reason why a photo was skipped; {duration} is
 #. a time span such as “10 min”
-#: gpxfoto/engine/track.py:118
+#: gpxfoto/engine/track.py:120
 #, python-brace-format
 msgid "{duration} after the end of the track"
 msgstr "{duration} po zakończeniu trasy"
 
 #. Translators: reason why a photo was skipped; {duration} is a time
 #. span such as “10 min”
-#: gpxfoto/engine/track.py:128
+#: gpxfoto/engine/track.py:130
 #, python-brace-format
 msgid "gap in the track recording, nearest point {duration} away"
 msgstr "przerwa w zapisie trasy, najbliższy punkt oddalony o {duration}"
-
-#: gpxfoto/engine/track.py:159
-#, python-brace-format
-msgid "{seconds} s"
-msgstr "{seconds} s"
-
-#: gpxfoto/engine/track.py:161
-#, python-brace-format
-msgid "{minutes} min"
-msgstr "{minutes} min"
-
-#: gpxfoto/engine/track.py:162
-#, python-brace-format
-msgid "{hours} h {minutes} min"
-msgstr "{hours} h {minutes} min"
 
 #: gpxfoto/engine/writer.py:38
 msgid "not a JPEG file"
@@ -420,3 +405,33 @@ msgstr "kopia zapasowa różni się od zdjęcia"
 #, python-brace-format
 msgid "“{path}” already exists and is not a copy of this photo"
 msgstr "„{path}” już istnieje i nie jest kopią tego zdjęcia"
+
+#: gpxfoto/i18n.py:45 gpxfoto/i18n.py:77
+#, python-brace-format
+msgid "{seconds} s"
+msgstr "{seconds} s"
+
+#: gpxfoto/i18n.py:47 gpxfoto/i18n.py:75
+#, python-brace-format
+msgid "{minutes} min"
+msgstr "{minutes} min"
+
+#: gpxfoto/i18n.py:48 gpxfoto/i18n.py:69
+#, python-brace-format
+msgid "{hours} h {minutes} min"
+msgstr "{hours} h {minutes} min"
+
+#: gpxfoto/i18n.py:66
+#, python-brace-format
+msgid "{hours} h {minutes} min {seconds} s"
+msgstr "{hours} h {minutes} min {seconds} s"
+
+#: gpxfoto/i18n.py:71
+#, python-brace-format
+msgid "{hours} h"
+msgstr "{hours} h"
+
+#: gpxfoto/i18n.py:73
+#, python-brace-format
+msgid "{minutes} min {seconds} s"
+msgstr "{minutes} min {seconds} s"

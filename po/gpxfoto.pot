@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: gpxfoto 0.1.0\n"
 "Report-Msgid-Bugs-To: https://github.com/tomaszbojanowski/gpxfoto/issues\n"
-"POT-Creation-Date: 2026-10-07 14:43+0000\n"
+"POT-Creation-Date: 2026-10-07 19:23+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -290,45 +290,30 @@ msgid "invalid capture time in EXIF: {value}"
 msgstr ""
 
 #. Translators: {error} describes the problem, e.g. “No such file or directory”
-#: gpxfoto/engine/track.py:44
+#: gpxfoto/engine/track.py:46
 #, python-brace-format
 msgid "Cannot read the GPX file {path}: {error}"
 msgstr ""
 
 #. Translators: reason why a photo was skipped; {duration} is
 #. a time span such as “10 min”
-#: gpxfoto/engine/track.py:114
+#: gpxfoto/engine/track.py:116
 #, python-brace-format
 msgid "{duration} before the start of the track"
 msgstr ""
 
 #. Translators: reason why a photo was skipped; {duration} is
 #. a time span such as “10 min”
-#: gpxfoto/engine/track.py:118
+#: gpxfoto/engine/track.py:120
 #, python-brace-format
 msgid "{duration} after the end of the track"
 msgstr ""
 
 #. Translators: reason why a photo was skipped; {duration} is a time
 #. span such as “10 min”
-#: gpxfoto/engine/track.py:128
+#: gpxfoto/engine/track.py:130
 #, python-brace-format
 msgid "gap in the track recording, nearest point {duration} away"
-msgstr ""
-
-#: gpxfoto/engine/track.py:159
-#, python-brace-format
-msgid "{seconds} s"
-msgstr ""
-
-#: gpxfoto/engine/track.py:161
-#, python-brace-format
-msgid "{minutes} min"
-msgstr ""
-
-#: gpxfoto/engine/track.py:162
-#, python-brace-format
-msgid "{hours} h {minutes} min"
 msgstr ""
 
 #: gpxfoto/engine/writer.py:38
@@ -384,4 +369,34 @@ msgstr ""
 #: gpxfoto/engine/writer.py:287
 #, python-brace-format
 msgid "“{path}” already exists and is not a copy of this photo"
+msgstr ""
+
+#: gpxfoto/i18n.py:45 gpxfoto/i18n.py:77
+#, python-brace-format
+msgid "{seconds} s"
+msgstr ""
+
+#: gpxfoto/i18n.py:47 gpxfoto/i18n.py:75
+#, python-brace-format
+msgid "{minutes} min"
+msgstr ""
+
+#: gpxfoto/i18n.py:48 gpxfoto/i18n.py:69
+#, python-brace-format
+msgid "{hours} h {minutes} min"
+msgstr ""
+
+#: gpxfoto/i18n.py:66
+#, python-brace-format
+msgid "{hours} h {minutes} min {seconds} s"
+msgstr ""
+
+#: gpxfoto/i18n.py:71
+#, python-brace-format
+msgid "{hours} h"
+msgstr ""
+
+#: gpxfoto/i18n.py:73
+#, python-brace-format
+msgid "{minutes} min {seconds} s"
 msgstr ""
