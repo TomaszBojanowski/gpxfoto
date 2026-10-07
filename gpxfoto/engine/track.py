@@ -53,16 +53,27 @@ def _read_points(path):
                 ele_text = child.text
         if time_text is not None:
             try:
-                points.append((
-                    _parse_time(time_text).timestamp(),
-                    float(el.attrib["lat"]),
-                    float(el.attrib["lon"]),
-                    float(ele_text) if ele_text is not None else None,
-                ))
+                point = (_parse_time(time_text).timestamp(), float(el.attrib["lat"]),
+                         float(el.attrib["lon"]), _elevation(ele_text))
             except (ValueError, KeyError):
                 pass
+            else:
+                # Also false for NaN; rules out infinity
+                if -90 <= point[1] <= 90 and -180 <= point[2] <= 180:
+                    points.append(point)
         el.clear()
     return points
+
+
+def _elevation(text):
+    """Elevation in metres, or None when it is missing or not a usable number."""
+    if text is None:
+        return None
+    try:
+        value = float(text)
+    except ValueError:
+        return None
+    return value if math.isfinite(value) else None
 
 
 def _distance_m(a, b):
