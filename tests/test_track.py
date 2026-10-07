@@ -680,3 +680,37 @@ def test_track_knows_the_file_of_each_point(tmp_path):
     assert track.files_at(T0 + 40) == (second,)
     assert track_module.load_track([first]).sources is None
     assert track_module.load_track([first]).files_at(T0 + 5) == (first,)
+
+
+def test_found_tracks_that_disagree_place_nothing():
+    # Two found recordings of the same time, 1.1 km apart
+    mine = straight(T0, 600, 50.0, files=["/t/mine.gpx"])
+    other = straight(T0, 600, 50.01, files=["/t/other.gpx"])
+    found = track_module.match([mine, other], T0 + 300, 120)
+    assert (found.lat, found.conflict) == (None, other)
+    assert found.reason == "the tracks mine.gpx and other.gpx put this photo 1.1 km apart"
+    # Labels are the caller's
+    found = track_module.match([mine, other], T0 + 300, 120, label=str)
+    assert found.reason == "the tracks /t/mine.gpx and /t/other.gpx put this photo 1.1 km apart"
+
+
+def test_found_tracks_that_agree_place_the_photo():
+    mine = straight(T0, 600, 50.0)
+    other = straight(T0, 600, 50.0015)     # 167 m north
+    found = track_module.match([mine, other], T0 + 300, 120)
+    assert (found.track, found.reason) == (mine, None)
+
+
+def test_named_track_is_never_overruled():
+    mine = straight(T0, 600, 50.0, named=True)
+    other = straight(T0, 600, 50.01)
+    found = track_module.match([other, mine], T0 + 300, 120)
+    assert (found.track, found.reason) == (mine, None)
+
+
+def test_only_equally_good_placements_are_compared():
+    # The other track ended 100 s ago: its last point is no evidence against this one
+    mine = straight(T0, 600, 50.0)
+    other = straight(T0, 200, 50.01)
+    found = track_module.match([mine, other], T0 + 300, 120)
+    assert (found.track, found.reason) == (mine, None)

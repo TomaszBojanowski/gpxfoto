@@ -1,13 +1,14 @@
 """Loading GPX tracks and finding the position at a given moment."""
 import bisect
 import math
+import os
 import xml.etree.ElementTree as ET
 from collections import namedtuple
 from datetime import datetime, timezone
 from gettext import gettext as _
 from itertools import accumulate
 
-from gpxfoto.i18n import duration
+from gpxfoto.i18n import distance, duration
 
 # Elevations further from sea level, in metres, are errors in the track:
 # balloons rise to about 40 km, and the deepest sea is 11 km deep
@@ -139,9 +140,16 @@ def load_track(paths, named=True, stops=True):
 # Where a moment lies on the tracks: a position, or the reason there is
 # none; stop is the stop whose position it is, if any, and files the
 # track files the position comes from, or that leave a gap at that moment.
-# covered is false when no track covers the moment, widened by --max-gap.
-Match = namedtuple("Match", "lat lon ele gap track reason stop files covered",
-                   defaults=(None,) * 7 + ((), True))
+# covered is false when no track covers the moment, widened by --max-gap,
+# and conflict is the other track when two tracks disagree.
+Match = namedtuple("Match", "lat lon ele gap track reason stop files covered conflict",
+                   defaults=(None,) * 7 + ((), True, None))
+
+# Two found tracks that put a photo further apart than this disagree, and
+# the photo is skipped: recordings of one walk by two devices stay within
+# about 150 m of each other, while a clock error of 10 min puts a walk
+# 400 m off
+DISAGREEMENT = 200.0     # m
 
 # How well a track places a moment, best first: between two of its points
 # that are both within --max-gap, from one point within --max-gap, or
@@ -161,13 +169,16 @@ def placement_rank(track, t, max_gap):
     return NEAR if nearest <= max_gap else ACROSS_BREAK
 
 
-def match(tracks, t, max_gap):
+def match(tracks, t, max_gap, label=os.path.basename):
     """Return the Match of Unix time t on tracks.
 
     Each track that covers t, widened by max_gap, places it on its own;
     positions are never interpolated between tracks. The best placement
     wins (see placement_rank); among equal ones, a track the user named,
     then the one recorded more often, then the one that started earlier.
+    When the winner was found in a directory and another track places t
+    as well but more than DISAGREEMENT away, nothing is placed. label
+    gives the name of a track file in reasons.
     """
     placed, rejected = [], []
     for track in tracks:
@@ -181,7 +192,20 @@ def match(tracks, t, max_gap):
             placed.append(((rank, not track.named, track.interval, track.first, track.files),
                            track, result))
     if placed:
-        _key, track, (lat, lon, ele, gap, stop) = min(placed, key=lambda p: p[0])
+        placed.sort(key=lambda p: p[0])
+        key, track, (lat, lon, ele, gap, stop) = placed[0]
+        if not track.named:
+            for other_key, other, other_result in placed[1:]:
+                apart = _distance_m((t, lat, lon), (t, *other_result[:2]))
+                if other_key[0] == key[0] and apart > DISAGREEMENT:
+                    first = ", ".join(map(label, track.files_at(t)))
+                    second = ", ".join(map(label, other.files_at(t)))
+                    # Translators: reason why a photo was skipped; {first} and
+                    # {second} are track files, {distance} is such as “1.8 km”
+                    reason = _("the tracks {first} and {second} put this photo {distance} "
+                               "apart").format(first=first, second=second,
+                                               distance=distance(apart))
+                    return Match(track=track, reason=reason, conflict=other)
         return Match(lat, lon, ele, gap, track, stop=stop, files=track.files_at(t))
     if rejected:
         _key, track, reason = min(rejected, key=lambda r: r[0])

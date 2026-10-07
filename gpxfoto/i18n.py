@@ -38,6 +38,15 @@ def coordinates(lat, lon):
     return number(lat, 6) + separator + number(lon, 6)
 
 
+def distance(metres):
+    """A distance in metres or, from 1 km, in kilometres, e.g. “350 m” or “1.8 km”."""
+    if round(metres) < 1000:
+        # Translators: a distance in metres
+        return _("{metres} m").format(metres=number(metres))
+    # Translators: a distance in kilometres
+    return _("{kilometres} km").format(kilometres=number(metres / 1000, 1))
+
+
 def duration(seconds):
     """A time span in whole seconds, minutes or hours and minutes, e.g. “2 min”."""
     s = int(round(seconds))

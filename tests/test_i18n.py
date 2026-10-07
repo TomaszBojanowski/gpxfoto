@@ -84,3 +84,16 @@ def test_exact_duration(seconds, sign, text):
 def test_exact_duration_follows_the_regional_settings(numeric_locale, seconds, text):
     numeric_locale("pl_PL.UTF-8")
     assert i18n.exact_duration(seconds, sign=True) == text
+
+
+@pytest.mark.parametrize("metres, text", [
+    (0, "0 m"), (350.4, "350 m"), (999.4, "999 m"), (999.6, "1.0 km"), (1849, "1.8 km"),
+    (12345, "12.3 km"),
+])
+def test_distance(metres, text):
+    assert i18n.distance(metres) == text
+
+
+def test_distance_follows_the_regional_settings(numeric_locale):
+    numeric_locale("pl_PL.UTF-8")
+    assert i18n.distance(1849) == "1,8 km"
