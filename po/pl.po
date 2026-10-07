@@ -8,7 +8,7 @@ msgstr ""
 "Project-Id-Version: gpxfoto\n"
 "Report-Msgid-Bugs-To: "
 "https://github.com/tomaszbojanowski/gpxfoto/issues\n"
-"POT-Creation-Date: 2026-10-07 19:27+0000\n"
+"POT-Creation-Date: 2026-10-07 19:29+0000\n"
 "PO-Revision-Date: 2026-10-06 23:45+0200\n"
 "Last-Translator: Tomasz <t.bojanowski@protonmail.com>\n"
 "Language-Team: Polish\n"
@@ -233,17 +233,24 @@ msgstr[0] "Trasa: {count} punkt, {start} – {end} (strefa czasowa komputera)"
 msgstr[1] "Trasa: {count} punkty, {start} – {end} (strefa czasowa komputera)"
 msgstr[2] "Trasa: {count} punktów, {start} – {end} (strefa czasowa komputera)"
 
-#: gpxfoto/cli.py:196
+#. Translators: {correction} is a time span with a sign, such as
+#. “+2 min 12 s”, added to the capture time of every photo
+#: gpxfoto/cli.py:193
+#, python-brace-format
+msgid "Clock correction: {correction}"
+msgstr "Poprawka zegara: {correction}"
+
+#: gpxfoto/cli.py:201
 msgid "No JPEG photos found."
 msgstr "Nie znaleziono zdjęć JPEG."
 
-#: gpxfoto/cli.py:218
+#: gpxfoto/cli.py:223
 #, python-brace-format
 msgid "Matched: {matched}, skipped: {skipped}"
 msgstr "Dopasowano: {matched}, pominięto: {skipped}"
 
 #. Translators: {option} is the command-line option --write
-#: gpxfoto/cli.py:223
+#: gpxfoto/cli.py:228
 #, python-brace-format
 msgid ""
 "This was a preview; no files were changed. Use {option} to write the "
@@ -252,17 +259,17 @@ msgstr ""
 "To był podgląd, nie zmieniono żadnych plików. Aby zapisać położenie, "
 "należy użyć opcji {option}."
 
-#: gpxfoto/cli.py:237
+#: gpxfoto/cli.py:242
 #, python-brace-format
 msgid "Could not write {name}: {error} (file unchanged)"
 msgstr "Nie można zapisać pliku {name}: {error} (plik bez zmian)"
 
-#: gpxfoto/cli.py:239
+#: gpxfoto/cli.py:244
 #, python-brace-format
 msgid "Written: {written}, errors: {errors}"
 msgstr "Zapisano: {written}, błędy: {errors}"
 
-#: gpxfoto/cli.py:242
+#: gpxfoto/cli.py:247
 msgid "The image data of every written file was verified as unchanged."
 msgstr ""
 "Sprawdzono, że dane obrazu w każdym zapisanym pliku pozostały bez "

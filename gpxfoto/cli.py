@@ -187,6 +187,11 @@ def main():
                    len(track.points)).format(count=i18n.number(len(track.points)),
                                        start=start.strftime(time_format),
                                        end=end.strftime(time_format)))
+    if args.offset:
+        # Translators: {correction} is a time span with a sign, such as
+        # “+2 min 12 s”, added to the capture time of every photo
+        print(_("Clock correction: {correction}").format(
+            correction=i18n.exact_duration(args.offset, sign=True)))
 
     try:
         files = find_photos(args.photos, args.recursive)

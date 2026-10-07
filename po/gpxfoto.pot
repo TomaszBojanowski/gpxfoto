@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: gpxfoto 0.1.0\n"
 "Report-Msgid-Bugs-To: https://github.com/tomaszbojanowski/gpxfoto/issues\n"
-"POT-Creation-Date: 2026-10-07 19:27+0000\n"
+"POT-Creation-Date: 2026-10-07 19:29+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -211,34 +211,41 @@ msgid_plural ""
 msgstr[0] ""
 msgstr[1] ""
 
-#: gpxfoto/cli.py:196
+#. Translators: {correction} is a time span with a sign, such as
+#. “+2 min 12 s”, added to the capture time of every photo
+#: gpxfoto/cli.py:193
+#, python-brace-format
+msgid "Clock correction: {correction}"
+msgstr ""
+
+#: gpxfoto/cli.py:201
 msgid "No JPEG photos found."
 msgstr ""
 
-#: gpxfoto/cli.py:218
+#: gpxfoto/cli.py:223
 #, python-brace-format
 msgid "Matched: {matched}, skipped: {skipped}"
 msgstr ""
 
 #. Translators: {option} is the command-line option --write
-#: gpxfoto/cli.py:223
+#: gpxfoto/cli.py:228
 #, python-brace-format
 msgid ""
 "This was a preview; no files were changed. Use {option} to write the "
 "locations."
 msgstr ""
 
-#: gpxfoto/cli.py:237
+#: gpxfoto/cli.py:242
 #, python-brace-format
 msgid "Could not write {name}: {error} (file unchanged)"
 msgstr ""
 
-#: gpxfoto/cli.py:239
+#: gpxfoto/cli.py:244
 #, python-brace-format
 msgid "Written: {written}, errors: {errors}"
 msgstr ""
 
-#: gpxfoto/cli.py:242
+#: gpxfoto/cli.py:247
 msgid "The image data of every written file was verified as unchanged."
 msgstr ""
 

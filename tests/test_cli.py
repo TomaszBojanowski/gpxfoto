@@ -194,6 +194,7 @@ def test_zero_latitude_and_elevation_are_values_not_missing_data(tmp_path, photo
     assert result.returncode == 0, result.stderr
     assert result.stdout.splitlines() == [
         TRACK_LINE,
+        "Clock correction: +50 s",
         "  a.jpg            12:00:50  0.000000, 9.001000      0 m",
         "  null-island.jpg  skipped: already has a location",
         "Matched: 1, skipped: 1",
@@ -205,19 +206,32 @@ def test_zero_latitude_and_elevation_are_values_not_missing_data(tmp_path, photo
 
 
 @needs_exiftool
-@pytest.mark.parametrize("offset, local_time, match_line", [
-    ("50", "12:00:00", MATCH_LINE),
-    ("-50", "12:01:40", MATCH_LINE),
-    ("49.5", "12:00:01", "  a.jpg            12:00:50  50.000505, 20.001010    205 m"),
+@pytest.mark.parametrize("offset, local_time, correction, match_line", [
+    ("50", "12:00:00", "+50 s", MATCH_LINE),
+    ("-50", "12:01:40", "-50 s", MATCH_LINE),
+    ("49.5", "12:00:01", "+49.5 s", "  a.jpg            12:00:50  50.000505, 20.001010    205 m"),
 ])
-def test_offset_shifts_capture_time(photo, gpx, offset, local_time, match_line):
+def test_offset_shifts_capture_time(photo, gpx, offset, local_time, correction, match_line):
     path = photo("a.jpg", taken(local_time))
 
     result = run_cli(path, "-g", gpx, "--offset", offset)
 
     assert result.returncode == 0, result.stderr
     assert result.stdout.splitlines() == [
-        TRACK_LINE, match_line, "Matched: 1, skipped: 0", PREVIEW_LINE]
+        TRACK_LINE, f"Clock correction: {correction}", match_line, "Matched: 1, skipped: 0",
+        PREVIEW_LINE]
+
+
+@needs_exiftool
+@pytest.mark.parametrize("offset", ["0", "-0", "0.0"])
+def test_zero_offset_shows_no_correction(photo, gpx, offset):
+    path = photo("a.jpg", taken("12:00:50"))
+
+    result = run_cli(path, "-g", gpx, "--offset", offset)
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.splitlines() == [
+        TRACK_LINE, MATCH_LINE, "Matched: 1, skipped: 0", PREVIEW_LINE]
 
 
 @needs_exiftool
@@ -251,6 +265,7 @@ def test_offset_beyond_the_calendar_skips_the_photo(photo, gpx):
     assert result.returncode == 0, result.stderr
     assert result.stdout.splitlines() == [
         TRACK_LINE,
+        "Clock correction: +277777777 h 46 min 40 s",
         "  a.jpg            skipped: the corrected capture time is out of range",
         "Matched: 0, skipped: 1",
     ]
@@ -267,6 +282,7 @@ def test_offset_to_the_first_day_of_the_calendar_skips_the_photo(tmp_path, photo
 
     assert result.returncode == 0, result.stderr
     assert result.stdout.splitlines()[1:] == [
+        "Clock correction: -48 h",
         "  a.jpg            skipped: the corrected capture time is out of range",
         "Matched: 0, skipped: 1",
     ]
