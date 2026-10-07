@@ -58,6 +58,8 @@ gpxfoto ~/Obrazy/2026-10-06 -g activity.gpx --write
 | `--write` | zapisuje położenie; bez tej opcji wyświetlany jest tylko podgląd |
 | `--offset SEKUNDY` | poprawka zegara aparatu, dodawana do czasu wykonania zdjęcia |
 | `--timezone +GG:MM` | strefa czasowa aparatu dla wszystkich zdjęć (domyślnie: odczytywana z danych EXIF każdego zdjęcia) |
+| `--clock-photo PLIK` | zdjęcie dokładnego zegara, na przykład zegarka zapisującego trasę; razem z `--clock-time` służy do wyznaczenia poprawki zegara aparatu |
+| `--clock-time CZAS` | czas widoczny na zegarze na tym zdjęciu, w formacie 24-godzinnym: `14:03:27`, `14:03:27+02:00` lub `2026-10-06T14:03:27+02:00` |
 | `--max-gap SEKUNDY` | największy dopuszczalny odstęp czasu między zdjęciem a najbliższym punktem trasy (domyślnie: 120 s) |
 | `--overwrite` | zmienia także zdjęcia, które mają już zapisane położenie |
 | `--backup` | zachowuje kopie oryginalnych plików w podkatalogu `originals` obok każdego zdjęcia; istniejąca kopia nigdy nie jest zastępowana |
@@ -67,6 +69,33 @@ Strefa czasowa zdjęcia jest odczytywana z pola `OffsetTimeOriginal` (lub
 `OffsetTime`), które zapisują aparaty takie jak Panasonic LUMIX S5II. Opcja
 `--timezone` zastępuje ją dla wszystkich zdjęć. Jeśli nie ma żadnej z nich,
 używana jest strefa czasowa komputera, o czym informuje lista zdjęć.
+
+### Poprawka zegara aparatu
+
+Zegar aparatu spieszy się lub spóźnia, a czasy trasy pochodzą z GPS. Aby
+ustalić, o ile myli się aparat, należy zrobić aparatem zdjęcie zegarka lub
+innego dokładnego zegara, odczytać z niego czas i podać oba:
+
+```
+gpxfoto ~/Obrazy/2026-10-06 -g activity.gpx --clock-photo ~/Obrazy/2026-10-06/P1000123.JPG --clock-time 14:03:27
+```
+
+gpxfoto odejmuje czas wykonania tego zdjęcia od czasu na zegarze i dodaje
+różnicę do czasu wykonania każdego zdjęcia, tak jak opcja `--offset`;
+opcji `--offset` nie można wtedy podać. Podgląd pokazuje poprawkę,
+odpowiadającą jej wartość `--offset` i oba odczyty.
+
+Różnica 30 minut lub większa może oznaczać, że zegar i aparat pokazują czas
+różnych stref czasowych, na przykład gdy aparatu nie przestawiono na czas
+letni. gpxfoto nie potrafi tego rozstrzygnąć, więc prosi wtedy
+o przesunięcie zegara względem UTC, na przykład `14:03:27+02:00`. Przy
+różnicy większej niż dwie godziny trzeba podać także datę widoczną na
+zegarze, na przykład `2026-10-06T14:03:27+02:00`. Czas podany bez sekund
+oznacza środek minuty.
+
+Zdjęcie zegara powinno pochodzić z tych samych dni co pozostałe zdjęcia:
+aparat, który sam nie przestawia się na czas letni, po zmianie czasu myli
+się o inną wartość.
 
 Zdjęcie zostaje pominięte, jeśli czas jego wykonania dzieli od najbliższego
 punktu trasy więcej niż `--max-gap`: przed początkiem trasy, po jej

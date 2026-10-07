@@ -58,6 +58,8 @@ gpxfoto ~/Pictures/2026-10-06 -g activity.gpx --write
 | `--write` | write the locations; without it only a preview is shown |
 | `--offset SECONDS` | camera clock correction, added to the capture time |
 | `--timezone +HH:MM` | camera time zone for all photos (default: read from each photo’s EXIF data) |
+| `--clock-photo FILE` | photo of an accurate clock, such as the watch that records the track; with `--clock-time`, it gives the camera clock correction |
+| `--clock-time TIME` | time shown on the clock in that photo, 24-hour: `14:03:27`, `14:03:27+02:00` or `2026-10-06T14:03:27+02:00` |
 | `--max-gap SECONDS` | largest allowed time between a photo and the nearest track point (default: 120 s) |
 | `--overwrite` | also change photos that already have a location |
 | `--backup` | keep copies of the original files in an `originals` subdirectory next to each photo; an existing copy is never replaced |
@@ -67,6 +69,33 @@ The time zone of a photo is read from `OffsetTimeOriginal` (or
 `OffsetTime`), which cameras such as the Panasonic LUMIX S5II record.
 `--timezone` overrides it for all photos. Without either, the computer’s
 time zone is used, and the list of photos says so.
+
+### Correcting the camera clock
+
+A camera clock drifts, while the times of the track come from GPS. To find
+out how far off the camera is, take a photo of the watch, or another
+accurate clock, with the camera, read the time on it, and give both:
+
+```
+gpxfoto ~/Pictures/2026-10-06 -g activity.gpx --clock-photo ~/Pictures/2026-10-06/P1000123.JPG --clock-time 14:03:27
+```
+
+gpxfoto subtracts the capture time of that photo from the time on the
+clock and adds the difference to the capture time of every photo, as
+`--offset` does; `--offset` cannot be given as well. The preview shows the
+correction, the `--offset` value it equals, and both readings.
+
+A difference of 30 minutes or more may mean that the clock and the camera
+show the time of different time zones, for example when the camera was not
+switched to summer time. gpxfoto cannot tell, so it then asks for the
+clock’s UTC offset, such as `14:03:27+02:00`. A difference of more than two
+hours also needs the date shown on the clock, such as
+`2026-10-06T14:03:27+02:00`. A time given without seconds stands for the
+middle of the minute.
+
+Use a clock photo from the same days as the other photos: a camera that
+does not switch to summer time by itself is off by a different amount after
+the change.
 
 A photo is skipped when its capture time is more than `--max-gap` away from
 the nearest track point: before the track starts, after it ends, or in a
