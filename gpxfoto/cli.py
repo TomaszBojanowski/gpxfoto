@@ -11,8 +11,8 @@ from gpxfoto import i18n
 from gpxfoto.engine.clock import ClockError, measure, parse_reading
 from gpxfoto.engine.matching import match_photos, summarize
 from gpxfoto.engine.photos import (
-    TZ_MANUAL, TZ_SYSTEM, check_exiftool, find_photos, format_utc_offset, parse_utc_offset,
-    photo_from_metadata, read_metadata)
+    TZ_CAMERA, TZ_MANUAL, TZ_SYSTEM, check_exiftool, find_photos, format_utc_offset,
+    parse_utc_offset, photo_from_metadata, read_metadata, summarize_time_checks)
 from gpxfoto.engine.track import load_track
 from gpxfoto.engine.writer import BACKUP_DIR, write_location
 from gpxfoto.i18n import N_
@@ -24,6 +24,18 @@ TZ_NOTES = {
     # Translators: {option} is the command-line option --timezone
     TZ_MANUAL: N_("time zone from {option}"),
     TZ_SYSTEM: N_("computer’s time zone (not in EXIF)"),
+}
+
+# Why capture times may not match the camera's UTC time, by the source of
+# their time zone
+TIME_CHECK_CAUSES = {
+    # Translators: {option} is the command-line option --timezone
+    TZ_MANUAL: N_("Either the time zone given with {option} or the camera’s time zone setting "
+                  "is wrong."),
+    TZ_SYSTEM: N_("EXIF has no time zone, so this computer’s time zone was used; either it or "
+                  "the camera’s time zone setting is wrong."),
+    TZ_CAMERA: N_("Another program may have changed the capture time or the time zone in EXIF; "
+                  "the locations follow the time in EXIF."),
 }
 
 # Messages printed by argparse itself. They are listed here so that they
@@ -175,6 +187,28 @@ def time_check_note(check):
         duration=i18n.duration(abs(check.difference)))
 
 
+def time_check_lines(results):
+    """The summary of the capture times that do not match the camera's UTC time."""
+    checks = [(r.photo.tz_source, r.time_check) for r in results if r.time_check is not None]
+    # The computer's time zone is not advised when some photos have one in EXIF
+    zone_in_exif = any(r.photo.tz_source == TZ_CAMERA for r in results)
+    lines = []
+    for summary in summarize_time_checks(checks):
+        lines.append(ngettext(
+            "Warning: {count} photo has a capture time that does not match the UTC time "
+            "recorded by the camera.",
+            "Warning: {count} photos have capture times that do not match the UTC time "
+            "recorded by the camera.", summary.count).format(count=i18n.number(summary.count)))
+        lines.append("  " + _(TIME_CHECK_CAUSES[summary.source]).format(option="--timezone"))
+        if summary.suggested_tz is not None and not (summary.source == TZ_SYSTEM
+                                                     and zone_in_exif):
+            option = "--timezone=" + format_utc_offset(summary.suggested_tz.utcoffset(None))
+            # Translators: {option} is a command-line option with its value,
+            # such as --timezone=+02:00
+            lines.append("  " + _("Both times would match with {option}.").format(option=option))
+    return lines
+
+
 def photo_line(result):
     """The preview line of one photo."""
     name = printable(os.path.basename(result.photo.path))
@@ -315,6 +349,8 @@ def main():
 
     print(_("Matched: {matched}, skipped: {skipped}").format(
         matched=i18n.number(summary.matched), skipped=i18n.number(summary.skipped)))
+    for line in time_check_lines(results):
+        print(line)
     if not args.write:
         if plan:
             # Translators: {option} is the command-line option --write

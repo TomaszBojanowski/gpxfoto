@@ -420,6 +420,14 @@ def test_capture_time_against_the_camera_utc_time_is_noted(s5ii_photo, gpx):
         "  c.jpg            11:00:50  50.000500, 20.001000    205 m"
         "  [time zone from --timezone; camera’s UTC time suggests +02:00]",
     ]
+    assert result.stdout.splitlines()[4:] == [
+        "Matched: 1, skipped: 2",
+        "Warning: 3 photos have capture times that do not match the UTC time recorded by the "
+        "camera.",
+        "  Either the time zone given with --timezone or the camera’s time zone setting is wrong.",
+        "  Both times would match with --timezone=+02:00.",
+        PREVIEW_LINE,
+    ]
 
 
 @needs_exiftool
@@ -430,9 +438,39 @@ def test_capture_time_changed_in_exif_is_noted(s5ii_photo, gpx):
     result = run_cli(path, "-g", gpx)
 
     assert result.returncode == 0, result.stderr
-    assert result.stdout.splitlines()[1] == (
+    assert result.stdout.splitlines()[1:] == [
         "  a.jpg            12:00:20  50.000200, 20.000400    202 m"
-        "  [differs by 60 min from the camera’s UTC time]")
+        "  [differs by 60 min from the camera’s UTC time]",
+        "Matched: 1, skipped: 0",
+        "Warning: 1 photo has a capture time that does not match the UTC time recorded by the "
+        "camera.",
+        "  Another program may have changed the capture time or the time zone in EXIF; the "
+        "locations follow the time in EXIF.",
+        PREVIEW_LINE,
+    ]
+
+
+@needs_exiftool
+@pytest.mark.parametrize("with_zone_in_exif", [False, True])
+def test_computer_time_zone_against_the_camera_utc_time(s5ii_photo, photo, gpx,
+                                                        with_zone_in_exif):
+    # The camera was at +03:00 and recorded no offset; the computer is at +02:00
+    path = s5ii_photo("a.jpg", "13:00:50", "10:00:50", offset=None)
+    if with_zone_in_exif:
+        photo("b.jpg", taken("12:00:50"))
+
+    result = run_cli(path.parent, "-g", gpx)
+
+    assert result.returncode == 0, result.stderr
+    lines = result.stdout.splitlines()
+    start = lines.index("Warning: 1 photo has a capture time that does not match the UTC time "
+                        "recorded by the camera.")
+    advice = [] if with_zone_in_exif else ["  Both times would match with --timezone=+03:00."]
+    # Without a matched photo there is no preview line
+    after = [PREVIEW_LINE] if with_zone_in_exif else []
+    assert lines[start + 1:] == [
+        "  EXIF has no time zone, so this computer’s time zone was used; either it or the "
+        "camera’s time zone setting is wrong.", *advice, *after]
 
 
 @needs_exiftool

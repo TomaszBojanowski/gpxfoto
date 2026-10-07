@@ -12,7 +12,8 @@ import types
 
 import pytest
 
-from conftest import ROOT, make_jpeg, needs_exiftool, set_tags, write_gpx
+from conftest import (
+    ROOT, make_jpeg, needs_exiftool, set_panasonic_time_stamp, set_tags, write_gpx)
 from gpxfoto import cli, i18n
 
 PO_DIR = os.path.join(ROOT, "po")
@@ -594,6 +595,28 @@ def test_clock_errors_are_polish(polish_cli, tmp_path, capsys, reading, message)
         polish_cli("-g", gpx, tmp_path, "--clock-photo", watch, "--clock-time", reading)
     assert exit_info.value.code == message
     assert capsys.readouterr().out == ""
+
+
+@needs_exiftool
+@pytest.mark.parametrize("count, have", [(1, "zdjęcie ma"), (2, "zdjęcia mają"),
+                                         (5, "zdjęć ma")])
+def test_time_check_summary_is_polish(polish_cli, tmp_path, capsys, count, have):
+    gpx = write_gpx(tmp_path / "track.gpx", TRACK)
+    for i in range(count):
+        path = photo(tmp_path / "photos", f"p{i}.jpg", "-DateTimeOriginal=2024:05:01 12:00:50")
+        set_panasonic_time_stamp(path, "2024:05:01 10:00:50")
+    polish_cli("-g", gpx, tmp_path / "photos", "--timezone", "+01:00")
+    lines = capsys.readouterr().out.splitlines()
+    assert lines[1] == ("  p0.jpg           12:00:50  50.100000, 20.100000    300 m  [strefa "
+                        "czasowa z opcji --timezone; czas UTC z aparatu wskazuje strefę +02:00]")
+    assert lines[count + 1:count + 5] == [
+        f"Dopasowano: {count}, pominięto: 0",
+        f"Ostrzeżenie: {count} {have} czas wykonania niezgodny z czasem UTC zapisanym przez "
+        "aparat.",
+        "  Błędna jest strefa czasowa podana w opcji --timezone albo ustawienie strefy czasowej "
+        "w aparacie.",
+        "  Oba czasy byłyby zgodne przy opcji --timezone=+02:00.",
+    ]
 
 
 @needs_exiftool
