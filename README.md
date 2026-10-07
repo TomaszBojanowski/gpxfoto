@@ -97,6 +97,20 @@ Use a clock photo from the same days as the other photos: a camera that
 does not switch to summer time by itself is off by a different amount after
 the change.
 
+### Checking the time zone of S5II photos
+
+The Panasonic LUMIX S5II also records the capture time in UTC, in its maker
+note (`Panasonic:TimeStamp`). For photos from this camera, gpxfoto compares
+that time with the capture time it uses, before any clock correction. If
+they are more than two minutes apart, the photo’s line gets a note, and a
+warning after the list gives the likely cause: a wrong `--timezone`, the
+computer’s time zone used for photos without one in EXIF, or a capture time
+that another program changed in EXIF. Where the difference fits a time zone
+in use, the warning gives the `--timezone` value that would make both times
+match. The check never changes a time or a location. It cannot notice a
+wrong time zone setting in the camera itself, because the camera works out
+both times from that setting.
+
 A photo is skipped when its capture time is more than `--max-gap` away from
 the nearest track point: before the track starts, after it ends, or in a
 break in recording. A photo taken during such a break still gets a location

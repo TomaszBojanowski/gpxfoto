@@ -97,6 +97,20 @@ Zdjęcie zegara powinno pochodzić z tych samych dni co pozostałe zdjęcia:
 aparat, który sam nie przestawia się na czas letni, po zmianie czasu myli
 się o inną wartość.
 
+### Kontrola strefy czasowej zdjęć z S5II
+
+Panasonic LUMIX S5II zapisuje czas wykonania zdjęcia także w UTC, w danych
+producenta (`Panasonic:TimeStamp`). Dla zdjęć z tego aparatu gpxfoto
+porównuje ten czas z czasem wykonania, którego używa, przed poprawką
+zegara. Jeśli różnią się o więcej niż dwie minuty, wiersz zdjęcia otrzymuje
+uwagę, a ostrzeżenie pod listą podaje możliwą przyczynę: błędną opcję
+`--timezone`, strefę czasową komputera użytą dla zdjęć bez strefy w EXIF
+albo czas wykonania zmieniony w EXIF przez inny program. Jeśli różnica
+odpowiada strefie czasowej używanej na świecie, ostrzeżenie podaje wartość
+`--timezone`, przy której oba czasy byłyby zgodne. Kontrola nigdy nie
+zmienia czasu ani położenia. Nie wykryje błędnego ustawienia strefy
+czasowej w samym aparacie, bo aparat wylicza oba czasy z tego ustawienia.
+
 Zdjęcie zostaje pominięte, jeśli czas jego wykonania dzieli od najbliższego
 punktu trasy więcej niż `--max-gap`: przed początkiem trasy, po jej
 zakończeniu albo w przerwie w zapisie trasy. Zdjęcie wykonane w czasie
