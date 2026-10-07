@@ -80,16 +80,19 @@ class Track:
     """The points of one or more GPX files, used together as one track.
 
     named: the files were given by the user, not found in a directory.
-    stops: the stops of the track, from find_stops().
+    stops: the stops of the track, from find_stops(). sources: for each
+    point, the index in files of the file it comes from, or None when
+    there is one file.
     """
-    __slots__ = ("files", "named", "points", "times", "stops")
+    __slots__ = ("files", "named", "points", "times", "stops", "sources")
 
-    def __init__(self, files, named, points, stops=()):
+    def __init__(self, files, named, points, stops=(), sources=None):
         self.files = tuple(files)
         self.named = named
         self.points = points
         self.times = [p[0] for p in points]
         self.stops = list(stops)
+        self.sources = sources
 
     @property
     def first(self):
@@ -99,6 +102,17 @@ class Track:
     def last(self):
         return self.times[-1]
 
+    def files_at(self, t):
+        """The files of the points that the position at Unix time t comes from."""
+        if self.sources is None:
+            return self.files
+        i = bisect.bisect_left(self.times, t)
+        if i < len(self.times) and self.times[i] == t:
+            used = {self.sources[i]}
+        else:
+            used = {self.sources[j] for j in (i - 1, i) if 0 <= j < len(self.times)}
+        return tuple(self.files[j] for j in sorted(used))
+
 
 def load_track(paths, named=True, stops=True):
     """Return the Track of the GPX files at paths, or None if they hold no points.
@@ -106,10 +120,11 @@ def load_track(paths, named=True, stops=True):
     Without stops, no stops are looked for. Raises ValueError like
     load_gpx().
     """
-    points = load_gpx(paths)
+    points, sources = _load_points(paths)
     if not points:
         return None
-    return Track(paths, named, points, find_stops(points) if stops else ())
+    return Track(paths, named, points, find_stops(points) if stops else (),
+                 sources if len(paths) > 1 else None)
 
 
 # Where a moment lies on the tracks: a position, or the reason there is
@@ -133,17 +148,23 @@ def load_gpx(paths):
     Raises ValueError naming the file when a file cannot be read, is not
     valid XML or uses an encoding that cannot be decoded.
     """
-    points = []
-    for path in paths:
+    return _load_points(paths)[0]
+
+
+def _load_points(paths):
+    """Return the points of the files at paths sorted by time, and for each
+    point the index of its file in paths."""
+    found = []
+    for index, path in enumerate(paths):
         try:
-            points += _read_points(path)
+            found += [(point, index) for point in _read_points(path)]
         except (OSError, ET.ParseError, ValueError, LookupError) as e:
             error = e.strerror if isinstance(e, OSError) and e.strerror else e
             # Translators: {error} describes the problem, e.g. “No such file or directory”
             raise ValueError(_("Cannot read the GPX file {path}: {error}").format(
                 path=path, error=error)) from e
-    points.sort(key=lambda p: p[0])
-    return points
+    found.sort(key=lambda pair: pair[0][0])
+    return [point for point, _index in found], [index for _point, index in found]
 
 
 def _read_points(path):

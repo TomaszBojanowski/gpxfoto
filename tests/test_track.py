@@ -607,3 +607,19 @@ def test_match_gives_the_position_or_the_reason(tmp_path):
         50.5, 19.5, None, 50, loaded)
     assert track_module.match([loaded], T0 + 400, 120) == track_module.Match(
         track=loaded, reason="5 min after the end of the track")
+
+
+def test_track_knows_the_file_of_each_point(tmp_path):
+    first = write_gpx(tmp_path / "a.gpx", [("2026-06-01T10:00:00Z", 50.0, 19.0, None),
+                                           ("2026-06-01T10:00:20Z", 50.0, 19.0, None)])
+    second = write_gpx(tmp_path / "b.gpx", [("2026-06-01T10:00:10Z", 51.0, 20.0, None),
+                                            ("2026-06-01T10:00:30Z", 51.0, 20.0, None)])
+    track = track_module.load_track([first, second])
+    assert track.sources == [0, 1, 0, 1]
+    assert track.files_at(T0 - 5) == (first,)
+    assert track.files_at(T0) == (first,)
+    assert track.files_at(T0 + 5) == (first, second)
+    assert track.files_at(T0 + 10) == (second,)
+    assert track.files_at(T0 + 40) == (second,)
+    assert track_module.load_track([first]).sources is None
+    assert track_module.load_track([first]).files_at(T0 + 5) == (first,)
