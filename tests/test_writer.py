@@ -14,7 +14,8 @@ import pytest
 from conftest import (
     latin2_name, make_jpeg, needs_exiftool, read_tags, set_panasonic_time_stamp, set_tags)
 from gpxfoto.engine import writer
-from gpxfoto.engine.writer import BACKUP_DIR, BACKUP_MARKER, image_checksum, write_location
+from gpxfoto.engine.writer import (
+    BACKUP_DIR, BACKUP_MARKER, TRAVEL_TAGS, image_checksum, write_location)
 
 TIME = datetime(2026, 6, 1, 8, 30, 15, tzinfo=timezone.utc)
 MTIME_NS = 1_700_000_000_123_456_789
@@ -952,6 +953,73 @@ def test_backup_without_hard_links(tmp_path, photo, fake_exiftool, monkeypatch):
     assert backups(tmp_path) == ["photo.jpg"]
 
 
+# The direction of travel, with a fake exiftool
+
+TRAVEL_DELETIONS = ["-GPS:GPSTrack=", "-GPS:GPSTrackRef=", "-XMP-exif:GPSTrack=",
+                    "-XMP-exif:GPSTrackRef="]
+
+
+def travel_args(command):
+    return [arg for arg in command if "GPSTrack" in arg]
+
+
+@pytest.mark.parametrize("options, expected", [
+    ({}, []),
+    ({"direction": 0}, TRAVEL_DELETIONS + ["-GPS:GPSTrack=0", "-GPS:GPSTrackRef=T"]),
+    ({"direction": 359}, TRAVEL_DELETIONS + ["-GPS:GPSTrack=359", "-GPS:GPSTrackRef=T"]),
+    ({"clear_direction": True}, TRAVEL_DELETIONS),
+    ({"direction": 90, "clear_direction": True},
+     TRAVEL_DELETIONS + ["-GPS:GPSTrack=90", "-GPS:GPSTrackRef=T"]),
+    # -GPS:all= and -XMP-exif:GPS*= remove an old direction with the rest
+    ({"direction": 90, "replace": True}, ["-GPS:GPSTrack=90", "-GPS:GPSTrackRef=T"]),
+    ({"clear_direction": True, "replace": True}, []),
+])
+def test_direction_of_travel_in_the_exiftool_command(photo, fake_exiftool, options, expected):
+    fake = fake_exiftool()
+    write_location(photo, 50.0, 19.0, 200.0, TIME, backup=False, **options)
+    command = fake.commands[0]
+    assert travel_args(command) == expected
+    # The direction of travel comes after the location, and never as the camera's
+    assert command.index("-GPS:GPSMapDatum=WGS-84") < min(
+        [command.index(arg) for arg in expected] or [len(command)])
+    assert not [arg for arg in command if "ImgDirection" in arg or "Speed" in arg]
+    assert TRAVEL_TAGS == ("GPSTrack", "GPSTrackRef")
+
+
+@pytest.mark.parametrize("direction", [-1, 360, 90.0, 90.5, True, "90", float("nan")])
+def test_invalid_direction_of_travel_is_refused_before_exiftool(tmp_path, photo, fake_exiftool,
+                                                                direction):
+    before = state(photo)
+    fake = fake_exiftool()
+    with pytest.raises(ValueError) as raised:
+        write_location(photo, 50.0, 19.0, 200.0, TIME, backup=True, direction=direction)
+    assert str(raised.value) == f"invalid direction of travel: {direction}"
+    assert fake.commands == []
+    assert state(photo) == before
+    assert os.listdir(tmp_path) == ["photo.jpg"]
+
+
+def test_damaged_result_with_a_direction_is_rejected(tmp_path, photo, fake_exiftool):
+    before = state(photo)
+    fake_exiftool(output=lambda d: d + b"trailer")
+    with pytest.raises(RuntimeError) as raised:
+        write_location(photo, 50.0, 19.0, 200.0, TIME, backup=True, direction=45)
+    assert str(raised.value) == REJECTED
+    assert state(photo) == before
+    assert os.listdir(tmp_path) == ["photo.jpg"]
+
+
+def test_result_with_a_direction_replaces_the_photo_at_once(tmp_path, photo, fake_exiftool,
+                                                           replace_calls):
+    expected = add_comment(photo.read_bytes())
+    fake = fake_exiftool()
+    write_location(photo, 50.0, 19.0, 200.0, TIME, backup=False, direction=45)
+    [(temp, target)] = replace_calls
+    assert target == str(photo) and fake.commands[0][-4:] == ["-o", temp, "--", target]
+    assert state(photo) == (expected, MTIME_NS, 0o640)
+    assert os.listdir(tmp_path) == ["photo.jpg"]
+
+
 # With the real exiftool
 
 def gps_tags(path):
@@ -1173,3 +1241,45 @@ def test_backup_with_exiftool(tmp_path, photo):
     assert gps_tags(backup) == {}
     assert gps_tags(photo)["GPSLatitudeRef"] == "N"
     assert sorted(os.listdir(tmp_path)) == ["originals", "photo.jpg"]
+
+
+@needs_exiftool
+@pytest.mark.parametrize("replace", [False, True])
+def test_direction_of_travel_is_written_and_the_image_kept(tmp_path, photo, replace):
+    if replace:
+        set_tags(photo, "-GPSLatitude=1", "-GPSLatitudeRef=S", "-GPSLongitude=2",
+                 "-GPSLongitudeRef=W")
+    checksum = image_checksum(photo)
+    times_and_mode = state(photo)[1:]
+    write_location(photo, 50.0614, 19.9366, 219.4, TIME, backup=False, replace=replace,
+                   direction=7)
+    assert read_tags(photo, "GPSTrack", "GPSTrackRef", "GPSLatitude") == {
+        "GPSTrack": 7, "GPSTrackRef": "T", "GPSLatitude": pytest.approx(50.0614, abs=1e-8)}
+    assert image_checksum(photo) == checksum
+    assert state(photo)[1:] == times_and_mode
+    assert os.listdir(tmp_path) == ["photo.jpg"]
+
+
+OLD_DIRECTION = ("-GPSTrack=200", "-GPSTrackRef=M", "-XMP-exif:GPSTrack=200",
+                 "-XMP-exif:GPSTrackRef=M", "-GPSImgDirection=123.4", "-GPSImgDirectionRef=M")
+
+
+@needs_exiftool
+@pytest.mark.parametrize("options, track", [
+    # Without the option, an old direction of travel is kept as it was
+    ({}, {"GPSTrack": 200, "GPSTrackRef": "M"}),
+    # With it, the photo gets ours or none, also in XMP
+    ({"direction": 15}, {"GPSTrack": 15, "GPSTrackRef": "T"}),
+    ({"clear_direction": True}, {}),
+])
+def test_old_direction_of_travel(photo, options, track):
+    set_tags(photo, *OLD_DIRECTION)
+    checksum = image_checksum(photo)
+    write_location(photo, -22.95, -43.21, None, TIME, backup=False, **options)
+    tags = gps_tags(photo)
+    assert {name: tags[name] for name in tags if name.startswith("GPSTrack")} == track
+    # The direction of the camera is not ours to change
+    assert (tags["GPSImgDirection"], tags["GPSImgDirectionRef"]) == (123.4, "M")
+    xmp = read_tags(photo, "XMP-exif:all")
+    assert xmp == ({"GPSTrack": 200, "GPSTrackRef": "M"} if not options else {})
+    assert image_checksum(photo) == checksum

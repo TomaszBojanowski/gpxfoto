@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: gpxfoto 0.1.0\n"
 "Report-Msgid-Bugs-To: https://github.com/tomaszbojanowski/gpxfoto/issues\n"
-"POT-Creation-Date: 2026-10-07 21:41+0000\n"
+"POT-Creation-Date: 2026-10-07 21:45+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -708,57 +708,63 @@ msgstr ""
 msgid "no track points within {duration} before or after the photo"
 msgstr ""
 
-#: gpxfoto/engine/writer.py:38
+#: gpxfoto/engine/writer.py:40
 msgid "not a JPEG file"
 msgstr ""
 
-#: gpxfoto/engine/writer.py:42 gpxfoto/engine/writer.py:55
-#: gpxfoto/engine/writer.py:58
+#: gpxfoto/engine/writer.py:44 gpxfoto/engine/writer.py:57
+#: gpxfoto/engine/writer.py:60
 msgid "damaged JPEG structure"
 msgstr ""
 
-#: gpxfoto/engine/writer.py:79
+#: gpxfoto/engine/writer.py:89
 #, python-brace-format
 msgid "invalid location: {location}"
 msgstr ""
 
-#: gpxfoto/engine/writer.py:83
+#. Translators: {direction} is the value that cannot be written
+#: gpxfoto/engine/writer.py:93
+#, python-brace-format
+msgid "invalid direction of travel: {direction}"
+msgstr ""
+
+#: gpxfoto/engine/writer.py:98
 msgid "this file is a backup copy made by gpxfoto, which is never changed"
 msgstr ""
 
-#: gpxfoto/engine/writer.py:89
+#: gpxfoto/engine/writer.py:104
 msgid "the file has several hard links; writing it would separate them"
 msgstr ""
 
-#: gpxfoto/engine/writer.py:91 gpxfoto/engine/writer.py:133
+#: gpxfoto/engine/writer.py:106 gpxfoto/engine/writer.py:153
 msgid "another program changed the photo in the meantime"
 msgstr ""
 
-#: gpxfoto/engine/writer.py:123
+#: gpxfoto/engine/writer.py:143
 msgid "exiftool did not write the file"
 msgstr ""
 
-#: gpxfoto/engine/writer.py:125
+#: gpxfoto/engine/writer.py:145
 msgid "exiftool changed the image data; the result was discarded"
 msgstr ""
 
-#: gpxfoto/engine/writer.py:219
+#: gpxfoto/engine/writer.py:239
 msgid ""
 "This directory holds copies of the photos next to it as they were before "
 "gpxfoto added locations to them. gpxfoto never changes or replaces these "
 "copies."
 msgstr ""
 
-#: gpxfoto/engine/writer.py:236
+#: gpxfoto/engine/writer.py:256
 #, python-brace-format
 msgid "“{path}” already exists and is not a backup directory of gpxfoto"
 msgstr ""
 
-#: gpxfoto/engine/writer.py:260
+#: gpxfoto/engine/writer.py:280
 msgid "the backup copy differs from the photo"
 msgstr ""
 
-#: gpxfoto/engine/writer.py:287
+#: gpxfoto/engine/writer.py:307
 #, python-brace-format
 msgid "“{path}” already exists and is not a copy of this photo"
 msgstr ""

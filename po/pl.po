@@ -8,7 +8,7 @@ msgstr ""
 "Project-Id-Version: gpxfoto\n"
 "Report-Msgid-Bugs-To: "
 "https://github.com/tomaszbojanowski/gpxfoto/issues\n"
-"POT-Creation-Date: 2026-10-07 21:41+0000\n"
+"POT-Creation-Date: 2026-10-07 21:45+0000\n"
 "PO-Revision-Date: 2026-10-06 23:45+0200\n"
 "Last-Translator: Tomasz <t.bojanowski@protonmail.com>\n"
 "Language-Team: Polish\n"
@@ -836,44 +836,50 @@ msgstr ""
 msgid "no track points within {duration} before or after the photo"
 msgstr "brak punktów trasy w ciągu {duration} przed zdjęciem lub po nim"
 
-#: gpxfoto/engine/writer.py:38
+#: gpxfoto/engine/writer.py:40
 msgid "not a JPEG file"
 msgstr "to nie jest plik JPEG"
 
-#: gpxfoto/engine/writer.py:42 gpxfoto/engine/writer.py:55
-#: gpxfoto/engine/writer.py:58
+#: gpxfoto/engine/writer.py:44 gpxfoto/engine/writer.py:57
+#: gpxfoto/engine/writer.py:60
 msgid "damaged JPEG structure"
 msgstr "uszkodzona struktura JPEG"
 
-#: gpxfoto/engine/writer.py:79
+#: gpxfoto/engine/writer.py:89
 #, python-brace-format
 msgid "invalid location: {location}"
 msgstr "nieprawidłowe położenie: {location}"
 
-#: gpxfoto/engine/writer.py:83
+#. Translators: {direction} is the value that cannot be written
+#: gpxfoto/engine/writer.py:93
+#, python-brace-format
+msgid "invalid direction of travel: {direction}"
+msgstr "nieprawidłowy kierunek ruchu: {direction}"
+
+#: gpxfoto/engine/writer.py:98
 msgid ""
 "this file is a backup copy made by gpxfoto, which is never changed"
 msgstr ""
 "ten plik jest kopią zapasową utworzoną przez gpxfoto, która nigdy nie "
 "jest zmieniana"
 
-#: gpxfoto/engine/writer.py:89
+#: gpxfoto/engine/writer.py:104
 msgid "the file has several hard links; writing it would separate them"
 msgstr "plik ma kilka dowiązań twardych; zapis by je rozdzielił"
 
-#: gpxfoto/engine/writer.py:91 gpxfoto/engine/writer.py:133
+#: gpxfoto/engine/writer.py:106 gpxfoto/engine/writer.py:153
 msgid "another program changed the photo in the meantime"
 msgstr "inny program zmienił w międzyczasie zdjęcie"
 
-#: gpxfoto/engine/writer.py:123
+#: gpxfoto/engine/writer.py:143
 msgid "exiftool did not write the file"
 msgstr "program exiftool nie zapisał pliku"
 
-#: gpxfoto/engine/writer.py:125
+#: gpxfoto/engine/writer.py:145
 msgid "exiftool changed the image data; the result was discarded"
 msgstr "program exiftool zmienił dane obrazu; wynik odrzucono"
 
-#: gpxfoto/engine/writer.py:219
+#: gpxfoto/engine/writer.py:239
 msgid ""
 "This directory holds copies of the photos next to it as they were "
 "before gpxfoto added locations to them. gpxfoto never changes or "
@@ -883,18 +889,18 @@ msgstr ""
 "sprzed dopisania do nich położenia przez program gpxfoto. Program "
 "gpxfoto nigdy nie zmienia ani nie zastępuje tych kopii."
 
-#: gpxfoto/engine/writer.py:236
+#: gpxfoto/engine/writer.py:256
 #, python-brace-format
 msgid "“{path}” already exists and is not a backup directory of gpxfoto"
 msgstr ""
 "„{path}” już istnieje i nie jest katalogiem kopii zapasowych programu "
 "gpxfoto"
 
-#: gpxfoto/engine/writer.py:260
+#: gpxfoto/engine/writer.py:280
 msgid "the backup copy differs from the photo"
 msgstr "kopia zapasowa różni się od zdjęcia"
 
-#: gpxfoto/engine/writer.py:287
+#: gpxfoto/engine/writer.py:307
 #, python-brace-format
 msgid "“{path}” already exists and is not a copy of this photo"
 msgstr "„{path}” już istnieje i nie jest kopią tego zdjęcia"
