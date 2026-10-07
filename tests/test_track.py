@@ -235,10 +235,17 @@ def test_coordinates_at_the_limits_are_kept(tmp_path, lat, lon):
     assert load_gpx([path]) == [(T0, lat, lon, None)]
 
 
-@pytest.mark.parametrize("ele", ["nan", "inf", "-inf", "n/a", "1,5", " "])
+@pytest.mark.parametrize("ele", ["nan", "inf", "-inf", "n/a", "1,5", " ",
+                                 "1e30", "100000.1", "-1e6"])
 def test_unusable_elevation_keeps_the_point_without_it(tmp_path, ele):
     path = write_gpx(tmp_path / "track.gpx", [("2026-06-01T10:00:00Z", 50.0, 19.0, ele)])
     assert load_gpx([path]) == [(T0, 50.0, 19.0, None)]
+
+
+@pytest.mark.parametrize("ele", [100000, -100000])
+def test_elevation_at_the_limits_is_kept(tmp_path, ele):
+    path = write_gpx(tmp_path / "track.gpx", [("2026-06-01T10:00:00Z", 50.0, 19.0, ele)])
+    assert load_gpx([path]) == [(T0, 50.0, 19.0, ele)]
 
 
 def test_time_and_elevation_come_only_from_the_point_itself(tmp_path):

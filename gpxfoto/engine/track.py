@@ -5,6 +5,10 @@ import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
 from gettext import gettext as _
 
+# Elevations further from sea level, in metres, are errors in the track:
+# balloons rise to about 40 km, and the deepest sea is 11 km deep
+MAX_ELEVATION = 100_000.0
+
 
 def _local_name(tag):
     return tag.rsplit("}", 1)[-1]
@@ -73,7 +77,8 @@ def _elevation(text):
         value = float(text)
     except ValueError:
         return None
-    return value if math.isfinite(value) else None
+    # Also false for NaN and infinity
+    return value if abs(value) <= MAX_ELEVATION else None
 
 
 def _distance_m(a, b):

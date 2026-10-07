@@ -563,6 +563,8 @@ def test_non_jpeg_photo_is_rejected_before_exiftool(tmp_path, fake_exiftool):
     (50.0, -180.25, None, "50.0, -180.25"),
     (50.0, 19.0, float("nan"), "50.0, 19.0, nan m"),
     (50.0, 19.0, float("-inf"), "50.0, 19.0, -inf m"),
+    (50.0, 19.0, 1e30, "50.0, 19.0, 1e+30 m"),
+    (50.0, 19.0, -100000.5, "50.0, 19.0, -100000.5 m"),
 ])
 def test_invalid_location_is_refused_before_exiftool(tmp_path, photo, fake_exiftool,
                                                      lat, lon, ele, location):
@@ -576,11 +578,12 @@ def test_invalid_location_is_refused_before_exiftool(tmp_path, photo, fake_exift
     assert os.listdir(tmp_path) == ["photo.jpg"]
 
 
-@pytest.mark.parametrize("lat, lon", [(90.0, 180.0), (-90.0, -180.0)])
-def test_location_at_the_limits_is_written(photo, fake_exiftool, lat, lon):
+@pytest.mark.parametrize("lat, lon, ele", [(90.0, 180.0, 100000.0), (-90.0, -180.0, -100000.0)])
+def test_location_at_the_limits_is_written(photo, fake_exiftool, lat, lon, ele):
     fake = fake_exiftool()
-    write_location(photo, lat, lon, None, TIME, backup=False)
+    write_location(photo, lat, lon, ele, TIME, backup=False)
     assert len(fake.commands) == 1
+    assert f"-GPS:GPSAltitude={abs(ele):.1f}" in fake.commands[0]
 
 
 def test_symbolic_link_leads_to_the_photo(tmp_path, photo, fake_exiftool):

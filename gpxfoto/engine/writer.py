@@ -1,12 +1,13 @@
 """Writing the location with exiftool while checking that the image is untouched."""
 import hashlib
-import math
 import os
 import shutil
 import stat
 import subprocess
 import tempfile
 from gettext import gettext as _
+
+from gpxfoto.engine.track import MAX_ELEVATION
 
 # Subdirectory for copies of the original files
 BACKUP_DIR = "originals"
@@ -71,7 +72,8 @@ def write_location(path, lat, lon, ele, time_utc, backup, replace=False, seen=No
     photo must not have changed since, and its access time is kept.
     """
     # Comparisons with NaN are false, so this also rules out NaN and infinity
-    if not (-90 <= lat <= 90 and -180 <= lon <= 180 and (ele is None or math.isfinite(ele))):
+    if not (-90 <= lat <= 90 and -180 <= lon <= 180
+            and (ele is None or abs(ele) <= MAX_ELEVATION)):
         location = f"{lat}, {lon}" if ele is None else f"{lat}, {lon}, {ele} m"
         raise ValueError(_("invalid location: {location}").format(location=location))
     # Through a symbolic link, the file it points to is written
