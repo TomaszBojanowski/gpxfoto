@@ -1,5 +1,6 @@
 """End-to-end tests of the command-line tool (python -m gpxfoto)."""
 import locale
+import math
 import os
 import shutil
 import stat
@@ -471,6 +472,109 @@ def test_computer_time_zone_against_the_camera_utc_time(s5ii_photo, photo, gpx,
     assert lines[start + 1:] == [
         "  EXIF has no time zone, so this computer’s time zone was used; either it or the "
         "camera’s time zone setting is wrong.", *advice, *after]
+
+
+# Stops. The track walks 120 s east at 1.2 m/s, stands 180 s and walks
+# 120 s, one point a second. While standing, the points jitter 2 m north
+# and south of the place and the barometer by 0.4 m; the stop's position
+# is their median.
+M_PER_DEGREE = math.pi * 6371000.0 / 180
+STAND_EAST = 144.0
+
+
+def lon_at(east):
+    return 20.0 + east / (M_PER_DEGREE * math.cos(math.radians(50.0)))
+
+
+def stop_track():
+    points = []
+    for i in range(420):
+        if 120 <= i < 300:
+            east = STAND_EAST
+            north, ele = [(2, 200.4), (-2, 199.6), (0, 200.0)][i % 3]
+        else:
+            east = 1.2 * i if i < 120 else STAND_EAST + 1.2 * (i - 300)
+            north, ele = 0, 200.0
+        points.append((f"2024-05-01T10:{i // 60:02d}:{i % 60:02d}Z",
+                       50.0 + north / M_PER_DEGREE, lon_at(east), ele))
+    return points
+
+
+STOP_TRACK_LINE = ("Track: 420 points, 05/01/24 12:00:00 – 05/01/24 12:06:59 "
+                   "(this computer’s time zone)")
+# 10:03:30 UTC is 210 s into the track, while standing; the track says 2 m north
+AT_STOP = (f"  b.jpg            12:03:30  50.000000, {lon_at(STAND_EAST):.6f}    200 m"
+           "  [stop 12:01:52 – 12:05:08]")
+ON_TRACK = f"  b.jpg            12:03:30  50.000018, {lon_at(STAND_EAST):.6f}    200 m"
+WALKING = f"  a.jpg            12:00:50  50.000000, {lon_at(60):.6f}    200 m"
+
+
+@pytest.fixture
+def stop_gpx(tmp_path):
+    return write_gpx(tmp_path / "stop.gpx", stop_track())
+
+
+@needs_exiftool
+def test_photo_taken_during_a_stop_gets_the_stop_position(photo, stop_gpx):
+    a = photo("a.jpg", taken("12:00:50"))
+    b = photo("b.jpg", taken("12:03:30"))
+    checksum = image_checksum(b)
+
+    preview = run_cli(a.parent, "-g", stop_gpx)
+
+    assert preview.returncode == 0, preview.stderr
+    assert preview.stdout.splitlines() == [
+        STOP_TRACK_LINE, WALKING, AT_STOP, "Matched: 2, skipped: 0", PREVIEW_LINE]
+
+    written = run_cli(b, "-g", stop_gpx, "--write")
+
+    assert written.returncode == 0, written.stderr
+    assert read_tags(b, "GPSLatitude", "GPSLongitude", "GPSAltitude") == {
+        "GPSLatitude": pytest.approx(50.0, abs=1e-7),
+        "GPSLongitude": pytest.approx(lon_at(STAND_EAST), abs=1e-7),
+        "GPSAltitude": pytest.approx(200.0)}
+    assert image_checksum(b) == checksum
+
+
+@needs_exiftool
+def test_no_stops_keeps_the_track_position(photo, stop_gpx):
+    a = photo("a.jpg", taken("12:00:50"))
+    photo("b.jpg", taken("12:03:30"))
+
+    result = run_cli(a.parent, "-g", stop_gpx, "--no-stops")
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.splitlines() == [
+        STOP_TRACK_LINE, WALKING, ON_TRACK, "Matched: 2, skipped: 0", PREVIEW_LINE]
+
+
+@needs_exiftool
+def test_photo_before_a_stop_at_the_start_of_the_track_keeps_the_first_point(tmp_path, photo):
+    # The track starts with the stop; before it, nothing is known
+    gpx = write_gpx(tmp_path / "late.gpx", stop_track()[120:])
+    b = photo("b.jpg", taken("12:01:30"))
+
+    result = run_cli(b, "-g", gpx)
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.splitlines()[1:3] == [
+        f"  b.jpg            12:01:30  50.000018, {lon_at(STAND_EAST):.6f}    200 m",
+        "Matched: 1, skipped: 0"]
+
+
+@needs_exiftool
+def test_stop_over_a_night_shows_its_dates(tmp_path, photo):
+    gpx = write_gpx(tmp_path / "two.gpx", [("2024-05-01T16:00:00Z", 50.0, 20.0, 1000),
+                                           ("2024-05-02T05:00:00Z", 50.0, 20.00001, 1000)])
+    b = photo("b.jpg", taken("21:00:00"))
+
+    result = run_cli(b, "-g", gpx)
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.splitlines()[1:3] == [
+        "  b.jpg            21:00:00  50.000000, 20.000005   1000 m"
+        "  [stop 05/01/24 18:00:00 – 05/02/24 07:00:00]",
+        "Matched: 1, skipped: 0"]
 
 
 @needs_exiftool

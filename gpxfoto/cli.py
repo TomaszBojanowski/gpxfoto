@@ -162,6 +162,9 @@ def build_parser():
                         metavar=_("SECONDS"),
                         help=_("largest allowed time between a photo and the nearest track "
                                "point (default: {seconds} s)").format(seconds=DEFAULT_MAX_GAP))
+    parser.add_argument("--no-stops", action="store_true",
+                        help=_("do not look for stops; every photo gets the track’s position "
+                               "at its time"))
     parser.add_argument("--overwrite", action="store_true",
                         help=_("also change photos that already have a location"))
     # Translators: {directory} is the name of the directory, which is not translated
@@ -209,6 +212,20 @@ def time_check_lines(results):
     return lines
 
 
+def stop_note(stop, zone):
+    """The note on a photo taken during a stop, with its times in the time zone zone."""
+    start = datetime.fromtimestamp(stop.start, zone)
+    end = datetime.fromtimestamp(stop.end, zone)
+    if start.date() == end.date():
+        start, end = f"{start:%X}", f"{end:%X}"
+    else:
+        start, end = date_and_time(start), date_and_time(end)
+    # Translators: a note on the line of a photo taken during a stop, which
+    # gets the stop's position; {start} and {end} are times such as
+    # “12:31:05”, with the date when the stop lasts over midnight
+    return _("stop {start} – {end}").format(start=start, end=end)
+
+
 def photo_line(result):
     """The preview line of one photo."""
     name = printable(os.path.basename(result.photo.path))
@@ -218,6 +235,8 @@ def photo_line(result):
         notes.append(_(TZ_NOTES[result.photo.tz_source]).format(option="--timezone"))
     if result.time_check is not None:
         notes.append(time_check_note(result.time_check))
+    if result.stop is not None:
+        notes.append(stop_note(result.stop, result.time.tzinfo))
     notes = "  [" + "; ".join(notes) + "]" if notes else ""
     if result.reason is not None:
         # Translators: shown after the file name of a photo; {reason} says
@@ -297,7 +316,7 @@ def main():
     correction = clock.seconds if clock is not None else (args.offset or 0.0)
 
     try:
-        track = load_track(args.gpx)
+        track = load_track(args.gpx, stops=not args.no_stops)
     except ValueError as e:
         sys.exit(str(e))
     if track is None:

@@ -80,14 +80,16 @@ class Track:
     """The points of one or more GPX files, used together as one track.
 
     named: the files were given by the user, not found in a directory.
+    stops: the stops of the track, from find_stops().
     """
-    __slots__ = ("files", "named", "points", "times")
+    __slots__ = ("files", "named", "points", "times", "stops")
 
-    def __init__(self, files, named, points):
+    def __init__(self, files, named, points, stops=()):
         self.files = tuple(files)
         self.named = named
         self.points = points
         self.times = [p[0] for p in points]
+        self.stops = list(stops)
 
     @property
     def first(self):
@@ -98,27 +100,31 @@ class Track:
         return self.times[-1]
 
 
-def load_track(paths, named=True):
+def load_track(paths, named=True, stops=True):
     """Return the Track of the GPX files at paths, or None if they hold no points.
 
-    Raises ValueError like load_gpx().
+    Without stops, no stops are looked for. Raises ValueError like
+    load_gpx().
     """
     points = load_gpx(paths)
-    return Track(paths, named, points) if points else None
+    if not points:
+        return None
+    return Track(paths, named, points, find_stops(points) if stops else ())
 
 
-# Where a moment lies on the tracks: a position, or the reason there is none
-Match = namedtuple("Match", "lat lon ele gap track reason", defaults=(None,) * 6)
+# Where a moment lies on the tracks: a position, or the reason there is
+# none; stop is the stop whose position it is, if any
+Match = namedtuple("Match", "lat lon ele gap track reason stop", defaults=(None,) * 7)
 
 
 def match(tracks, t, max_gap):
     """Return the Match of Unix time t on tracks."""
     track = tracks[0]
-    result = locate(track.points, track.times, t, max_gap)
+    result = place(track.points, track.times, track.stops, t, max_gap)
     if result[0] is None:
         return Match(track=track, reason=result[1])
-    lat, lon, ele, gap = result
-    return Match(lat, lon, ele, gap, track)
+    lat, lon, ele, gap, stop = result
+    return Match(lat, lon, ele, gap, track, stop=stop)
 
 
 def load_gpx(paths):

@@ -15,6 +15,7 @@ import pytest
 from conftest import (
     ROOT, make_jpeg, needs_exiftool, set_panasonic_time_stamp, set_tags, write_gpx)
 from gpxfoto import cli, i18n
+from test_cli import AT_STOP, stop_track
 
 PO_DIR = os.path.join(ROOT, "po")
 TEMPLATE = os.path.join(PO_DIR, "gpxfoto.pot")
@@ -341,7 +342,7 @@ def test_polish_plural_forms(polish_mo, n, word):
 
 USAGE = ("użycie: gpxfoto [-h] -g PLIK [--write] [--offset SEKUNDY] [--timezone +GG:MM] "
          "[--clock-photo PLIK] [--clock-time CZAS] "
-         "[--max-gap SEKUNDY] [--overwrite] [--backup] [-r] ZDJĘCIE [ZDJĘCIE ...]")
+         "[--max-gap SEKUNDY] [--no-stops] [--overwrite] [--backup] [-r] ZDJĘCIE [ZDJĘCIE ...]")
 HELP = {
     "ZDJĘCIE": "pliki JPEG lub katalogi ze zdjęciami",
     "--help": "wyświetla ten komunikat pomocy i kończy działanie",
@@ -357,6 +358,8 @@ HELP = {
                     "2026-10-06T14:03:27+02:00",
     "--max-gap": "największy dopuszczalny odstęp czasu między zdjęciem a najbliższym punktem "
                  "trasy (domyślnie: 120 s)",
+    "--no-stops": "nie wyszukuje postojów; każde zdjęcie otrzymuje położenie z trasy w chwili "
+                  "wykonania",
     "--overwrite": "zmienia także zdjęcia, które mają już zapisane położenie",
     "--backup": "zachowuje kopie oryginalnych plików w podkatalogu „originals” obok każdego "
                 "zdjęcia; istniejąca kopia nigdy nie jest zastępowana",
@@ -384,12 +387,11 @@ def test_help_is_polish(polish_cli, capsys):
     assert usage == USAGE
     assert rest[:2] == ["", "Dopisuje do zdjęć położenie na podstawie tras GPX, "
                             "nie zmieniając danych obrazu."]
-    lines = output.splitlines()
-    assert "argumenty pozycyjne:" in lines
-    assert "opcje:" in lines
+    assert "argumenty pozycyjne:" in rest
+    assert "opcje:" in rest
     # "-g GPX, --gpx GPX" before Python 3.13, "-g, --gpx GPX" since
     help_texts = {}
-    for line in lines:
+    for line in rest:
         if line.startswith("  "):
             invocation, text = re.split(r"\s{2,}", line.strip(), maxsplit=1)
             option = re.search(r"--[\w-]+", invocation)
@@ -617,6 +619,15 @@ def test_time_check_summary_is_polish(polish_cli, tmp_path, capsys, count, have)
         "w aparacie.",
         "  Oba czasy byłyby zgodne przy opcji --timezone=+02:00.",
     ]
+
+
+@needs_exiftool
+def test_stop_note_is_polish(polish_cli, tmp_path, capsys):
+    gpx = write_gpx(tmp_path / "stop.gpx", stop_track())
+    path = photo(tmp_path / "photos", "b.jpg", "-DateTimeOriginal=2024:05:01 12:03:30",
+                 "-OffsetTimeOriginal=+02:00")
+    polish_cli("-g", gpx, path)
+    assert capsys.readouterr().out.splitlines()[1] == AT_STOP.replace("[stop", "[postój")
 
 
 @needs_exiftool

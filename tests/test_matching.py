@@ -5,7 +5,7 @@ import pytest
 
 from gpxfoto.engine.matching import PhotoResult, Summary, match_photo, match_photos, summarize
 from gpxfoto.engine.photos import TZ_CAMERA, TZ_MANUAL, Photo
-from gpxfoto.engine.track import Track, locate
+from gpxfoto.engine.track import Track, find_stops, locate
 
 WARSAW = timezone(timedelta(hours=2))
 T0 = datetime(2024, 5, 1, 10, 0, 0, tzinfo=timezone.utc).timestamp()
@@ -106,3 +106,14 @@ def test_time_check_comes_before_the_correction(track):
     out_of_range = match_photo(s5ii_photo((12, 0, 50), (9, 0, 50)), [track], 1e12, 120)
     assert out_of_range.reason == "the corrected capture time is out of range"
     assert out_of_range.time_check == (3600, None)
+
+
+def test_photo_taken_during_a_stop_gets_its_position():
+    points = [(T0 + i, 50.0 + (i % 3 - 1) * 1e-5, 20.0, 200.0) for i in range(300)]
+    track = Track(["stop.gpx"], True, points, find_stops(points))
+    [stop] = track.stops
+    result = match_photo(photo((12, 2, 0)), [track], 0, 120)
+    assert (result.lat, result.lon, result.ele, result.stop) == (
+        stop.lat, stop.lon, stop.elevation, stop)
+    unpinned = match_photo(photo((12, 2, 0)), [Track(["stop.gpx"], True, points)], 0, 120)
+    assert unpinned.stop is None and unpinned.lat != stop.lat
