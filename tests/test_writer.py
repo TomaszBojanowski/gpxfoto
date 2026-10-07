@@ -403,6 +403,39 @@ def test_extended_attributes_are_kept(tmp_path, photo, fake_exiftool):
         assert os.getxattr(path, "user.xdg.comment") == b"Hut at the pass"
 
 
+def test_extended_attributes_the_photo_lacks_are_removed(tmp_path, photo, fake_exiftool,
+                                                         monkeypatch):
+    set_xattr(photo, "user.xdg.comment", b"Hut at the pass")
+    fake = fake_exiftool()
+
+    def run_and_add_attribute(command, **kwargs):
+        result = fake(command, **kwargs)
+        os.setxattr(command[command.index("-o") + 1], "user.added", b"1")
+        return result
+
+    monkeypatch.setattr(writer.subprocess, "run", run_and_add_attribute)
+    write_location(photo, 50.0, 19.0, 200.0, TIME, backup=False)
+    assert os.listxattr(photo) == ["user.xdg.comment"]
+
+
+def posix_acl(*entries):
+    """A POSIX access control list in the form Linux keeps it in extended attributes."""
+    return struct.pack("<I", 2) + b"".join(struct.pack("<HHI", *entry) for entry in entries)
+
+
+def test_access_control_list_of_the_directory_is_not_inherited(tmp_path, photo, fake_exiftool):
+    # New files in the directory give user 4242 access, which the photo does not
+    anyone = 0xFFFFFFFF
+    set_xattr(tmp_path, "system.posix_acl_default", posix_acl(
+        (0x01, 6, anyone), (0x02, 6, 4242), (0x04, 4, anyone), (0x10, 6, anyone),
+        (0x20, 0, anyone)))
+    fake_exiftool()
+    write_location(photo, 50.0, 19.0, 200.0, TIME, backup=True)
+    for path in (photo, tmp_path / BACKUP_DIR / "photo.jpg"):
+        assert "system.posix_acl_access" not in os.listxattr(path)
+        assert stat.S_IMODE(os.stat(path).st_mode) == 0o640
+
+
 @pytest.mark.skipif(not hasattr(os, "geteuid") or os.geteuid() != 0,
                     reason="only root can give a file to another user")
 def test_owner_and_group_are_kept(tmp_path, photo, fake_exiftool):

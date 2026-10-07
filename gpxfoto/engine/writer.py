@@ -138,12 +138,28 @@ def _changed(before, now):
 def _copy_attributes(path, original, access_ns, target):
     """Give target the owner, permissions, extended attributes and times of the photo.
 
-    Extended attributes include access control lists. The owner and group
-    are copied as far as the system allows.
+    Extended attributes include access control lists. Those the photo
+    lacks, such as a list target inherited from its directory, are
+    removed. The owner, group and attributes are copied as far as the
+    system allows.
     """
     _copy_owner(original, target)
+    _remove_extra_attributes(path, target)
     shutil.copystat(path, target)
     os.utime(target, ns=(access_ns, original.st_mtime_ns))
+
+
+def _remove_extra_attributes(path, target):
+    """Remove the extended attributes of target that path lacks, as far as the system allows."""
+    try:
+        extra = set(os.listxattr(target)) - set(os.listxattr(path))
+    except (AttributeError, OSError):        # not supported by the system or file system
+        return
+    for name in extra:
+        try:
+            os.removexattr(target, name)
+        except OSError:
+            pass
 
 
 def _copy_owner(original, target):
