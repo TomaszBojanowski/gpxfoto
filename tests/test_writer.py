@@ -1,4 +1,5 @@
 """write_location: GPS tags through exiftool, verified and written atomically."""
+import errno
 import os
 import shutil
 import stat
@@ -572,19 +573,59 @@ def test_failed_sync_of_the_result_keeps_the_photo(tmp_path, photo, fake_exiftoo
     assert os.listdir(tmp_path) == ["photo.jpg"]
 
 
+@pytest.mark.parametrize("error", [errno.EINVAL, errno.EACCES, errno.ENOTSUP],
+                         ids=errno.errorcode.get)
 def test_directory_that_cannot_be_synced_does_not_stop_writing(photo, fake_exiftool,
-                                                               monkeypatch):
+                                                               monkeypatch, error):
     real = os.fsync
 
     def files_only(fd):
         if stat.S_ISDIR(os.fstat(fd).st_mode):
-            raise OSError(22, "Invalid argument")
+            raise OSError(error, os.strerror(error))
         real(fd)
 
     expected = add_comment(photo.read_bytes())
     fake_exiftool()
     monkeypatch.setattr(writer.os, "fsync", files_only)
     write_location(photo, 50.0, 19.0, 200.0, TIME, backup=True)
+    assert state(photo) == (expected, MTIME_NS, 0o640)
+
+
+@pytest.mark.parametrize("failing", [".", "originals"])
+def test_failed_sync_of_a_directory_before_the_replacement_keeps_the_photo(
+        tmp_path, photo, fake_exiftool, disk_events, monkeypatch, failing):
+    # "." fails while the backup directory is made, "originals" once it holds the copy
+    real = writer.os.fsync
+
+    def fail_in(fd):
+        if os.readlink(f"/proc/self/fd/{fd}") == os.path.normpath(tmp_path / failing):
+            raise OSError(errno.EIO, "Input/output error")
+        real(fd)
+
+    before = state(photo)
+    fake_exiftool()
+    monkeypatch.setattr(writer.os, "fsync", fail_in)
+    with pytest.raises(OSError, match="Input/output error"):
+        write_location(photo, 50.0, 19.0, 200.0, TIME, backup=True)
+    assert state(photo) == before
+    assert not [e for e in disk_events if e[0] == "replace"]
+    assert [n for n in os.listdir(tmp_path) if n.startswith(".gpxfoto-")] == []
+
+
+def test_failed_sync_of_the_directory_after_the_replacement_is_reported(photo, fake_exiftool,
+                                                                       monkeypatch):
+    real = os.fsync
+
+    def files_only(fd):
+        if stat.S_ISDIR(os.fstat(fd).st_mode):
+            raise OSError(errno.EIO, "Input/output error")
+        real(fd)
+
+    expected = add_comment(photo.read_bytes())
+    fake_exiftool()
+    monkeypatch.setattr(writer.os, "fsync", files_only)
+    with pytest.raises(OSError, match="Input/output error"):
+        write_location(photo, 50.0, 19.0, 200.0, TIME, backup=False)
     assert state(photo) == (expected, MTIME_NS, 0o640)
 
 

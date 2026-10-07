@@ -1,4 +1,5 @@
 """Writing the location with exiftool while checking that the image is untouched."""
+import errno
 import hashlib
 import os
 import shutil
@@ -151,12 +152,19 @@ def _sync(path):
         os.close(fd)
 
 
+# Errors meaning that a directory cannot be synced on this system or file
+# system, or by this user, rather than that syncing it failed
+CANNOT_SYNC_DIRECTORY = {errno.EACCES, errno.EPERM, errno.EBADF, errno.EINVAL, errno.ENOTSUP,
+                         errno.EOPNOTSUPP, errno.ENOSYS}
+
+
 def _sync_directory(directory):
     """Wait until the names in directory are on the disk, where the system allows it."""
     try:
         _sync(directory)
-    except OSError:
-        pass                    # not every system and file system can sync a directory
+    except OSError as e:
+        if e.errno not in CANNOT_SYNC_DIRECTORY:
+            raise
 
 
 def _copy_attributes(path, original, access_ns, target):
