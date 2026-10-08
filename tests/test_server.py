@@ -276,3 +276,18 @@ def test_the_page_gets_its_translations(server):
     assert response.status == 200
     catalog = json.loads(response.body)
     assert set(catalog) == {"language", "locale", "messages", "plural"}
+
+
+def test_the_page_browses_folders(server, tmp_path):
+    server.api = Api(server.events)
+    (tmp_path / "Wakacje").mkdir()
+    (tmp_path / "Wakacje" / "a.jpg").write_bytes(b"")
+    response = request(server, "GET", "/api/browse?path=" + urllib.parse.quote(str(tmp_path)))
+    assert response.status == 200
+    assert json.loads(response.body)["folders"] == [{"name": "Wakacje", "photos": 1, "tracks": 0}]
+    missing = tmp_path / "missing"
+    response = request(server, "GET", "/api/browse?path=" + urllib.parse.quote(str(missing)))
+    assert response.status == 400
+    assert json.loads(response.body) == {"error": f"No such folder: {missing}"}
+    places = json.loads(request(server, "GET", "/api/places").body)
+    assert set(places) == {"places", "recent"}

@@ -8,7 +8,7 @@ msgstr ""
 "Project-Id-Version: gpxfoto\n"
 "Report-Msgid-Bugs-To: "
 "https://github.com/tomaszbojanowski/gpxfoto/issues\n"
-"POT-Creation-Date: 2026-10-08 16:04+0000\n"
+"POT-Creation-Date: 2026-10-08 16:13+0000\n"
 "PO-Revision-Date: 2026-10-06 23:45+0200\n"
 "Last-Translator: Tomasz <t.bojanowski@protonmail.com>\n"
 "Language-Team: Polish\n"
@@ -976,43 +976,43 @@ msgid "“{path}” already exists and is not a copy of this photo"
 msgstr "„{path}” już istnieje i nie jest kopią tego zdjęcia"
 
 #. Translators: a distance in metres
-#: gpxfoto/i18n.py:45
+#: gpxfoto/i18n.py:71
 #, python-brace-format
 msgid "{metres} m"
 msgstr "{metres} m"
 
 #. Translators: a distance in kilometres
-#: gpxfoto/i18n.py:47
+#: gpxfoto/i18n.py:73
 #, python-brace-format
 msgid "{kilometres} km"
 msgstr "{kilometres} km"
 
-#: gpxfoto/i18n.py:54 gpxfoto/i18n.py:86
+#: gpxfoto/i18n.py:80 gpxfoto/i18n.py:112
 #, python-brace-format
 msgid "{seconds} s"
 msgstr "{seconds} s"
 
-#: gpxfoto/i18n.py:56 gpxfoto/i18n.py:84
+#: gpxfoto/i18n.py:82 gpxfoto/i18n.py:110
 #, python-brace-format
 msgid "{minutes} min"
 msgstr "{minutes} min"
 
-#: gpxfoto/i18n.py:57 gpxfoto/i18n.py:78
+#: gpxfoto/i18n.py:83 gpxfoto/i18n.py:104
 #, python-brace-format
 msgid "{hours} h {minutes} min"
 msgstr "{hours} h {minutes} min"
 
-#: gpxfoto/i18n.py:75
+#: gpxfoto/i18n.py:101
 #, python-brace-format
 msgid "{hours} h {minutes} min {seconds} s"
 msgstr "{hours} h {minutes} min {seconds} s"
 
-#: gpxfoto/i18n.py:80
+#: gpxfoto/i18n.py:106
 #, python-brace-format
 msgid "{hours} h"
 msgstr "{hours} h"
 
-#: gpxfoto/i18n.py:82
+#: gpxfoto/i18n.py:108
 #, python-brace-format
 msgid "{minutes} min {seconds} s"
 msgstr "{minutes} min {seconds} s"
@@ -1023,6 +1023,25 @@ msgid ""
 msgstr ""
 "Należy otworzyć adres, który gpxfoto wyświetlił w terminalu przy "
 "uruchomieniu."
+
+#: gpxfoto/server/files.py:42
+#, python-brace-format
+msgid "No such folder: {path}"
+msgstr "Nie ma takiego folderu: {path}"
+
+#: gpxfoto/server/files.py:44
+#, python-brace-format
+msgid "Not a folder: {path}"
+msgstr "To nie jest folder: {path}"
+
+#: gpxfoto/server/files.py:46
+#, python-brace-format
+msgid "Cannot open the folder {path}: {error}"
+msgstr "Nie można otworzyć folderu {path}: {error}"
+
+#: gpxfoto/server/files.py:95
+msgid "Home folder"
+msgstr "Katalog domowy"
 
 #. Translators: {url} is the address of the page of the browser interface
 #: gpxfoto/server/ui.py:22

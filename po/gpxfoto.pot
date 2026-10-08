@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: gpxfoto 0.1.0\n"
 "Report-Msgid-Bugs-To: https://github.com/tomaszbojanowski/gpxfoto/issues\n"
-"POT-Creation-Date: 2026-10-08 16:04+0000\n"
+"POT-Creation-Date: 2026-10-08 16:13+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -833,49 +833,68 @@ msgid "“{path}” already exists and is not a copy of this photo"
 msgstr ""
 
 #. Translators: a distance in metres
-#: gpxfoto/i18n.py:45
+#: gpxfoto/i18n.py:71
 #, python-brace-format
 msgid "{metres} m"
 msgstr ""
 
 #. Translators: a distance in kilometres
-#: gpxfoto/i18n.py:47
+#: gpxfoto/i18n.py:73
 #, python-brace-format
 msgid "{kilometres} km"
 msgstr ""
 
-#: gpxfoto/i18n.py:54 gpxfoto/i18n.py:86
+#: gpxfoto/i18n.py:80 gpxfoto/i18n.py:112
 #, python-brace-format
 msgid "{seconds} s"
 msgstr ""
 
-#: gpxfoto/i18n.py:56 gpxfoto/i18n.py:84
+#: gpxfoto/i18n.py:82 gpxfoto/i18n.py:110
 #, python-brace-format
 msgid "{minutes} min"
 msgstr ""
 
-#: gpxfoto/i18n.py:57 gpxfoto/i18n.py:78
+#: gpxfoto/i18n.py:83 gpxfoto/i18n.py:104
 #, python-brace-format
 msgid "{hours} h {minutes} min"
 msgstr ""
 
-#: gpxfoto/i18n.py:75
+#: gpxfoto/i18n.py:101
 #, python-brace-format
 msgid "{hours} h {minutes} min {seconds} s"
 msgstr ""
 
-#: gpxfoto/i18n.py:80
+#: gpxfoto/i18n.py:106
 #, python-brace-format
 msgid "{hours} h"
 msgstr ""
 
-#: gpxfoto/i18n.py:82
+#: gpxfoto/i18n.py:108
 #, python-brace-format
 msgid "{minutes} min {seconds} s"
 msgstr ""
 
 #: gpxfoto/server/app.py:181
 msgid "Open the address that gpxfoto showed in the terminal when it started."
+msgstr ""
+
+#: gpxfoto/server/files.py:42
+#, python-brace-format
+msgid "No such folder: {path}"
+msgstr ""
+
+#: gpxfoto/server/files.py:44
+#, python-brace-format
+msgid "Not a folder: {path}"
+msgstr ""
+
+#: gpxfoto/server/files.py:46
+#, python-brace-format
+msgid "Cannot open the folder {path}: {error}"
+msgstr ""
+
+#: gpxfoto/server/files.py:95
+msgid "Home folder"
 msgstr ""
 
 #. Translators: {url} is the address of the page of the browser interface

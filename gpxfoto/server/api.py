@@ -2,6 +2,7 @@
 from http import HTTPStatus
 
 from gpxfoto import i18n
+from gpxfoto.server import files
 from gpxfoto.server.app import RequestError
 
 
@@ -15,6 +16,8 @@ class Api:
         self.events = events
         self.routes = {
             ("GET", "i18n"): self.get_i18n,
+            ("GET", "places"): self.get_places,
+            ("GET", "browse"): self.get_browse,
         }
 
     def handle(self, handler, method, name, query):
@@ -25,6 +28,15 @@ class Api:
 
     def get_i18n(self, handler, query):
         handler.send_json(i18n.catalog())
+
+    def get_places(self, handler, query):
+        handler.send_json({"places": files.places(), "recent": files.recent()})
+
+    def get_browse(self, handler, query):
+        try:
+            handler.send_json(files.listing(query.get("path", [""])[0]))
+        except files.FolderError as e:
+            raise RequestError(HTTPStatus.BAD_REQUEST, str(e)) from None
 
     def close(self):
         """Stop the work in the background."""
