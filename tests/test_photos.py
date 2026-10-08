@@ -7,7 +7,8 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from conftest import latin2_name, make_jpeg, needs_exiftool, set_tags
+from conftest import (
+    latin2_name, make_jpeg, needs_exiftool, set_panasonic_time_stamp, set_tags)
 from gpxfoto.engine import photos
 from gpxfoto.engine.photos import (
     TZ_CAMERA, TZ_MANUAL, TZ_SYSTEM, capture_time, check_exiftool, find_photos,
@@ -238,6 +239,189 @@ def test_capture_time_near_the_ends_of_the_calendar(value, system_zone, system_t
 def test_capture_time_unreadable_date_does_not_fall_back_to_create_date():
     meta = {"DateTimeOriginal": "0000:00:00 00:00:00", "CreateDate": "2024:05:01 12:00:00"}
     assert capture_time(meta, None) == (None, "invalid capture time in EXIF: 0000:00:00 00:00:00")
+
+
+# format_utc_offset
+
+@pytest.mark.parametrize("offset, text", [
+    (timedelta(0), "+00:00"),
+    (timedelta(hours=2), "+02:00"),
+    (timedelta(hours=-5), "-05:00"),
+    (timedelta(hours=5, minutes=45), "+05:45"),
+    (timedelta(hours=-3, minutes=-30), "-03:30"),
+    (timedelta(minutes=-30), "-00:30"),
+    (timedelta(hours=14), "+14:00"),
+])
+def test_format_utc_offset(offset, text):
+    assert photos.format_utc_offset(offset) == text
+    assert photos.parse_utc_offset(text).utcoffset(None) == offset
+
+
+# camera_utc_time
+
+UTC = timezone.utc
+
+
+@pytest.mark.parametrize("value, expected", [
+    ("2026:10:06 08:00:00", datetime(2026, 10, 6, 8, 0, 0, tzinfo=UTC)),
+    ("  2026:10:06 08:00:00 ", datetime(2026, 10, 6, 8, 0, 0, tzinfo=UTC)),
+    ("2026:10:06 08:00:00.25", datetime(2026, 10, 6, 8, 0, 0, 250000, tzinfo=UTC)),
+    ("0001:01:02 00:00:00", datetime(1, 1, 2, tzinfo=UTC)),
+    ("9999:12:30 23:59:59", datetime(9999, 12, 30, 23, 59, 59, tzinfo=UTC)),
+])
+def test_camera_utc_time(value, expected):
+    assert photos.camera_utc_time({"Model": "DC-S5M2", "TimeStamp": value}) == expected
+
+
+@pytest.mark.parametrize("value", [
+    None, "", "000", 2026, "0000:00:00 00:00:00", "2026:13:01 00:00:00", "2026:10:06 25:00:00",
+    "2026:10:06 08:00:00Z", "2026:10:06 08:00:00+02:00", "2026-10-06 08:00:00",
+    "2026:10:06 08:00", "0001:01:01 12:00:00", "9999:12:31 00:00:00", "9999:12:31 23:59:59.9",
+    "２０２６:10:06 08:00:00",
+])
+def test_camera_utc_time_unusable(value):
+    meta = {"Model": "DC-S5M2"}
+    if value is not None:
+        meta["TimeStamp"] = value
+    assert photos.camera_utc_time(meta) is None
+
+
+@pytest.mark.parametrize("model", [None, "", "DC-GH5", "DC-S5", "LEICA SL2", "dc-s5m2"])
+def test_camera_utc_time_only_for_known_models(model):
+    meta = {"TimeStamp": "2026:10:06 08:00:00"}
+    if model is not None:
+        meta["Model"] = model
+    assert photos.camera_utc_time(meta) is None
+
+
+@needs_exiftool
+def test_camera_utc_time_is_read_from_the_maker_note_only(tmp_path):
+    path = tmp_path / "P1000123.JPG"
+    path.write_bytes(make_jpeg())
+    set_tags(path, "-DateTimeOriginal=2026:10:06 10:00:00", "-OffsetTimeOriginal=+02:00",
+             "-XMP-apple-fi:TimeStamp=123456")
+    set_panasonic_time_stamp(path, "2026:10:06 08:00:00")
+    other = tmp_path / "other.jpg"
+    other.write_bytes(make_jpeg())
+    set_tags(other, "-Model=DC-S5M2", "-XMP-apple-fi:TimeStamp=123456")
+    found = [photos.photo_from_metadata(meta, None)
+             for meta in read_metadata([str(path), str(other)])]
+    assert [photo.camera_utc for photo in found] == [
+        datetime(2026, 10, 6, 8, 0, 0, tzinfo=UTC), None]
+
+
+# is_real_utc_offset, check_against_camera_utc, summarize_time_checks
+
+@pytest.mark.parametrize("minutes", range(-14 * 60, 14 * 60 + 1, 30))
+def test_every_half_hour_offset_is_real(minutes):
+    assert photos.is_real_utc_offset(timedelta(minutes=minutes))
+
+
+@pytest.mark.parametrize("offset, real", [
+    (zone(5, 45).utcoffset(None), True), (zone(8, 45).utcoffset(None), True),
+    (zone(12, 45).utcoffset(None), True), (zone(13, 45).utcoffset(None), True),
+    (timedelta(hours=1, minutes=15), False), (timedelta(hours=2, minutes=45), False),
+    (-timedelta(hours=3, minutes=15), False), (timedelta(hours=1, minutes=24), False),
+    (timedelta(hours=14, minutes=30), False), (-timedelta(hours=14, minutes=30), False),
+    (-timedelta(hours=5, minutes=45), False),
+])
+def test_is_real_utc_offset(offset, real):
+    assert photos.is_real_utc_offset(offset) is real
+
+
+CAMERA_UTC = datetime(2026, 10, 6, 8, 0, 0, tzinfo=timezone.utc)
+
+
+def later(seconds, offset):
+    """The camera's UTC time plus seconds, shown in the time zone offset (hours, minutes)."""
+    return (CAMERA_UTC + timedelta(seconds=seconds)).astimezone(zone(*offset))
+
+
+@pytest.mark.parametrize("taken, source, correction, expected", [
+    (later(0, (2,)), TZ_CAMERA, 0, None),
+    (later(120, (2,)), TZ_CAMERA, 0, None),
+    (later(-120, (2,)), TZ_MANUAL, 0, None),
+    (later(120.000001, (2,)), TZ_CAMERA, 0, photos.TimeCheck(120.000001, None)),
+    # --timezone +03:00 for a camera at +02:00
+    (later(-3600, (3,)), TZ_MANUAL, 0, photos.TimeCheck(-3600, zone(2))),
+    (later(-3600, (3,)), TZ_SYSTEM, 0, photos.TimeCheck(-3600, zone(2))),
+    (later(-3605, (3,)), TZ_MANUAL, 0, photos.TimeCheck(-3605, zone(2))),
+    # Another program changed EXIF: which value is right is not known
+    (later(3600, (2,)), TZ_CAMERA, 0, photos.TimeCheck(3600, None)),
+    # Nepal
+    (later(900, (5, 30)), TZ_MANUAL, 0, photos.TimeCheck(900, zone(5, 45))),
+    # No time zone in use fits
+    (later(900, (1,)), TZ_MANUAL, 0, photos.TimeCheck(900, None)),
+    (later(2700, (1,)), TZ_MANUAL, 0, photos.TimeCheck(2700, None)),
+    (later(3600, (14,)), TZ_MANUAL, 0, photos.TimeCheck(3600, None)),
+    (later(2 * 86400, (2,)), TZ_MANUAL, 0, photos.TimeCheck(2 * 86400, None)),
+    # Not a whole number of quarter hours
+    (later(180, (2,)), TZ_MANUAL, 0, photos.TimeCheck(180, None)),
+    (later(450, (2,)), TZ_MANUAL, 0, photos.TimeCheck(450, None)),
+    (later(1200, (2,)), TZ_MANUAL, 0, photos.TimeCheck(1200, None)),
+    # A correction that makes up for the difference
+    (later(-3600, (3,)), TZ_MANUAL, 3570, None),
+    (later(-3600, (3,)), TZ_MANUAL, 3300, None),
+    (later(-3600, (3,)), TZ_MANUAL, 30, photos.TimeCheck(-3600, zone(2))),
+    (later(-3600, (3,)), TZ_MANUAL, -3600, photos.TimeCheck(-3600, zone(2))),
+])
+def test_check_against_camera_utc(taken, source, correction, expected):
+    check = photos.check_against_camera_utc(taken, source, CAMERA_UTC, correction)
+    if expected is None:
+        assert check is None
+    else:
+        assert check.difference == pytest.approx(expected.difference, abs=1e-6)
+        assert check.suggested_tz == expected.suggested_tz
+
+
+def test_summarize_time_checks():
+    plus_two = photos.TimeCheck(-3600, zone(2))
+    plus_three = photos.TimeCheck(-7200, zone(3))
+    unknown = photos.TimeCheck(180, None)
+    checks = [(TZ_CAMERA, unknown), (TZ_SYSTEM, plus_two), (TZ_MANUAL, plus_two),
+              (TZ_SYSTEM, plus_three), (TZ_MANUAL, plus_two)]
+    assert photos.summarize_time_checks(checks) == [
+        photos.TimeCheckSummary(TZ_MANUAL, 2, zone(2)),
+        photos.TimeCheckSummary(TZ_SYSTEM, 2, None),
+        photos.TimeCheckSummary(TZ_CAMERA, 1, None),
+    ]
+    assert photos.summarize_time_checks([(TZ_MANUAL, unknown), (TZ_MANUAL, plus_two)]) == [
+        photos.TimeCheckSummary(TZ_MANUAL, 2, None)]
+    assert photos.summarize_time_checks([]) == []
+    # Photos that already match would no longer match with the suggestion
+    assert photos.summarize_time_checks(checks, {TZ_MANUAL}) == [
+        photos.TimeCheckSummary(TZ_MANUAL, 2, None),
+        photos.TimeCheckSummary(TZ_SYSTEM, 2, None),
+        photos.TimeCheckSummary(TZ_CAMERA, 1, None),
+    ]
+
+
+# photo_from_metadata
+
+@pytest.mark.parametrize("meta, manual, expected", [
+    ({"SourceFile": "a.jpg", "DateTimeOriginal": "2024:05:01 12:00:00",
+      "OffsetTimeOriginal": "+02:00"}, None,
+     photos.Photo("a.jpg", datetime(2024, 5, 1, 12, tzinfo=zone(2)), TZ_CAMERA, None, False)),
+    ({"SourceFile": "b.jpg", "DateTimeOriginal": "2024:05:01 12:00:00", "GPSLatitude": 50.0},
+     zone(-5),
+     photos.Photo("b.jpg", datetime(2024, 5, 1, 12, tzinfo=zone(-5)), TZ_MANUAL, None, True)),
+    ({"SourceFile": "c.jpg", "GPSLatitude": 50.0}, None,
+     photos.Photo("c.jpg", None, None, "no capture time in EXIF", True)),
+    ({"SourceFile": "d.jpg", "DateTimeOriginal": "yesterday"}, zone(2),
+     photos.Photo("d.jpg", None, None, "invalid capture time in EXIF: yesterday", False)),
+    ({"SourceFile": "e.jpg", "Error": "File format error"}, None,
+     photos.Photo("e.jpg", None, None, "cannot be read: File format error", False)),
+])
+def test_photo_from_metadata(meta, manual, expected):
+    assert photos.photo_from_metadata(meta, manual) == expected
+
+
+def test_photo_from_metadata_in_the_system_time_zone(system_tz):
+    system_tz("XYZ-05:30")
+    photo = photos.photo_from_metadata(
+        {"SourceFile": "a.jpg", "DateTimeOriginal": "2024:05:01 12:00:00"}, None)
+    assert photo == photos.Photo("a.jpg", datetime(2024, 5, 1, 12, tzinfo=zone(5, 30)),
+                                 TZ_SYSTEM, None, False)
 
 
 # find_photos
@@ -475,7 +659,7 @@ def test_check_exiftool_reports_a_broken_one(monkeypatch):
 
 PREFIX = ["exiftool", "-json", "-n", "-DateTimeOriginal", "-CreateDate",
           "-OffsetTimeOriginal", "-OffsetTime", "-SubSecTimeOriginal",
-          "-GPSLatitude", "-GPSLongitude", "-Error", "--"]
+          "-GPSLatitude", "-GPSLongitude", "-Model", "-Panasonic:TimeStamp", "-Error", "--"]
 
 
 @pytest.fixture

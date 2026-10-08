@@ -19,6 +19,8 @@ TEMP_PREFIX = ".gpxfoto-"
 # The EXIF GPS fields of a location, which are always written anew
 LOCATION_TAGS = ("GPSLatitude", "GPSLatitudeRef", "GPSLongitude", "GPSLongitudeRef",
                  "GPSAltitude", "GPSAltitudeRef", "GPSDateStamp", "GPSTimeStamp", "GPSMapDatum")
+# The GPS fields of the direction of travel, never of the camera
+TRAVEL_TAGS = ("GPSTrack", "GPSTrackRef")
 
 
 def is_backup_dir(directory):
@@ -61,13 +63,21 @@ def image_checksum(path):
                 digest.update(data)
 
 
-def write_location(path, lat, lon, ele, time_utc, backup, replace=False, seen=None):
+def write_location(path, lat, lon, ele, time_utc, backup, replace=False, seen=None,
+                   direction=None, clear_direction=False):
     """Write a location into the photo at path, changing nothing else.
 
     replace means the photo already has a location. All its GPS data, also
     in XMP, then belongs to the old location and is removed. Otherwise only
     the fields of a location are written anew, and other GPS data, such as
     a compass direction, is kept.
+
+    direction is the direction of travel in whole degrees from true north,
+    written as GPSTrack with GPSTrackRef T. When direction is given or
+    clear_direction is set, any direction of travel the photo had, also in
+    XMP, is removed first: it belonged to another location or another
+    program. Otherwise it is left as it is, unless replace removes it with
+    the rest of the old GPS data.
 
     seen is os.stat() of the photo from before its metadata was read: the
     photo must not have changed since, and its access time is kept.
@@ -77,6 +87,11 @@ def write_location(path, lat, lon, ele, time_utc, backup, replace=False, seen=No
             and (ele is None or abs(ele) <= MAX_ELEVATION)):
         location = f"{lat}, {lon}" if ele is None else f"{lat}, {lon}, {ele} m"
         raise ValueError(_("invalid location: {location}").format(location=location))
+    # exiftool would write 360 or infinity as given, and for -1 only warn
+    if direction is not None and not (type(direction) is int and 0 <= direction < 360):
+        # Translators: {direction} is the value that cannot be written
+        raise ValueError(_("invalid direction of travel: {direction}").format(
+            direction=direction))
     # Through a symbolic link, the file it points to is written
     path = os.path.realpath(path)
     if is_backup_dir(os.path.dirname(path)):
@@ -115,6 +130,11 @@ def write_location(path, lat, lon, ele, time_utc, backup, replace=False, seen=No
         if ele is not None:
             command += [f"-GPS:GPSAltitude={abs(ele):.1f}",
                         f"-GPS:GPSAltitudeRef={0 if ele >= 0 else 1}"]
+        if (direction is not None or clear_direction) and not replace:
+            command += [f"-{group}:{tag}=" for group in ("GPS", "XMP-exif")
+                        for tag in TRAVEL_TAGS]
+        if direction is not None:
+            command += [f"-GPS:GPSTrack={direction}", "-GPS:GPSTrackRef=T"]
         command += ["-o", temp, "--", path]
         # Also readable only by its owner until it gets the photo's permissions
         process = subprocess.run(command, capture_output=True, text=True, errors="replace",

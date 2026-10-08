@@ -101,6 +101,8 @@ Silnik nie importuje niczego z `server/` ani `web/`. Serwer wywołuje silnik wy�
 
 ## Etapy
 
+**Kolejność prac:** etap 1 (zrobiony), etap 2, potem od razu etap 4 (interfejs w przeglądarce) i etap 5 (wygląd). Dopiero po nich etapy 2b (RAW), 3, 6 i 7. Numery etapów pozostają bez zmian.
+
 Każdy etap kończy się działającym programem i przechodzącymi testami. Jedna funkcja na raz, każda w osobnym commicie.
 
 ### Etap 1 — porządek i testy
@@ -118,6 +120,11 @@ Każdy etap kończy się działającym programem i przechodzącymi testami. Jedn
 - **Kontrola krzyżowa** `DateTimeOriginal` + przesunięcie z `Panasonic:TimeStamp`; rozbieżność zgłaszana jako ostrzeżenie.
 - **Postoje**: wykrywanie odcinków bez ruchu; zdjęcie wykonane blisko postoju jest do niego przypinane. W podglądzie informacja, ile zdjęć wypada na postoje (wskaźnik, czy poprawka zegara jest dobra).
 - **Samo dobieranie trasy**: wskazany katalog z trasami, każde zdjęcie dopasowane do pliku obejmującego jego czas.
+- **Ostrzeżenia o podejrzanym dopasowaniu** (tylko w podglądzie; program niczego sam nie zmienia):
+  - *przesunięcie o równą godzinę*: jeśli po przesunięciu czasu zdjęć o dokładnie ±1 h (także ±30 min i wielokrotności godziny) wyraźnie więcej zdjęć wypada na postojach, program proponuje taką poprawkę z krótkim wyjaśnieniem (typowa przyczyna: nieprzestawiony czas letni/zimowy albo strefa czasowa w aparacie);
+  - *zdjęcia w ruchu*: jeśli większość zdjęć wypada w chwilach, gdy według trasy poruszano się pełnym tempem, a nie na postojach lub przy zwolnieniu, program ostrzega, że zegar aparatu może być przesunięty;
+  - *nieprawdopodobne przeskoki*: kolejne zdjęcia zrobione w odstępie sekund, a dopasowane do miejsc odległych o setki metrów;
+  - progi dobrać na prawdziwych danych i opisać w testach; ostrzeżenie nie może pojawiać się przy poprawnym dopasowaniu wzorcowych zdjęć autora.
 - **Kierunek marszu** (GPSImgDirection / GPSTrack) — tylko jako opcja, domyślnie wyłączona; to kierunek ruchu, nie obiektywu.
 - Kryterium: testy dla każdej funkcji; podgląd pokazuje zastosowaną poprawkę i źródło trasy dla każdego zdjęcia.
 
@@ -136,12 +143,11 @@ Każdy etap kończy się działającym programem i przechodzącymi testami. Jedn
 ### Etap 3 — wygoda i bezpieczeństwo
 
 - **Pliki FIT** prosto z zegarka (wybór biblioteki do potwierdzenia z autorem).
-- **Cofanie**: polecenie usuwające dopisane pola GPS, z tą samą weryfikacją sumy obrazu.
 - **Raport** po zapisie (plik tekstowy lub JSON obok zdjęć): plik, czas, współrzędne, źródło trasy, poprawka.
 - **Szybkość**: jeden proces exiftool w trybie `-stay_open` zamiast uruchamiania dla każdego zdjęcia.
 - **Nazwy miejsc** bez internetu (kraj, region, miejscowość do pól IPTC/XMP) z wbudowanej bazy miejscowości; sprawdzić licencję danych.
 - **Filmy MP4/MOV** — najpierw zbadać, jak S5II zapisuje czas w filmach, i przedstawić wynik autorowi przed implementacją.
-- Kryterium: 500 zdjęć zapisanych w czasie ograniczonym głównie kopiowaniem plików; cofnięcie przywraca metadane GPS do stanu sprzed zapisu.
+- Kryterium: 500 zdjęć zapisanych w czasie ograniczonym głównie kopiowaniem plików.
 
 ### Etap 4 — interfejs w przeglądarce
 
@@ -152,6 +158,7 @@ Każdy etap kończy się działającym programem i przechodzącymi testami. Jedn
 - Suwak poprawki czasu z podglądem na żywo: znaczniki przesuwają się po trasie.
 - Ręczne przesunięcie pojedynczego zdjęcia na mapie.
 - Zapis z paskiem postępu i możliwością przerwania; podsumowanie na końcu.
+- **Cofanie**: polecenie usuwające dopisane pola GPS, z tą samą weryfikacją sumy obrazu.
 - **Interfejs nigdy się nie zawiesza**: wczytywanie tras, odczyt metadanych, miniatury i zapis to zadania w tle po stronie serwera; strona dostaje wyniki strumieniem zdarzeń. Przewidzieć to w architekturze od początku.
 - **Bezpieczeństwo serwera lokalnego**:
   - nasłuch wyłącznie na `127.0.0.1`;
@@ -163,7 +170,7 @@ Każdy etap kończy się działającym programem i przechodzącymi testami. Jedn
 - Tryb jasny i ciemny według ustawień systemu; układ działa także na wąskim ekranie.
 - Skrót do uruchamiania: plik `.desktop` z ikoną na Linuksie; na macOS sposób uruchamiania bez Terminala do zaproponowania autorowi.
 - Testy: API serwera testowane bez przeglądarki; testy bezpieczeństwa (brak tokenu, zły `Host`, ścieżka poza wskazanym folderem).
-- Kryterium: działa na Fedorze (Firefox) i macOS (Safari); przy 1000 zdjęć strona pozostaje płynna podczas wczytywania i zapisu.
+- Kryterium: działa na Fedorze (Firefox) i macOS (Safari); przy 1000 zdjęć strona pozostaje płynna podczas wczytywania i zapisu; cofnięcie przywraca metadane GPS do stanu sprzed zapisu.
 
 ### Etap 5 — wygląd i dopracowanie interfejsu
 

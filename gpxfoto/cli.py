@@ -1,5 +1,6 @@
 """Command-line tool."""
 import argparse
+import bisect
 import os
 import re
 import shutil
@@ -8,20 +9,38 @@ from datetime import datetime, timedelta, timezone
 from gettext import gettext as _, ngettext
 
 from gpxfoto import i18n
+from gpxfoto.engine import checks
+from gpxfoto.engine.clock import MAX_WITHOUT_DATE, ClockError, measure, parse_reading
+from gpxfoto.engine.matching import corrected_times, match_photos, summarize
 from gpxfoto.engine.photos import (
-    TZ_MANUAL, TZ_SYSTEM, capture_time, check_exiftool, find_photos, parse_utc_offset,
-    read_metadata)
-from gpxfoto.engine.track import load_gpx, locate
+    TZ_CAMERA, TZ_MANUAL, TZ_SYSTEM, check_exiftool, find_photos, format_utc_offset,
+    parse_utc_offset, photo_from_metadata, read_metadata, summarize_time_checks)
+from gpxfoto.engine.track import (
+    find_tracks, load_track, nearest_track, quick_span, tracks_needed, travel_direction)
 from gpxfoto.engine.writer import BACKUP_DIR, write_location
 from gpxfoto.i18n import N_
 
 DEFAULT_MAX_GAP = 120
+# At most this many pairs of photos are named in the warning about jumps
+JUMP_EXAMPLES = 3
 
 # Notes shown next to photos whose time zone did not come from the camera
 TZ_NOTES = {
     # Translators: {option} is the command-line option --timezone
     TZ_MANUAL: N_("time zone from {option}"),
     TZ_SYSTEM: N_("computer’s time zone (not in EXIF)"),
+}
+
+# Why capture times may not match the camera's UTC time, by the source of
+# their time zone
+TIME_CHECK_CAUSES = {
+    # Translators: {option} is the command-line option --timezone
+    TZ_MANUAL: N_("Either the time zone given with {option} or the camera’s time zone setting "
+                  "is wrong."),
+    TZ_SYSTEM: N_("EXIF has no time zone, so this computer’s time zone was used; either it or "
+                  "the camera’s time zone setting is wrong."),
+    TZ_CAMERA: N_("Another program may have changed the capture time or the time zone in EXIF; "
+                  "the locations follow the time in EXIF."),
 }
 
 # Messages printed by argparse itself. They are listed here so that they
@@ -66,6 +85,30 @@ def non_negative_seconds(text):
     return value
 
 
+def clock_reading(text):
+    """argparse type: the time read on a clock."""
+    try:
+        return parse_reading(text)
+    except ValueError as e:
+        raise argparse.ArgumentTypeError(str(e)) from None
+
+
+def offset_value(seconds):
+    """seconds as the value of --offset, e.g. "132", "-3468" or "131.52"."""
+    text = f"{seconds:.3f}".rstrip("0").rstrip(".")
+    return "0" if text == "-0" else text
+
+
+def date_and_time(moment):
+    """The date and time of moment as the regional settings show them."""
+    # Translators: date and time of a track point as a strftime format. %x
+    # and %X follow the system's regional settings; replace them only if
+    # those are wrong for your language, as they are for Polish on macOS
+    # (%-d is the day without a leading zero).
+    # xgettext:no-python-format
+    return moment.strftime(_("%x %X"))
+
+
 def join_negative_time_zone(argv):
     """Let "--timezone -05:00" work like "--timezone=-05:00".
 
@@ -98,38 +141,486 @@ def build_parser():
     # keep it a single word
     parser.add_argument("photos", nargs="+", metavar=_("PHOTO"),
                         help=_("JPEG files or directories with photos"))
-    # Translators: placeholder for a file name in --help; keep it a single word
-    parser.add_argument("-g", "--gpx", action="append", required=True, metavar=_("FILE"),
-                        help=_("GPX file with the track (can be given more than once)"))
+    # Translators: placeholder for a track file or directory in --help; keep
+    # it a single word
+    parser.add_argument("-g", "--gpx", action="append", required=True, metavar=_("TRACK"),
+                        help=_("GPX file with the track, or a directory with GPX files: each "
+                               "photo then gets the track that covers its time (can be given "
+                               "more than once)"))
     parser.add_argument("--write", action="store_true",
                         help=_("write the locations to the files (without this option "
                                "only a preview is shown)"))
     # Translators: placeholder for a number in --help; keep it a single word
-    parser.add_argument("--offset", type=seconds, default=0.0, metavar=_("SECONDS"),
+    parser.add_argument("--offset", type=seconds, metavar=_("SECONDS"),
                         help=_("camera clock correction in seconds, added to the capture time"))
     # Translators: placeholder in --help; HH stands for hours, MM for minutes
     parser.add_argument("--timezone", metavar=_("+HH:MM"),
                         help=_("camera time zone for all photos (default: read from each "
                                "photo’s EXIF data)"))
+    parser.add_argument("--clock-photo", metavar=_("FILE"),
+                        help=_("photo of an accurate clock, such as the watch that records the "
+                               "track, for working out the camera clock correction (with "
+                               "{option})").format(option="--clock-time"))
+    # Translators: placeholder for a time in --help; keep it a single word
+    parser.add_argument("--clock-time", type=clock_reading, metavar=_("TIME"),
+                        help=_("time shown on the clock in the {option} photo, 24-hour, for "
+                               "example 14:03:27, 14:03:27+02:00 or 2026-10-06T14:03:27+02:00"
+                               ).format(option="--clock-photo"))
     parser.add_argument("--max-gap", type=non_negative_seconds, default=float(DEFAULT_MAX_GAP),
                         metavar=_("SECONDS"),
                         help=_("largest allowed time between a photo and the nearest track "
                                "point (default: {seconds} s)").format(seconds=DEFAULT_MAX_GAP))
+    parser.add_argument("--no-stops", action="store_true",
+                        help=_("do not look for stops; every photo gets the track’s position "
+                               "at its time"))
     parser.add_argument("--overwrite", action="store_true",
                         help=_("also change photos that already have a location"))
+    parser.add_argument("--travel-direction", action="store_true",
+                        help=_("also add the direction of travel from the track (EXIF "
+                               "GPSTrack), not the direction the camera faced; photos taken at "
+                               "a stop or on a winding stretch get none"))
     # Translators: {directory} is the name of the directory, which is not translated
     parser.add_argument("--backup", action="store_true",
                         help=_("keep copies of the original files in a “{directory}” "
                                "subdirectory next to each photo; an existing copy is never "
                                "replaced").format(directory=BACKUP_DIR))
     parser.add_argument("-r", "--recursive", action="store_true",
-                        help=_("also look for photos in subdirectories"))
+                        help=_("also look for photos and tracks in subdirectories"))
     return parser
+
+
+def time_check_note(check):
+    """The note on a photo whose capture time does not match the camera's UTC time."""
+    if check.suggested_tz is not None:
+        # Translators: a note on the line of a photo; {zone} is a UTC offset
+        # such as +02:00
+        return _("camera’s UTC time suggests {zone}").format(
+            zone=format_utc_offset(check.suggested_tz.utcoffset(None)))
+    # Translators: a note on the line of a photo; {duration} is a time span
+    # such as “10 min”
+    return _("differs by {duration} from the camera’s UTC time").format(
+        duration=i18n.duration(abs(check.difference)))
+
+
+def time_check_lines(results):
+    """The summary of the capture times that do not match the camera's UTC time."""
+    checks = [(r.photo.tz_source, r.time_check) for r in results if r.time_check is not None]
+    agreeing = {r.photo.tz_source for r in results if r.time is not None
+                and r.time_check is None and r.photo.camera_utc is not None}
+    # The computer's time zone is not advised when some photos have one in EXIF
+    zone_in_exif = any(r.photo.tz_source == TZ_CAMERA for r in results)
+    lines = []
+    for summary in summarize_time_checks(checks, agreeing):
+        lines.append(ngettext(
+            "Warning: {count} photo has a capture time that does not match the UTC time "
+            "recorded by the camera.",
+            "Warning: {count} photos have capture times that do not match the UTC time "
+            "recorded by the camera.", summary.count).format(count=i18n.number(summary.count)))
+        lines.append("  " + _(TIME_CHECK_CAUSES[summary.source]).format(option="--timezone"))
+        if summary.suggested_tz is not None and not (summary.source == TZ_SYSTEM
+                                                     and zone_in_exif):
+            option = "--timezone=" + format_utc_offset(summary.suggested_tz.utcoffset(None))
+            # Translators: {option} is a command-line option with its value,
+            # such as --timezone=+02:00
+            lines.append("  " + _("Both times would match with {option}.").format(option=option))
+    return lines
+
+
+def stop_note(stop, zone):
+    """The note on a photo taken during a stop, with its times in the time zone zone."""
+    start = datetime.fromtimestamp(stop.start, zone)
+    end = datetime.fromtimestamp(stop.end, zone)
+    if start.date() == end.date():
+        start, end = f"{start:%X}", f"{end:%X}"
+    else:
+        start, end = date_and_time(start), date_and_time(end)
+    # Translators: a note on the line of a photo taken during a stop, which
+    # gets the stop's position; {start} and {end} are times such as
+    # “12:31:05”, with the date when the stop lasts over midnight
+    return _("stop {start} – {end}").format(start=start, end=end)
+
+
+def file_labels(paths):
+    """How files are named to the user: by base name, or by the whole path
+    where two of them have the same base name."""
+    names = [os.path.basename(path) for path in paths]
+    return {path: printable(path if names.count(name) > 1 else name)
+            for path, name in zip(paths, names)}
+
+
+def photo_line(result, labels=None, width=0, direction=None):
+    """The preview line of one photo.
+
+    With labels, a dict of file labels, the line names the track files
+    its position comes from, in a column width characters wide. direction
+    is the photo's (degrees, reason) from directions(), if any.
+    """
+    name = printable(os.path.basename(result.photo.path))
+    time = "" if result.time is None else f"{result.time:%X}  "
+    notes = []
+    if result.reason is None and result.photo.tz_source in TZ_NOTES:
+        notes.append(_(TZ_NOTES[result.photo.tz_source]).format(option="--timezone"))
+    if result.time_check is not None:
+        notes.append(time_check_note(result.time_check))
+    if result.stop is not None:
+        notes.append(stop_note(result.stop, result.time.tzinfo))
+    heading = ""
+    if direction is not None:
+        degrees, reason = direction
+        if degrees is None:
+            # Translators: a note on the line of a photo; {reason} says why,
+            # e.g. “the track winds too much here”
+            notes.append(_("no direction of travel: {reason}").format(reason=reason))
+        else:
+            # Translators: shown after the position of a photo; {degrees} is
+            # a whole number from 0 to 359, padded to three characters
+            heading = "  " + _("direction of travel {degrees}°").format(
+                degrees=i18n.number(degrees, width=3))
+    notes = "  [" + "; ".join(notes) + "]" if notes else ""
+    files = ", ".join(labels[path] for path in result.files) if labels else ""
+    if result.reason is not None:
+        # Translators: shown after the file name of a photo; {reason} says
+        # why the photo was skipped, e.g. “already has a location”
+        line = f"  {name:<16} {time}" + _("skipped: {reason}").format(reason=result.reason)
+        return line + (f" ({files})" if files else "") + notes
+    position = i18n.coordinates(result.lat, result.lon)
+    if result.ele is not None:
+        # Translators: elevation in metres
+        ele_text = _("{elevation} m").format(elevation=i18n.number(result.ele, width=6))
+    else:
+        ele_text = "       —"
+    source = f"  {files:<{width}}" if labels else ""
+    return f"  {name:<16} {time}{position} {ele_text}{source}{heading}{notes}".rstrip()
+
+
+def clock_lines(clock):
+    """The preview lines about a correction worked out from a clock photo."""
+    # Translators: {correction} is a time span with a sign, such as
+    # “+2 min 12 s”; {option} is the same as a command-line option, such as
+    # “--offset=132”
+    lines = [_("Clock correction: {correction} (equivalent to {option})").format(
+        correction=i18n.exact_duration(clock.seconds, sign=True),
+        option="--offset=" + offset_value(clock.seconds))]
+
+    def moment(when):
+        # Translators: a UTC offset as shown to the user; {offset} is, for
+        # example, “+02:00”
+        return date_and_time(when) + " " + _("UTC{offset}").format(
+            offset=format_utc_offset(when.utcoffset()))
+
+    # Translators: {name} is the file name of the clock photo; {camera} and
+    # {clock} are the date and time the camera and the clock showed
+    line = _("Clock photo {name}: camera {camera}, clock {clock}").format(
+        name=printable(os.path.basename(clock.photo)), camera=moment(clock.camera_time),
+        clock=moment(clock.clock_time))
+    if clock.tz_source in TZ_NOTES:
+        line += "  [" + _(TZ_NOTES[clock.tz_source]).format(option="--timezone") + "]"
+    lines.append(line)
+    if clock.uncertainty:
+        lines.append(_("The time on the clock was given without seconds, so the middle of the "
+                       "minute was used; the correction may be off by up to 30 s."))
+    return lines
+
+
+def track_line(track, labels, by_name):
+    """The line about one track; by_name names it even when it has several files."""
+    start = datetime.fromtimestamp(track.first).astimezone()
+    end = datetime.fromtimestamp(track.last).astimezone()
+    if by_name or len(track.files) == 1:
+        # Translators: {name} is the file name of the track; {start} and {end}
+        # are the date and time of its first and last point
+        line = ngettext(
+            "Track {name}: {count} point, {start} – {end} (this computer’s time zone)",
+            "Track {name}: {count} points, {start} – {end} (this computer’s time zone)",
+            len(track.points))
+    else:
+        # Translators: {start} and {end} are the date and time of the first and the
+        # last track point
+        line = ngettext("Track: {count} point, {start} – {end} (this computer’s time zone)",
+                        "Track: {count} points, {start} – {end} (this computer’s time zone)",
+                        len(track.points))
+    return line.format(name=", ".join(labels[path] for path in track.files),
+                       count=i18n.number(len(track.points)), start=date_and_time(start),
+                       end=date_and_time(end))
+
+
+def correction_lines(clock, correction):
+    """The lines about the clock correction, if there is one."""
+    if clock is not None:
+        return clock_lines(clock)
+    if correction:
+        # Translators: {correction} is a time span with a sign, such as
+        # “+2 min 12 s”, added to the capture time of every photo
+        return [_("Clock correction: {correction}").format(
+            correction=i18n.exact_duration(correction, sign=True))]
+    return []
+
+
+def covering(tracks, results, max_gap):
+    """The tracks whose time, widened by max_gap, holds some photo's, by start."""
+    times = sorted(result.time.timestamp() for result in results if result.time is not None)
+    return sorted((track for track in tracks
+                   if bisect.bisect_right(times, track.last + max_gap)
+                   > bisect.bisect_left(times, track.first - max_gap)),
+                  key=lambda track: track.first)
+
+
+def skip_track_file(error):
+    """Report a track file found in a directory that cannot be read."""
+    print(printable(str(error)), file=sys.stderr)
+    print("  " + _("This file is skipped; the other tracks are used."), file=sys.stderr)
+
+
+def with_nearest_tracks(results, tracks, spans, stops, skipped=()):
+    """results, where a photo no track covers names the nearest track file;
+    the tracks loaded for that; and the files among them that cannot be
+    read, which are reported. skipped are files already known to be so."""
+    loaded = {}
+    failed = []
+
+    def load(path):
+        if path not in loaded:
+            try:
+                loaded[path] = load_track([path], named=False, stops=stops)
+            except ValueError as e:
+                skip_track_file(e)
+                failed.append(path)
+                loaded[path] = None     # not read again for the next photo
+        return loaded[path]
+
+    singles = [track for track in tracks if len(track.files) == 1]
+    unread = {path: span for path, span in spans.items() if path not in skipped
+              and not any(track.files[0] == path for track in singles)}
+    changed = []
+    for result in results:
+        if not result.covered:
+            nearest = nearest_track(result.time.timestamp(), singles, unread, load)
+            if nearest is not None:
+                seconds, path, after = nearest
+                if after:
+                    # Translators: reason why a photo was skipped; {duration} is
+                    # a time span such as “10 min”
+                    reason = _("{duration} after the end of the nearest track")
+                else:
+                    # Translators: reason why a photo was skipped; {duration} is
+                    # a time span such as “10 min”
+                    reason = _("{duration} before the start of the nearest track")
+                result = result._replace(reason=reason.format(duration=i18n.duration(seconds)),
+                                         files=(path,))
+        changed.append(result)
+    return changed, [track for track in loaded.values() if track is not None], failed
+
+
+def usable_offset(offset):
+    """Whether a timedelta is a UTC offset that --timezone and --clock-time take."""
+    return abs(offset) <= timedelta(hours=14) and not offset % timedelta(minutes=1)
+
+
+def shots_of(results):
+    """The photos with a capture time as the checks of a suspicious match
+    see them, and their names."""
+    shots, names = [], []
+    for result in results:
+        if result.time is not None:
+            time = result.time.timestamp()
+            shots.append(checks.Shot(time, time + result.time.utcoffset().total_seconds(),
+                                     result.lat, result.lon))
+            names.append(printable(os.path.basename(result.photo.path)))
+    return shots, names
+
+
+def suspicion(results, tracks, shots, args, nearby=()):
+    """The signs of a suspicious match.
+
+    The whole-hour shift and the photos in motion are looked for only on
+    the track that placed every matched photo, as they need its stops and
+    speeds. When no photo was matched, that is the only track loaded, or
+    the only one of nearby, the tracks loaded to name the nearest one.
+    Photos skipped for another track would not move onto this track's
+    stops with any shift.
+    """
+    owner = {path: track for track in tracks for path in track.files}
+    used = []
+    for result in results:
+        if result.reason is None and owner[result.files[0]] not in used:
+            used.append(owner[result.files[0]])
+    others = {owner.get(path) for result in results if result.reason is not None
+              and result.covered for path in result.files}
+    one = used or tracks + [track for track in nearby if track not in tracks]
+    if len(one) == 1 and others <= set(one) and not args.no_stops:
+        track = one[0]
+        top = None if track.sources is None else checks.top_speed(track.points, track.sources)
+        return checks.suspicious_match(track.points, track.times, track.stops, shots,
+                                       args.max_gap, top=top)
+    top = max((checks.top_speed(track.points, track.sources) for track in used), default=0.0)
+    return checks.Suspicion(None, None, checks.jumps(shots, top))
+
+
+def shift_lines(hint, shots, correction, clock, zone_option=True):
+    """The warning about a whole-hour shift, with the option that applies it.
+
+    zone_option offers --timezone as well, where it would do the same.
+    """
+    # Translators: {shift} is a whole number of hours or half an hour with a
+    # sign, such as “+1 h” or “-30 min”; {pinned}, {matched} and {now} are
+    # numbers of photos
+    lines = [_("Warning: with the photo times shifted by {shift}, clearly more photos fall "
+               "during stops: {pinned} of {matched} instead of {now}.").format(
+                   shift=i18n.exact_duration(hint.shift, sign=True),
+                   pinned=i18n.number(hint.pinned), matched=i18n.number(hint.matched),
+                   now=i18n.number(hint.pinned_now))]
+    if abs(hint.shift) == 3600:
+        lines.append("  " + _("A difference of exactly one hour usually means that the camera "
+                              "was not switched to or from summer time, or that its time zone "
+                              "is set wrong."))
+    else:
+        lines.append("  " + _("A difference of whole hours or of half an hour usually means "
+                              "that the time zone set in the camera is wrong, for example "
+                              "still the home one while travelling."))
+    shifted = correction + hint.shift
+    option = "--offset=" + offset_value(shifted)
+    other = None
+    if clock is not None:
+        # --offset cannot be used with --clock-photo: the clock's UTC offset
+        # moves by the shift instead
+        zone = clock.clock_time.utcoffset() - timedelta(seconds=hint.shift)
+        if not usable_offset(zone):
+            # Translators: {option} is a command-line option with its value,
+            # such as --offset=3600; {photo} and {time} are the options
+            # --clock-photo and --clock-time
+            lines.append("  " + _("To apply this correction, run again with {option} instead "
+                                  "of {photo} and {time}.").format(
+                                      option=option, photo="--clock-photo", time="--clock-time"))
+            return lines
+        reading = clock.reading
+        if reading.day is None and abs(shifted) > MAX_WITHOUT_DATE.total_seconds():
+            reading = reading._replace(day=clock.clock_time.date())
+        option = "--clock-time=" + reading.text(utc_offset=timezone(zone))
+    elif not correction and zone_option:
+        zones = {round(shot.clock - shot.time) for shot in shots}
+        if len(zones) == 1:
+            zone = timedelta(seconds=zones.pop() - hint.shift)
+            if usable_offset(zone):
+                other = "--timezone=" + format_utc_offset(zone)
+    if other is None:
+        # Translators: {option} is a command-line option with its value, such
+        # as --offset=3600
+        lines.append("  " + _("To apply this correction, run again with {option}.").format(
+            option=option))
+    else:
+        # Translators: {option} and {other} are command-line options with
+        # their values, such as --offset=3600 and --timezone=+01:00
+        lines.append("  " + _("To apply this correction, run again with {option} or "
+                              "{other}.").format(option=option, other=other))
+    return lines
+
+
+def motion_lines(motion, clock):
+    """The warning about photos taken while the track moves at full pace."""
+    # Translators: {fast} and {matched} are numbers of photos
+    lines = [ngettext("Warning: the camera clock may be off. {fast} of {matched} matched photo "
+                      "was taken while the track shows movement at full pace.",
+                      "Warning: the camera clock may be off. {fast} of {matched} matched photos "
+                      "were taken while the track shows movement at full pace.",
+                      motion.matched).format(fast=i18n.number(motion.fast),
+                                             matched=i18n.number(motion.matched))]
+    if clock is None:
+        # Translators: {photo} and {time} are the command-line options
+        # --clock-photo and --clock-time
+        advice = _("Photos are usually taken at stops or while slowing down. Check the camera "
+                   "clock, for example with a photo of the watch that records the track and the "
+                   "options {photo} and {time}.").format(photo="--clock-photo",
+                                                         time="--clock-time")
+    else:
+        # Translators: {option} is the command-line option --clock-time
+        advice = _("Photos are usually taken at stops or while slowing down. Check the time on "
+                   "the clock given with {option}, and its UTC offset.").format(
+                       option="--clock-time")
+    return lines + ["  " + advice]
+
+
+def jump_lines(jumps, shots, names):
+    """The warning about photos taken one after the other but placed far apart."""
+    lines = [_("Warning: photos taken less than a minute apart are placed implausibly far "
+               "apart:")]
+    for jump in jumps[:JUMP_EXAMPLES]:
+        first, second = shots[jump.first], shots[jump.second]
+        zones = [timedelta(seconds=round(shot.clock - shot.time)) for shot in (first, second)]
+        values = dict(first=names[jump.first], second=names[jump.second],
+                      interval=i18n.exact_duration(jump.clock_gap),
+                      distance=i18n.distance(jump.distance))
+        if zones[0] == zones[1]:
+            # Translators: {first} and {second} are file names; {interval} is
+            # a time span such as “4 s”; {distance} is a distance such as “1.3 km”
+            line = _("{first} and {second}: taken {interval} apart, placed {distance} "
+                     "apart").format(**values)
+        else:
+            # Translators: {first_zone} and {second_zone} are UTC offsets as
+            # shown to the user, such as “UTC+02:00”
+            line = _("{first} and {second}: taken {interval} apart, placed {distance} apart, "
+                     "time zones {first_zone} and {second_zone}").format(
+                         first_zone=_("UTC{offset}").format(offset=format_utc_offset(zones[0])),
+                         second_zone=_("UTC{offset}").format(offset=format_utc_offset(zones[1])),
+                         **values)
+        lines.append("  " + line)
+    more = len(jumps) - JUMP_EXAMPLES
+    if more > 0:
+        lines.append("  " + ngettext("and {count} more pair", "and {count} more pairs",
+                                     more).format(count=i18n.number(more)))
+    lines.append("  " + _("Check the time zones of these photos, and whether the GPX files "
+                          "record different trips at the same time."))
+    return lines
+
+
+def warning_lines(found, shots, names, correction, clock, zone_option=True):
+    """The lines about the signs of a suspicious match; they change nothing."""
+    lines = []
+    if found.shift is not None:
+        lines += shift_lines(found.shift, shots, correction, clock, zone_option)
+    if found.motion is not None:
+        lines += motion_lines(found.motion, clock)
+    if found.jumps:
+        lines += jump_lines(found.jumps, shots, names)
+    return lines
+
+
+def directions(results, tracks):
+    """The (degrees, reason) of the direction of travel of each matched
+    photo, from the track that placed it, and None for the others."""
+    owner = {path: track for track in tracks for path in track.files}
+    found = []
+    for result in results:
+        if result.reason is not None:
+            found.append(None)
+        elif result.stop is not None:
+            # Translators: why a photo gets no direction of travel
+            found.append((None, _("taken during a stop")))
+        else:
+            track = owner[result.files[0]]
+            found.append(travel_direction(track.points, track.times, result.time.timestamp(),
+                                          result.lat, result.lon, track.sources))
+    return found
+
+
+def no_points(count):
+    return ngettext("The GPX file contains no track points with timestamps.",
+                    "The GPX files contain no track points with timestamps.", count)
 
 
 def main():
     i18n.setup()
-    args = build_parser().parse_args(join_negative_time_zone(sys.argv[1:]))
+    parser = build_parser()
+    args = parser.parse_args(join_negative_time_zone(sys.argv[1:]))
+    if (args.clock_photo is None) != (args.clock_time is None):
+        given, other = (("--clock-photo", "--clock-time") if args.clock_time is None
+                        else ("--clock-time", "--clock-photo"))
+        # Translators: {option} and {other} are command-line options
+        parser.error(_("{option} must be used together with {other}").format(
+            option=given, other=other))
+    if args.clock_photo is not None and args.offset is not None:
+        # Translators: {option} and {other} are command-line options
+        parser.error(_("{option} cannot be used together with {other}").format(
+            option="--offset", other="--clock-photo"))
 
     if shutil.which("exiftool") is None:
         sys.exit(_("exiftool is not installed. On Fedora, install it with: {command}").format(
@@ -142,24 +633,41 @@ def main():
         manual_tz = parse_utc_offset(args.timezone) if args.timezone is not None else None
     except ValueError:
         sys.exit(_("The time zone must be in the form +HH:MM, for example +02:00 or -05:00."))
+    clock = None
+    clock_seen = None
+    if args.clock_photo is not None:
+        # Taken before exiftool reads it, in case it is also among the photos
+        try:
+            clock_seen = os.path.realpath(args.clock_photo), os.stat(args.clock_photo)
+        except OSError:
+            pass
+        try:
+            clock = measure(args.clock_photo, args.clock_time, manual_tz)
+        except ClockError as e:
+            sys.exit(printable(str(e)))
+    correction = clock.seconds if clock is not None else (args.offset or 0.0)
 
-    try:
-        points = load_gpx(args.gpx)
-    except ValueError as e:
-        sys.exit(str(e))
-    if not points:
-        sys.exit(ngettext("The GPX file contains no track points with timestamps.",
-                          "The GPX files contain no track points with timestamps.",
-                          len(args.gpx)))
-    times = [p[0] for p in points]
-    start = datetime.fromtimestamp(times[0]).astimezone()
-    end = datetime.fromtimestamp(times[-1]).astimezone()
-    # Translators: {start} and {end} are the date and time of the first and the
-    # last track point
-    print(ngettext("Track: {count} point, {start} – {end} (this computer’s time zone)",
-                   "Track: {count} points, {start} – {end} (this computer’s time zone)",
-                   len(points)).format(count=i18n.number(len(points)),
-                                       start=f"{start:%x %X}", end=f"{end:%x %X}"))
+    named, found = find_tracks(args.gpx, args.recursive)
+    if not named and not found:
+        sys.exit(_("No GPX files found."))
+    tracks = []
+    if named:
+        try:
+            track = load_track(named, stops=not args.no_stops)
+        except ValueError as e:
+            sys.exit(str(e))
+        if track is not None:
+            tracks.append(track)
+        elif not found:
+            sys.exit(no_points(len(named)))
+    if not found:
+        # Without a directory of tracks, the track is known before the photos
+        labels = file_labels(named)
+        print(track_line(tracks[0], labels, by_name=False))
+        for line in correction_lines(clock, correction):
+            print(line)
+    # Only the found files that some photo needs are read in full
+    spans = {path: quick_span(path) for path in found}
 
     try:
         files = find_photos(args.photos, args.recursive)
@@ -172,7 +680,10 @@ def main():
     seen = {}
     for path in files:
         try:
-            seen[path] = os.stat(path)
+            if clock_seen is not None and os.path.realpath(path) == clock_seen[0]:
+                seen[path] = clock_seen[1]
+            else:
+                seen[path] = os.stat(path)
         except OSError:
             pass
     try:
@@ -180,65 +691,103 @@ def main():
     except RuntimeError as e:
         sys.exit(str(e))
 
-    plan, skipped = [], 0
-    for meta in metadata:
-        path = meta["SourceFile"]
-        name = printable(os.path.basename(path))
-        if "GPSLatitude" in meta and not args.overwrite:
-            # Translators: reason why a photo was skipped
-            reason = _("already has a location")
-            # Translators: shown after the file name of a photo; {reason} says
-            # why the photo was skipped, e.g. “already has a location”
-            print(f"  {name:<16} " + _("skipped: {reason}").format(reason=reason))
-            skipped += 1
-            continue
-        taken, detail = capture_time(meta, manual_tz)
-        if taken is None:
-            print(f"  {name:<16} " + _("skipped: {reason}").format(reason=detail))
-            skipped += 1
-            continue
-        try:
-            taken += timedelta(seconds=args.offset)
-            time_utc = taken.astimezone(timezone.utc)
-        except OverflowError:
-            # Translators: reason why a photo was skipped
-            reason = _("the corrected capture time is out of range")
-            print(f"  {name:<16} " + _("skipped: {reason}").format(reason=reason))
-            skipped += 1
-            continue
-        result = locate(points, times, taken.timestamp(), args.max_gap)
-        if result[0] is None:
-            print(f"  {name:<16} {taken:%X}  "
-                  + _("skipped: {reason}").format(reason=result[1]))
-            skipped += 1
-            continue
-        lat, lon, ele, gap = result
-        position = i18n.coordinates(lat, lon)
-        if ele is not None:
-            # Translators: elevation in metres
-            ele_text = _("{elevation} m").format(elevation=i18n.number(ele, width=6))
-        else:
-            ele_text = "       —"
-        note = ""
-        if detail in TZ_NOTES:
-            note = "  [" + _(TZ_NOTES[detail]).format(option="--timezone") + "]"
-        print(f"  {name:<16} {taken:%X}  {position} {ele_text}{note}")
-        plan.append((path, lat, lon, ele, time_utc, "GPSLatitude" in meta))
+    photos = [photo_from_metadata(meta, manual_tz) for meta in metadata]
+    skipped_files = []          # found track files that cannot be read
+    unreadable = []             # their (path, span) where the span is known
+    if found:
+        # Only when the scans are sure that no file has a time
+        if not tracks and all(span == () for span in spans.values()):
+            sys.exit(no_points(len(named) + len(found)))
+        times = corrected_times(photos, correction, args.overwrite)
+        for path in tracks_needed(spans, times, args.max_gap):
+            try:
+                track = load_track([path], named=False, stops=not args.no_stops)
+            except ValueError as e:
+                # A file found in a directory is skipped, and the other
+                # tracks are used as if it were not there
+                skip_track_file(e)
+                skipped_files.append(path)
+                if spans[path] is not None:
+                    unreadable.append((path, spans[path]))
+                continue
+            if track is not None:
+                tracks.append(track)
+        labels = file_labels(named + found)
+    results = match_photos(photos, tracks, correction, args.max_gap, overwrite=args.overwrite,
+                           label=labels.get, unreadable=unreadable)
+    nearby = []
+    if found:
+        results, nearby, failed = with_nearest_tracks(results, tracks, spans,
+                                                      not args.no_stops, skipped_files)
+        skipped_files += failed
+    if found:
+        used = covering(tracks, results, args.max_gap)
+        total = len(named) + len(found)
+        # Translators: {used} is how many of the {total} GPX files given or
+        # found have a track at the time of some photo
+        print(ngettext("Tracks covering the photos: {used} of {total} GPX file",
+                       "Tracks covering the photos: {used} of {total} GPX files", total).format(
+            used=i18n.number(sum(len(track.files) for track in used)),
+            total=i18n.number(total)))
+        for track in used:
+            print(track_line(track, labels, by_name=True))
+        for line in correction_lines(clock, correction):
+            print(line)
+    heading = (directions(results, tracks) if args.travel_direction
+               else [None] * len(results))
+    # With several track files, each photo line names its own
+    if found or len(named) > 1:
+        width = max((len(", ".join(labels[path] for path in result.files))
+                     for result in results if result.reason is None), default=0)
+        for result, direction in zip(results, heading):
+            print(photo_line(result, labels, width, direction))
+    else:
+        for result, direction in zip(results, heading):
+            print(photo_line(result, direction=direction))
+    summary = summarize(results)
+    plan = [(result, direction) for result, direction in zip(results, heading)
+            if result.reason is None]
 
     print(_("Matched: {matched}, skipped: {skipped}").format(
-        matched=i18n.number(len(plan)), skipped=i18n.number(skipped)))
+        matched=i18n.number(summary.matched), skipped=i18n.number(summary.skipped)))
+    if args.travel_direction:
+        known = sum(direction[0] is not None for result, direction in plan)
+        # Translators: how many matched photos got a direction of travel and
+        # how many did not
+        print(_("With a direction of travel: {known}, without: {unknown}").format(
+            known=i18n.number(known), unknown=i18n.number(len(plan) - known)))
+    if any(track.stops for track in tracks) and summary.matched:
+        # Translators: how many of the matched photos were taken during stops;
+        # a wrong camera clock puts fewer of them there
+        print(ngettext("During stops: {count} of {matched} matched photo",
+                       "During stops: {count} of {matched} matched photos",
+                       summary.matched).format(count=i18n.number(summary.at_stops),
+                                               matched=i18n.number(summary.matched)))
+    for line in time_check_lines(results):
+        print(line)
     if not args.write:
+        shots, names = shots_of(results)
+        signs = suspicion(results, tracks, shots, args, nearby)
+        # Photos whose camera records UTC would then disagree with it
+        zone_option = not any(result.photo.camera_utc is not None for result in results)
+        for line in warning_lines(signs, shots, names, correction, clock, zone_option):
+            print(line)
         if plan:
             # Translators: {option} is the command-line option --write
             print(_("This was a preview; no files were changed. "
                     "Use {option} to write the locations.").format(option="--write"))
+        if skipped_files:
+            sys.exit(1)
         return
 
     written = errors = 0
-    for path, lat, lon, ele, time_utc, had_location in plan:
+    for result, direction in plan:
+        path = result.photo.path
         try:
-            write_location(path, lat, lon, ele, time_utc, args.backup, replace=had_location,
-                           seen=seen.get(path))
+            write_location(path, result.lat, result.lon, result.ele, result.time_utc,
+                           args.backup, replace=result.photo.has_location,
+                           seen=seen.get(path), direction=direction[0] if direction else None,
+                           clear_direction=args.travel_direction)
             written += 1
         except (RuntimeError, ValueError, OSError) as e:
             errors += 1
@@ -248,7 +797,7 @@ def main():
         written=i18n.number(written), errors=i18n.number(errors)))
     if written:
         print(_("The image data of every written file was verified as unchanged."))
-    if errors:
+    if errors or skipped_files:
         sys.exit(1)
 
 

@@ -1,4 +1,4 @@
-"""GPX parsing (load_gpx, _parse_time), position lookup (locate) and durations."""
+"""GPX parsing (load_gpx, _parse_time) and position lookup (locate)."""
 import os
 import time
 from datetime import datetime, timezone
@@ -6,8 +6,9 @@ from datetime import datetime, timezone
 import pytest
 
 from conftest import write_gpx
+from gpxfoto import i18n
 from gpxfoto.engine import track as track_module
-from gpxfoto.engine.track import _distance_m, _format_duration, _parse_time, load_gpx, locate
+from gpxfoto.engine.track import _distance_m, _parse_time, load_gpx, locate
 
 
 def utc(*fields):
@@ -553,32 +554,6 @@ def test_locate_on_loaded_track(tmp_path):
         1012.5, 0.5))
 
 
-# _format_duration
-
-@pytest.mark.parametrize("seconds, text", [
-    (0, "0 s"),
-    (0.4, "0 s"),
-    (59, "59 s"),
-    (119, "119 s"),
-    (119.4, "119 s"),
-    (119.6, "2 min"),
-    (120, "2 min"),
-    (179, "2 min"),
-    (180, "3 min"),
-    (3600, "60 min"),
-    (7199, "119 min"),
-    (7199.4, "119 min"),
-    (7199.6, "2 h 0 min"),
-    (7200, "2 h 0 min"),
-    (7259, "2 h 0 min"),
-    (7260, "2 h 1 min"),
-    (10799, "2 h 59 min"),
-    (90061, "25 h 1 min"),
-])
-def test_format_duration(seconds, text):
-    assert _format_duration(seconds) == text
-
-
 MESSAGES = {
     "{duration} before the start of the track",
     "{duration} after the end of the track",
@@ -596,6 +571,7 @@ def marked(monkeypatch):
         assert text in MESSAGES, text  # looked up before formatting
         return f"«{text}»"
     monkeypatch.setattr(track_module, "_", translate)
+    monkeypatch.setattr(i18n, "_", translate)
 
 
 @pytest.mark.parametrize("t, reason", [
@@ -606,3 +582,278 @@ def marked(monkeypatch):
 def test_reasons_are_translated(marked, t, reason):
     points, times = track((T0, 50.0, 19.0, None), (T0 + 20000, 51.0, 20.0, None))
     assert locate(points, times, t, 10) == (None, reason)
+
+
+# load_track and match
+
+def test_load_track_keeps_the_files_and_the_times(tmp_path):
+    first = write_gpx(tmp_path / "a.gpx", [("2026-06-01T10:00:10Z", 50.0, 19.0, None)])
+    second = write_gpx(tmp_path / "b.gpx", [("2026-06-01T10:00:00Z", 51.0, 20.0, 5.0)])
+    track = track_module.load_track([first, second])
+    assert track.files == (first, second) and track.named
+    assert track.points == [(T0, 51.0, 20.0, 5.0), (T0 + 10, 50.0, 19.0, None)]
+    assert (track.times, track.first, track.last) == ([T0, T0 + 10], T0, T0 + 10)
+
+
+def test_load_track_without_points_is_none(tmp_path):
+    empty = write_gpx(tmp_path / "a.gpx", [(None, 50.0, 19.0, None)])
+    assert track_module.load_track([empty]) is None
+
+
+def test_match_gives_the_position_or_the_reason(tmp_path):
+    loaded = track_module.Track(["t.gpx"], True, [(T0, 50.0, 19.0, None),
+                                                  (T0 + 100, 51.0, 20.0, None)])
+    assert track_module.match([loaded], T0 + 50, 120) == track_module.Match(
+        50.5, 19.5, None, 50, loaded, files=("t.gpx",))
+    assert track_module.match([loaded], T0 + 400, 120) == track_module.Match(
+        track=loaded, reason="5 min after the end of the track", covered=False)
+
+
+def straight(start, seconds, lat, step=1, named=False, files=None):
+    """A Track going east from (lat, 19.0) at about 7 m/s, one point every step seconds."""
+    points = [(start + i, lat, 19.0 + i * 1e-4, None) for i in range(0, seconds + 1, step)]
+    return track_module.Track(files or [f"{lat}.gpx"], named, points)
+
+
+def test_match_never_interpolates_between_tracks():
+    morning, evening = straight(T0, 100, 50.0), straight(T0 + 3600, 100, 51.0)
+    found = track_module.match([morning, evening], T0 + 1800, 120)
+    assert (found.lat, found.covered) == (None, False)
+    assert found.reason == "28 min after the end of the track"
+    assert track_module.match([morning, evening], T0 + 3650, 120).track is evening
+
+
+def test_match_prefers_a_position_between_two_close_points():
+    # The watch records every second; the phone stopped 60 s before
+    watch = straight(T0, 600, 50.0)
+    phone = straight(T0, 540, 50.0001, named=True)
+    assert track_module.match([phone, watch], T0 + 570, 120).track is watch
+    # Both place it between two points: the named track wins
+    assert track_module.match([watch, phone], T0 + 300, 120).track is phone
+
+
+def test_match_prefers_more_frequent_recording_then_the_earlier_start():
+    sparse = straight(T0, 600, 50.0, step=10)
+    dense = straight(T0 + 1, 599, 50.0001)
+    assert track_module.match([sparse, dense], T0 + 305, 120).track is dense
+    early, late = straight(T0, 600, 50.0), straight(T0 + 1, 599, 50.0001)
+    assert track_module.match([late, early], T0 + 305, 120).track is early
+
+
+def test_match_reports_a_gap_with_the_files_around_it():
+    points = [(T0, 50.0, 19.0, None), (T0 + 1000, 50.1, 19.0, None)]
+    loaded = track_module.Track(["a.gpx", "b.gpx"], True, points, sources=[0, 1])
+    found = track_module.match([loaded], T0 + 500, 120)
+    assert found.reason == "gap in the track recording, nearest point 8 min away"
+    assert (found.files, found.covered) == (("a.gpx", "b.gpx"), True)
+
+
+@pytest.mark.parametrize("times, interval", [
+    ([0, 1, 2, 3], 1), ([0, 5, 10, 12, 20], 5), ([0, 0.2, 0.4], 1), ([0], 1), ([0, 0, 0], 1)])
+def test_track_interval(times, interval):
+    points = [(T0 + t, 50.0, 19.0, None) for t in times]
+    assert track_module.Track(["a.gpx"], True, points).interval == interval
+
+
+@pytest.mark.parametrize("t, rank", [
+    (T0, track_module.INSIDE), (T0 + 50, track_module.INSIDE),
+    (T0 + 100, track_module.INSIDE), (T0 + 130, track_module.NEAR),
+    (T0 - 100, track_module.NEAR), (T0 + 500, track_module.ACROSS_BREAK)])
+def test_placement_rank(t, rank):
+    # Points 100 s apart, then a break of 1000 s
+    points = [(T0 + s, 50.0, 19.0, None) for s in (0, 100, 1100)]
+    loaded = track_module.Track(["a.gpx"], True, points)
+    assert track_module.placement_rank(loaded, t, 120) == rank
+
+
+def test_track_knows_the_file_of_each_point(tmp_path):
+    first = write_gpx(tmp_path / "a.gpx", [("2026-06-01T10:00:00Z", 50.0, 19.0, None),
+                                           ("2026-06-01T10:00:20Z", 50.0, 19.0, None)])
+    second = write_gpx(tmp_path / "b.gpx", [("2026-06-01T10:00:10Z", 51.0, 20.0, None),
+                                            ("2026-06-01T10:00:30Z", 51.0, 20.0, None)])
+    track = track_module.load_track([first, second])
+    assert track.sources == [0, 1, 0, 1]
+    assert track.files_at(T0 - 5) == (first,)
+    assert track.files_at(T0) == (first,)
+    assert track.files_at(T0 + 5) == (first, second)
+    assert track.files_at(T0 + 10) == (second,)
+    assert track.files_at(T0 + 40) == (second,)
+    assert track_module.load_track([first]).sources is None
+    assert track_module.load_track([first]).files_at(T0 + 5) == (first,)
+
+
+def test_found_tracks_that_disagree_place_nothing():
+    # Two found recordings of the same time, 1.1 km apart
+    mine = straight(T0, 600, 50.0, files=["/t/mine.gpx"])
+    other = straight(T0, 600, 50.01, files=["/t/other.gpx"])
+    found = track_module.match([mine, other], T0 + 300, 120)
+    assert (found.lat, found.conflict) == (None, other)
+    assert found.reason == "the tracks mine.gpx and other.gpx put this photo 1.1 km apart"
+    # Labels are the caller's
+    found = track_module.match([mine, other], T0 + 300, 120, label=str)
+    assert found.reason == "the tracks /t/mine.gpx and /t/other.gpx put this photo 1.1 km apart"
+
+
+def test_found_tracks_that_agree_place_the_photo():
+    mine = straight(T0, 600, 50.0)
+    other = straight(T0, 600, 50.0015)     # 167 m north
+    found = track_module.match([mine, other], T0 + 300, 120)
+    assert (found.track, found.reason) == (mine, None)
+
+
+def test_named_track_is_never_overruled():
+    mine = straight(T0, 600, 50.0, named=True)
+    other = straight(T0, 600, 50.01)
+    found = track_module.match([other, mine], T0 + 300, 120)
+    assert (found.track, found.reason) == (mine, None)
+
+
+def test_only_equally_good_placements_are_compared():
+    # The other track ended 100 s ago: its last point is no evidence against this one
+    mine = straight(T0, 600, 50.0)
+    other = straight(T0, 200, 50.01)
+    found = track_module.match([mine, other], T0 + 300, 120)
+    assert (found.track, found.reason) == (mine, None)
+
+
+# find_tracks
+
+def test_find_tracks(tmp_path):
+    tracks = tmp_path / "tracks"
+    for name in ["b.gpx", "a.GPX", "notes.txt", ".hidden.gpx", "sub/c.gpx", ".git/d.gpx"]:
+        (tracks / name).parent.mkdir(parents=True, exist_ok=True)
+        (tracks / name).write_text("")
+    (tracks / "dir.gpx").mkdir()
+    os.symlink(tracks / "sub", tracks / "link")
+    named = tmp_path / "named.gpx"
+    named.write_text("")
+    os.symlink(named, tracks / "named-link.gpx")
+    paths = [str(named), str(tracks), str(tracks / "b.gpx"), str(named)]
+    assert track_module.find_tracks(paths, recursive=False) == (
+        [str(named), str(tracks / "b.gpx")], [str(tracks / "a.GPX")])
+    assert track_module.find_tracks(paths, recursive=True) == (
+        [str(named), str(tracks / "b.gpx")], [str(tracks / "a.GPX"), str(tracks / "sub" / "c.gpx")])
+    # A missing file is named, so that reading it reports the error
+    assert track_module.find_tracks([str(tmp_path / "missing.gpx")], False) == (
+        [str(tmp_path / "missing.gpx")], [])
+
+
+# quick_span and tracks_needed
+
+def write(path, text, encoding="utf-8"):
+    path.write_bytes(text.encode(encoding))
+    return str(path)
+
+
+def span_of(*times):
+    return tuple(_parse_time(t).timestamp() for t in times)
+
+
+@pytest.mark.parametrize("text, expected", [
+    ("", ()),
+    ("<gpx/>", ()),
+    ("<gpx><trk><trkseg></trkseg></trk></gpx>", ()),
+    ('<gpx><time>2026-06-01T10:00:00Z</time><trk><trkseg>'
+     '<trkpt lat="1" lon="2"><time>2026-06-01T10:00:05Z</time></trkpt>'
+     '<trkpt lat="1" lon="2"><time>2026-06-01T09:59:58Z</time></trkpt>'
+     "</trkseg></trk></gpx>",
+     span_of("2026-06-01T09:59:58Z", "2026-06-01T10:00:05Z")),
+    # Namespace prefixes, attributes, spaces and offsets
+    ('<g:gpx xmlns:g="x"><g:trkpt><g:time a="1"> 2026-06-01T12:00:00+02:00 </g:time></g:trkpt>'
+     "<g:trkpt><g:time>2026-06-01T10:00:01.5Z</g:time></g:trkpt><g:time/></g:gpx>",
+     span_of("2026-06-01T10:00:00Z", "2026-06-01T10:00:01.5Z")),
+    # A time the full reader cannot use is left out
+    ("<gpx><time>yesterday</time><time>2026-06-01T10:00:00Z</time></gpx>",
+     span_of("2026-06-01T10:00:00Z", "2026-06-01T10:00:00Z")),
+    # <timestamp> is another element
+    ("<gpx><timestamp>2020-01-01T00:00:00Z</timestamp><time>2026-06-01T10:00:00Z</time></gpx>",
+     span_of("2026-06-01T10:00:00Z", "2026-06-01T10:00:00Z")),
+    # Not sure: a reference, CDATA or a comment inside the time, a DOCTYPE
+    ("<gpx><time>&#50;026-06-01T10:00:00Z</time></gpx>", None),
+    ("<gpx><time><![CDATA[2026-06-01T10:00:00Z]]></time></gpx>", None),
+    ("<gpx><time>2026-06-01<!-- x -->T10:00:00Z</time></gpx>", None),
+    ('<!DOCTYPE gpx [<!ENTITY t "2026-06-01T10:00:00Z">]><gpx><time>&t;</time></gpx>', None),
+])
+def test_quick_span(tmp_path, text, expected):
+    assert track_module.quick_span(write(tmp_path / "t.gpx", text)) == expected
+
+
+@pytest.mark.parametrize("encoding, declared, expected", [
+    ("utf-8", "UTF-8", True), ("latin-1", "ISO-8859-1", True), ("cp1250", "windows-1250", True),
+    ("utf-16", "UTF-16", False), ("utf-8", "x-unknown", False),
+])
+def test_quick_span_only_for_encodings_that_keep_ascii(tmp_path, encoding, declared, expected):
+    text = (f'<?xml version="1.0" encoding="{declared}"?><gpx><name>Zürich</name>'
+            "<time>2026-06-01T10:00:00Z</time></gpx>")
+    span = track_module.quick_span(write(tmp_path / "t.gpx", text, encoding))
+    assert span == (span_of("2026-06-01T10:00:00Z", "2026-06-01T10:00:00Z") if expected else None)
+
+
+def test_quick_span_of_a_real_garmin_track(tmp_path):
+    points = [(f"2026-06-01T10:{i // 60:02d}:{i % 60:02d}.000Z", 50.0, 19.0, 200.0)
+              for i in range(300)]
+    path = write_gpx(tmp_path / "g.gpx", points, garmin=True)
+    loaded = load_gpx([path])
+    assert track_module.quick_span(path) == (loaded[0][0], loaded[-1][0])
+
+
+def test_quick_span_of_a_large_or_missing_file(tmp_path, monkeypatch):
+    path = write(tmp_path / "t.gpx", "<gpx><time>2026-06-01T10:00:00Z</time></gpx>")
+    monkeypatch.setattr(track_module, "QUICK_SCAN_LIMIT", 10)
+    assert track_module.quick_span(path) is None
+    assert track_module.quick_span(str(tmp_path / "missing.gpx")) is None
+
+
+def test_tracks_needed():
+    spans = {"a": (100.0, 200.0), "b": (1000.0, 2000.0), "c": (), "d": None, "e": (300.0, 400.0)}
+    assert track_module.tracks_needed(spans, [50.0, 450.0], 60) == ["a", "d", "e"]
+    assert track_module.tracks_needed(spans, [39.0, 2061.0], 60) == ["d"]
+    assert track_module.tracks_needed(spans, [], 60) == ["d"]
+    assert track_module.tracks_needed(spans, [150.0], 0) == ["a", "d"]
+
+
+def test_a_track_that_cannot_be_read_is_named_only_where_no_other_places_the_photo():
+    mine = straight(T0, 600, 50.0)
+    unreadable = [("/t/broken.gpx", (T0 + 400, T0 + 2000))]
+    found = track_module.match([mine], T0 + 940, 60, unreadable=unreadable)
+    assert (found.lat, found.reason, found.covered) == (
+        None, "the track broken.gpx cannot be read", True)
+    assert track_module.match([], T0 + 940, 60, unreadable=unreadable).reason == (
+        "the track broken.gpx cannot be read")
+    # The other tracks are used as if it were not there
+    found = track_module.match([mine], T0 + 500, 60, unreadable=unreadable)
+    assert (found.track, found.reason) == (mine, None)
+    assert track_module.match([mine], T0 + 3000, 60, unreadable=unreadable).covered is False
+
+
+
+def test_nearest_track_reads_only_what_may_be_nearer():
+    near = straight(T0, 600, 50.0, files=["near.gpx"])
+    other = straight(T0 + 7200, 600, 51.0, files=["other.gpx"])
+    loaded = []
+
+    def load(path):
+        loaded.append(path)
+        if path == "bad.gpx":
+            raise ValueError("Cannot read the GPX file bad.gpx")
+        return {"other.gpx": other}.get(path)
+
+    spans = {"other.gpx": (T0 + 7200, T0 + 7800), "far.gpx": (T0 + 200000, T0 + 200100)}
+    # 1000 s after near.gpx; other.gpx may be at most 6000 s away, so it is not read
+    assert track_module.nearest_track(T0 + 1600, [near], spans, load) == (1000, "near.gpx", True)
+    assert loaded == []
+    # 600 s before other.gpx, which must be read to know
+    assert track_module.nearest_track(T0 + 6600, [near], spans, load) == (600, "other.gpx", False)
+    assert loaded == ["other.gpx"]
+    # Nothing within 24 h
+    assert track_module.nearest_track(T0 + 120000, [], {"far.gpx": (T0 + 300000, T0 + 300100)},
+                                      load) is None
+    # A file that cannot be read gives no hint
+    assert track_module.nearest_track(T0 + 1600, [], {"bad.gpx": (T0, T0 + 600)}, load) is None
+
+
+def test_nearest_track_prefers_after_the_end_on_a_tie():
+    before = straight(T0 + 1000, 100, 50.0, files=["before.gpx"])
+    after = straight(T0, 100, 51.0, files=["after.gpx"])
+    assert track_module.nearest_track(T0 + 550, [before, after], {}, None) == (
+        450, "after.gpx", True)

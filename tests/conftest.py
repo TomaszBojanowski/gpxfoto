@@ -4,6 +4,7 @@ import shutil
 import struct
 import subprocess
 import sys
+from datetime import datetime, timezone
 
 import pytest
 
@@ -58,6 +59,25 @@ def set_tags(path, *assignments):
                    check=True)
 
 
+# A Panasonic maker note with only a TimeStamp entry (tag 0x00af) holding a
+# short placeholder; exiftool never creates maker notes by itself
+PANASONIC_MAKER_NOTE = (b"Panasonic\0\0\0"
+                        + struct.pack("<HHHI4sI", 1, 0x00AF, 2, 4, b"000\0", 0))
+
+
+def set_panasonic_time_stamp(path, value, model="DC-S5M2"):
+    """Give a JPEG the maker note of a Panasonic camera with TimeStamp set to value."""
+    block = str(path) + ".makernote"
+    with open(block, "wb") as f:
+        f.write(PANASONIC_MAKER_NOTE)
+    try:
+        set_tags(path, "-Make=Panasonic", f"-Model={model}", f"-MakerNotes<={block}")
+    finally:
+        os.unlink(block)
+    # A second run: in the first one, exiftool would keep the placeholder
+    set_tags(path, f"-Panasonic:TimeStamp={value}")
+
+
 def read_tags(path, *names):
     """Read tags with exiftool as numbers; returns a dict."""
     import json
@@ -95,6 +115,12 @@ def write_gpx(path, points, namespace=GPX_NAMESPACE, garmin=False):
     with open(path, "w", encoding="utf-8") as f:
         f.write("\n".join(lines) + "\n")
     return path
+
+
+def hike_gpx(path, points):
+    """Write a GPX file of (unix_time, lat, lon, elevation) points."""
+    return write_gpx(path, [(f"{datetime.fromtimestamp(t, timezone.utc):%Y-%m-%dT%H:%M:%SZ}",
+                             lat, lon, ele) for t, lat, lon, ele in points])
 
 
 def latin2_name(directory, name="zdj\xeacie.jpg"):
@@ -135,4 +161,24 @@ def jpeg_file(tmp_path):
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(make_jpeg(**kwargs))
         return path
+    return create
+
+
+@pytest.fixture
+def photo_series(jpeg_file):
+    """Create photos/pNN.jpg taken at the given Unix times, with their
+    UTC offsets as in EXIF; exiftool runs once for all of them."""
+    from gpxfoto.engine.photos import parse_utc_offset
+
+    def create(times, zone="+02:00"):
+        zones = [zone] * len(times) if isinstance(zone, str) else zone
+        command = ["exiftool"]
+        for k, (t, offset) in enumerate(zip(times, zones)):
+            path = jpeg_file(f"photos/p{k + 1:02d}.jpg")
+            local = datetime.fromtimestamp(t, parse_utc_offset(offset))
+            if command[-1] != "exiftool":
+                command.append("-execute")
+            command += [f"-DateTimeOriginal={local:%Y:%m:%d %H:%M:%S}",
+                        f"-OffsetTimeOriginal={offset}", str(path)]
+        subprocess.run(command + ["-common_args", "-q", "-overwrite_original"], check=True)
     return create
