@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: gpxfoto 0.1.0\n"
 "Report-Msgid-Bugs-To: https://github.com/tomaszbojanowski/gpxfoto/issues\n"
-"POT-Creation-Date: 2026-10-08 18:28+0000\n"
+"POT-Creation-Date: 2026-10-08 18:58+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -103,7 +103,7 @@ msgstr ""
 msgid "invalid %(type)s value: %(value)r"
 msgstr ""
 
-#: gpxfoto/cli.py:77 gpxfoto/server/session.py:183
+#: gpxfoto/cli.py:77 gpxfoto/server/session.py:185
 #, python-brace-format
 msgid "not a valid number of seconds: {value}"
 msgstr ""
@@ -272,7 +272,7 @@ msgstr ""
 #. Translators: a note on the line of a photo taken during a stop, which
 #. gets the stop's position; {start} and {end} are times such as
 #. “12:31:05”, with the date when the stop lasts over midnight
-#: gpxfoto/cli.py:253 gpxfoto/web/js/main.js:146
+#: gpxfoto/cli.py:253 gpxfoto/web/js/main.js:149
 #, python-brace-format
 msgid "stop {start} – {end}"
 msgstr ""
@@ -293,13 +293,13 @@ msgstr ""
 
 #. Translators: shown after the file name of a photo; {reason} says
 #. why the photo was skipped, e.g. “already has a location”
-#: gpxfoto/cli.py:297 gpxfoto/web/js/main.js:156 gpxfoto/web/js/main.js:158
+#: gpxfoto/cli.py:297 gpxfoto/web/js/main.js:159 gpxfoto/web/js/main.js:161
 #, python-brace-format
 msgid "skipped: {reason}"
 msgstr ""
 
 #. Translators: elevation in metres
-#: gpxfoto/cli.py:302 gpxfoto/web/js/main.js:167
+#: gpxfoto/cli.py:302 gpxfoto/web/js/main.js:170
 #, python-brace-format
 msgid "{elevation} m"
 msgstr ""
@@ -493,7 +493,7 @@ msgstr ""
 msgid "taken during a stop"
 msgstr ""
 
-#: gpxfoto/cli.py:619 gpxfoto/server/session.py:395
+#: gpxfoto/cli.py:619 gpxfoto/server/session.py:452
 msgid "The GPX file contains no track points with timestamps."
 msgid_plural "The GPX files contain no track points with timestamps."
 msgstr[0] ""
@@ -520,8 +520,8 @@ msgstr ""
 msgid "The time zone must be in the form +HH:MM, for example +02:00 or -05:00."
 msgstr ""
 
-#: gpxfoto/cli.py:668 gpxfoto/server/session.py:113
-#: gpxfoto/server/session.py:410
+#: gpxfoto/cli.py:668 gpxfoto/server/session.py:115
+#: gpxfoto/server/session.py:467
 msgid "No GPX files found."
 msgstr ""
 
@@ -538,7 +538,7 @@ msgid_plural "Tracks covering the photos: {used} of {total} GPX files"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gpxfoto/cli.py:767 gpxfoto/web/js/main.js:447
+#: gpxfoto/cli.py:767 gpxfoto/web/js/main.js:455
 #, python-brace-format
 msgid "Matched: {matched}, skipped: {skipped}"
 msgstr ""
@@ -552,7 +552,7 @@ msgstr ""
 
 #. Translators: how many of the matched photos were taken during stops;
 #. a wrong camera clock puts fewer of them there
-#: gpxfoto/cli.py:778 gpxfoto/web/js/main.js:450
+#: gpxfoto/cli.py:778 gpxfoto/web/js/main.js:458
 #, python-brace-format
 msgid "During stops: {count} of {matched} matched photo"
 msgid_plural "During stops: {count} of {matched} matched photos"
@@ -567,17 +567,17 @@ msgid ""
 "locations."
 msgstr ""
 
-#: gpxfoto/cli.py:810 gpxfoto/web/js/main.js:700
+#: gpxfoto/cli.py:810 gpxfoto/web/js/main.js:728
 #, python-brace-format
 msgid "Could not write {name}: {error} (file unchanged)"
 msgstr ""
 
-#: gpxfoto/cli.py:812 gpxfoto/web/js/main.js:683
+#: gpxfoto/cli.py:812 gpxfoto/web/js/main.js:709
 #, python-brace-format
 msgid "Written: {written}, errors: {errors}"
 msgstr ""
 
-#: gpxfoto/cli.py:815 gpxfoto/web/js/main.js:686
+#: gpxfoto/cli.py:815 gpxfoto/web/js/main.js:715
 msgid "The image data of every written file was verified as unchanged."
 msgstr ""
 
@@ -653,7 +653,7 @@ msgstr ""
 msgid "the corrected capture time is out of range"
 msgstr ""
 
-#: gpxfoto/engine/photos.py:77 gpxfoto/server/session.py:116
+#: gpxfoto/engine/photos.py:77 gpxfoto/server/session.py:118
 #, python-brace-format
 msgid "No such file or directory: {path}"
 msgstr ""
@@ -713,7 +713,7 @@ msgid "no track covers this time"
 msgstr ""
 
 #. Translators: {error} describes the problem, e.g. “No such file or directory”
-#: gpxfoto/engine/track.py:438 gpxfoto/server/session.py:144
+#: gpxfoto/engine/track.py:438 gpxfoto/server/session.py:146
 #, python-brace-format
 msgid "Cannot read the GPX file {path}: {error}"
 msgstr ""
@@ -776,63 +776,69 @@ msgstr ""
 msgid "no track points within {duration} before or after the photo"
 msgstr ""
 
-#: gpxfoto/engine/writer.py:40
+#: gpxfoto/engine/writer.py:40 gpxfoto/engine/writer.py:179
 msgid "not a JPEG file"
 msgstr ""
 
 #: gpxfoto/engine/writer.py:44 gpxfoto/engine/writer.py:57
-#: gpxfoto/engine/writer.py:60
+#: gpxfoto/engine/writer.py:60 gpxfoto/engine/writer.py:183
+#: gpxfoto/engine/writer.py:190
 msgid "damaged JPEG structure"
 msgstr ""
 
-#: gpxfoto/engine/writer.py:95 gpxfoto/server/session.py:271
+#: gpxfoto/engine/writer.py:98 gpxfoto/server/session.py:327
 #, python-brace-format
 msgid "invalid location: {location}"
 msgstr ""
 
 #. Translators: {direction} is the value that cannot be written
-#: gpxfoto/engine/writer.py:99
+#: gpxfoto/engine/writer.py:102
 #, python-brace-format
 msgid "invalid direction of travel: {direction}"
 msgstr ""
 
-#: gpxfoto/engine/writer.py:104
-msgid "this file is a backup copy made by gpxfoto, which is never changed"
+#: gpxfoto/engine/writer.py:169
+msgid "the photo cannot be restored to the byte; it was left as it is"
 msgstr ""
 
-#: gpxfoto/engine/writer.py:110
-msgid "the file has several hard links; writing it would separate them"
-msgstr ""
-
-#: gpxfoto/engine/writer.py:112 gpxfoto/engine/writer.py:162
-msgid "another program changed the photo in the meantime"
-msgstr ""
-
-#: gpxfoto/engine/writer.py:152
+#: gpxfoto/engine/writer.py:202
 msgid "exiftool did not write the file"
 msgstr ""
 
-#: gpxfoto/engine/writer.py:154
+#: gpxfoto/engine/writer.py:216
+msgid "this file is a backup copy made by gpxfoto, which is never changed"
+msgstr ""
+
+#: gpxfoto/engine/writer.py:222
+msgid "the file has several hard links; writing it would separate them"
+msgstr ""
+
+#: gpxfoto/engine/writer.py:224 gpxfoto/engine/writer.py:244
+#: gpxfoto/server/writing.py:125
+msgid "another program changed the photo in the meantime"
+msgstr ""
+
+#: gpxfoto/engine/writer.py:236
 msgid "exiftool changed the image data; the result was discarded"
 msgstr ""
 
-#: gpxfoto/engine/writer.py:248
+#: gpxfoto/engine/writer.py:337
 msgid ""
 "This directory holds copies of the photos next to it as they were before "
 "gpxfoto added locations to them. gpxfoto never changes or replaces these "
 "copies."
 msgstr ""
 
-#: gpxfoto/engine/writer.py:265
+#: gpxfoto/engine/writer.py:354
 #, python-brace-format
 msgid "“{path}” already exists and is not a backup directory of gpxfoto"
 msgstr ""
 
-#: gpxfoto/engine/writer.py:289
+#: gpxfoto/engine/writer.py:378
 msgid "the backup copy differs from the photo"
 msgstr ""
 
-#: gpxfoto/engine/writer.py:316
+#: gpxfoto/engine/writer.py:405
 #, python-brace-format
 msgid "“{path}” already exists and is not a copy of this photo"
 msgstr ""
@@ -879,11 +885,11 @@ msgstr ""
 msgid "{minutes} min {seconds} s"
 msgstr ""
 
-#: gpxfoto/server/app.py:190 gpxfoto/web/js/main.js:956
+#: gpxfoto/server/app.py:190 gpxfoto/web/js/main.js:995
 msgid "Open the address that gpxfoto showed in the terminal when it started."
 msgstr ""
 
-#: gpxfoto/server/app.py:240 gpxfoto/web/js/main.js:767
+#: gpxfoto/server/app.py:240 gpxfoto/web/js/main.js:801
 msgid ""
 "The GPX file is too large to be dropped here. Choose it with the Track "
 "button."
@@ -894,8 +900,8 @@ msgstr ""
 msgid "No such folder: {path}"
 msgstr ""
 
-#: gpxfoto/server/files.py:47 gpxfoto/server/session.py:91
-#: gpxfoto/server/session.py:126
+#: gpxfoto/server/files.py:47 gpxfoto/server/session.py:93
+#: gpxfoto/server/session.py:128
 #, python-brace-format
 msgid "Not a folder: {path}"
 msgstr ""
@@ -917,19 +923,28 @@ msgstr ""
 msgid "Desktop"
 msgstr ""
 
-#: gpxfoto/server/session.py:210
+#: gpxfoto/server/session.py:212
 msgid "The locations changed in the meantime. Check them and write again."
 msgstr ""
 
-#: gpxfoto/server/session.py:216
+#: gpxfoto/server/session.py:218
 msgid "No photo has a location to write."
 msgstr ""
 
-#: gpxfoto/server/session.py:234 gpxfoto/web/js/main.js:756
+#: gpxfoto/server/session.py:222
+#, python-brace-format
+msgid "The journal for undoing the write cannot be made: {error}"
+msgstr ""
+
+#: gpxfoto/server/session.py:237
+msgid "There is no write to undo."
+msgstr ""
+
+#: gpxfoto/server/session.py:261 gpxfoto/web/js/main.js:790
 msgid "Wait until the locations are written, or cancel the writing."
 msgstr ""
 
-#: gpxfoto/server/session.py:276
+#: gpxfoto/server/session.py:332
 msgid "This photo is no longer among the chosen ones."
 msgstr ""
 
@@ -945,6 +960,11 @@ msgstr ""
 
 #: gpxfoto/server/ui.py:59
 msgid "Finishing the photos being written…"
+msgstr ""
+
+#: gpxfoto/server/writing.py:130
+#, python-brace-format
+msgid "{name} was written, but the write of it cannot be undone: {error}"
 msgstr ""
 
 #: gpxfoto/web/js/api.js:46
@@ -1003,107 +1023,163 @@ msgstr ""
 msgid "Choose the track: GPX files or a folder of them"
 msgstr ""
 
-#: gpxfoto/web/js/main.js:69 gpxfoto/web/js/main.js:707
-#: gpxfoto/web/js/texts.js:27
+#: gpxfoto/web/js/main.js:70 gpxfoto/web/js/main.js:741
+#: gpxfoto/web/js/texts.js:28
 msgid "Close"
 msgstr ""
 
-#: gpxfoto/web/js/main.js:98
+#: gpxfoto/web/js/main.js:99
 msgid "Reading photos: {done} of {total}"
 msgstr ""
 
-#: gpxfoto/web/js/main.js:100
+#: gpxfoto/web/js/main.js:101
 msgid "Cancelling: finishing the photos being written…"
 msgstr ""
 
-#: gpxfoto/web/js/main.js:102
+#: gpxfoto/web/js/main.js:103
+msgid "Undoing the write: {done} of {total}"
+msgstr ""
+
+#: gpxfoto/web/js/main.js:105
 msgid "Writing locations: {done} of {total}"
 msgstr ""
 
-#: gpxfoto/web/js/main.js:140
+#: gpxfoto/web/js/main.js:143
 msgid "will overwrite the existing location"
 msgstr ""
 
-#: gpxfoto/web/js/main.js:143
+#: gpxfoto/web/js/main.js:146
 msgid "placed by hand"
 msgstr ""
 
-#: gpxfoto/web/js/main.js:247 gpxfoto/web/js/main.js:255
+#: gpxfoto/web/js/main.js:250 gpxfoto/web/js/main.js:258
 msgid "Drag the photo on the map to move it."
 msgstr ""
 
-#: gpxfoto/web/js/main.js:252
+#: gpxfoto/web/js/main.js:255
 msgid "Use the position from the track"
 msgstr ""
 
-#: gpxfoto/web/js/main.js:258
+#: gpxfoto/web/js/main.js:261
 msgid "Click on the map where this photo was taken."
 msgstr ""
 
-#: gpxfoto/web/js/main.js:355
+#: gpxfoto/web/js/main.js:358
 msgid "The map cannot be shown: this browser does not allow WebGL."
 msgstr ""
 
-#: gpxfoto/web/js/main.js:419
+#: gpxfoto/web/js/main.js:422
 msgid "All ({count})"
 msgstr ""
 
-#: gpxfoto/web/js/main.js:420
+#: gpxfoto/web/js/main.js:423
 msgid "Matched ({count})"
 msgstr ""
 
-#: gpxfoto/web/js/main.js:421
+#: gpxfoto/web/js/main.js:424
 msgid "Skipped ({count})"
 msgstr ""
 
-#: gpxfoto/web/js/main.js:435
-msgid "Writing…"
-msgstr ""
-
-#: gpxfoto/web/js/main.js:435 gpxfoto/web/js/main.js:666
+#: gpxfoto/web/js/main.js:438 gpxfoto/web/js/main.js:674
 msgid "Write {count} location"
 msgid_plural "Write {count} locations"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gpxfoto/web/js/main.js:655
+#: gpxfoto/web/js/main.js:441
+msgid "Undoing…"
+msgstr ""
+
+#: gpxfoto/web/js/main.js:441
+msgid "Writing…"
+msgstr ""
+
+#: gpxfoto/web/js/main.js:663
 msgid "The location will be written into {count} photo."
 msgid_plural "The location will be written into {count} photos."
 msgstr[0] ""
 msgstr[1] ""
 
-#: gpxfoto/web/js/main.js:660
+#: gpxfoto/web/js/main.js:668
 msgid "{count} of them already has a location, which will be overwritten."
 msgid_plural ""
 "{count} of them already have a location, which will be overwritten."
 msgstr[0] ""
 msgstr[1] ""
 
-#: gpxfoto/web/js/main.js:664
+#: gpxfoto/web/js/main.js:672
 msgid ""
 "Only the location is written. The image data of every photo is checked to be "
 "unchanged, and a photo is replaced only once it is."
 msgstr ""
 
-#: gpxfoto/web/js/main.js:668
+#: gpxfoto/web/js/main.js:676
 msgid "Write the locations?"
 msgstr ""
 
+#: gpxfoto/web/js/main.js:688
+msgid ""
+"The GPS data of {count} photo will be restored as it was before the last "
+"write."
+msgid_plural ""
+"The GPS data of {count} photos will be restored as they were before the last "
+"write."
+msgstr[0] ""
+msgstr[1] ""
+
 #: gpxfoto/web/js/main.js:691
+msgid "A photo changed by another program since then is left as it is."
+msgstr ""
+
+#: gpxfoto/web/js/main.js:692
+msgid "Undo the last write?"
+msgstr ""
+
+#: gpxfoto/web/js/main.js:692
+msgid "Undo"
+msgstr ""
+
+#: gpxfoto/web/js/main.js:708
+msgid "Restored: {written}, errors: {errors}"
+msgstr ""
+
+#: gpxfoto/web/js/main.js:714
+msgid "Every restored photo is the same, to the byte, as before the write."
+msgstr ""
+
+#: gpxfoto/web/js/main.js:719
+msgid "{count} photo was not restored, as the undoing was cancelled."
+msgid_plural "{count} photos were not restored, as the undoing was cancelled."
+msgstr[0] ""
+msgstr[1] ""
+
+#: gpxfoto/web/js/main.js:721
 msgid "{count} photo was not written, as the writing was cancelled."
 msgid_plural "{count} photos were not written, as the writing was cancelled."
 msgstr[0] ""
 msgstr[1] ""
 
-#: gpxfoto/web/js/main.js:706
+#: gpxfoto/web/js/main.js:727
+msgid "Could not restore {name}: {error} (file unchanged)"
+msgstr ""
+
+#: gpxfoto/web/js/main.js:737
 msgid "Writing cancelled"
 msgstr ""
 
-#: gpxfoto/web/js/main.js:706
+#: gpxfoto/web/js/main.js:737
 msgid "Writing finished"
 msgstr ""
 
-#: gpxfoto/web/js/main.js:762
+#: gpxfoto/web/js/main.js:739
+msgid "Undoing cancelled"
+msgstr ""
+
+#: gpxfoto/web/js/main.js:739
+msgid "Undoing finished"
+msgstr ""
+
+#: gpxfoto/web/js/main.js:796
 msgid ""
 "Only GPX files can be dropped here. Choose the folder with photos with the "
 "Photos button."
@@ -1159,67 +1235,71 @@ msgid "Options"
 msgstr ""
 
 #: gpxfoto/web/js/texts.js:14
-msgid "Overwrite existing locations"
+msgid "Undo the last write"
 msgstr ""
 
 #: gpxfoto/web/js/texts.js:15
+msgid "Overwrite existing locations"
+msgstr ""
+
+#: gpxfoto/web/js/texts.js:16
 msgid ""
 "Photos that already have a location also get one from the track. Their "
 "existing location will be overwritten."
 msgstr ""
 
-#: gpxfoto/web/js/texts.js:16
+#: gpxfoto/web/js/texts.js:17
 msgid "Stops"
 msgstr ""
 
-#: gpxfoto/web/js/texts.js:17
+#: gpxfoto/web/js/texts.js:18
 msgid ""
 "Photos taken while standing still get the steadier position of the stop."
 msgstr ""
 
-#: gpxfoto/web/js/texts.js:18
+#: gpxfoto/web/js/texts.js:19
 msgid "Choose a folder with photos and a track to start."
 msgstr ""
 
-#: gpxfoto/web/js/texts.js:19
+#: gpxfoto/web/js/texts.js:20
 msgid "A GPX file can also be dropped anywhere on this page."
 msgstr ""
 
 #. Translators: the label of the slider that corrects the camera clock
-#: gpxfoto/web/js/texts.js:21
+#: gpxfoto/web/js/texts.js:22
 msgid "Time correction"
 msgstr ""
 
 #. Translators: a button that moves the time correction back by an hour
-#: gpxfoto/web/js/texts.js:23
+#: gpxfoto/web/js/texts.js:24
 msgid "−1 h"
 msgstr ""
 
 #. Translators: a button that moves the time correction on by an hour
-#: gpxfoto/web/js/texts.js:25
+#: gpxfoto/web/js/texts.js:26
 msgid "+1 h"
 msgstr ""
 
-#: gpxfoto/web/js/texts.js:26
+#: gpxfoto/web/js/texts.js:27
 msgid "Reset"
 msgstr ""
 
-#: gpxfoto/web/js/texts.js:28
+#: gpxfoto/web/js/texts.js:29
 msgid "Folder or file"
 msgstr ""
 
-#: gpxfoto/web/js/texts.js:29
+#: gpxfoto/web/js/texts.js:30
 msgid "Open"
 msgstr ""
 
-#: gpxfoto/web/js/texts.js:30
+#: gpxfoto/web/js/texts.js:31
 msgid "Include subfolders"
 msgstr ""
 
-#: gpxfoto/web/js/texts.js:31
+#: gpxfoto/web/js/texts.js:32
 msgid "Cancel"
 msgstr ""
 
-#: gpxfoto/web/js/texts.js:32
+#: gpxfoto/web/js/texts.js:33
 msgid "Drop the GPX file to use it as the track"
 msgstr ""

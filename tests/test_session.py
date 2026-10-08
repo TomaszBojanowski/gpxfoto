@@ -51,6 +51,7 @@ class Recorder:
 def config(tmp_path, monkeypatch):
     """Recent folders go to tmp_path, never into the real settings."""
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
+    monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
     monkeypatch.setattr(session_module.files.sys, "platform", "linux")
 
 
@@ -320,11 +321,11 @@ def test_the_locations_are_written_and_the_photos_then_have_them(session, events
     paths, match = ready_to_write(session, events, tmp_path, 3)
     checksums = [image_checksum(path) for path in paths]
     assert session.write(match["version"]) == 3
-    assert events.wait("write-start") == {"total": 3, "done": 0, "written": 0, "failed": 0,
-                                          "cancelled": False}
+    assert events.wait("write-start") == {"kind": "write", "total": 3, "done": 0, "written": 0,
+                                          "failed": 0, "cancelled": False}
     done = events.wait("write-done")
-    assert done == {"total": 3, "written": 3, "failed": [], "cancelled": False,
-                    "not_written": 0}
+    assert done == {"kind": "write", "total": 3, "written": 3, "failed": [],
+                    "cancelled": False, "not_written": 0}
     for path, checksum in zip(paths, checksums):
         assert image_checksum(path) == checksum
         tags = read_tags(path, "GPSLatitude", "GPSLongitude")
@@ -370,7 +371,7 @@ def test_nothing_changes_while_writing_and_cancelling_finishes_the_photos_begun(
     gate = Gate(monkeypatch)
     paths, match = ready_to_write(session, events, tmp_path, 6)
     writing = session.write(match["version"]) and session.writing
-    threads = len(writing._threads)
+    threads = writing._threads
     gate.wait_for(threads)
     for change in (lambda: session.choose_photos(str(tmp_path / "photos")),
                    lambda: session.choose_track_files([str(tmp_path / "track.gpx")]),
@@ -386,10 +387,11 @@ def test_nothing_changes_while_writing_and_cancelling_finishes_the_photos_begun(
     assert events.wait("write-progress", lambda d: d["cancelled"])["done"] == 0
     gate.let_through(threads)
     done = events.wait("write-done")
-    assert done == {"total": 6, "written": threads, "failed": [], "cancelled": True,
-                    "not_written": 6 - threads}
+    assert done == {"kind": "write", "total": 6, "written": threads, "failed": [],
+                    "cancelled": True, "not_written": 6 - threads}
     written = [path for path in paths if "GPSLatitude" in read_tags(path, "GPSLatitude")]
-    assert written == paths[:threads] and gate.calls == [str(p) for p in paths[:threads]]
+    assert written == paths[:threads]
+    assert sorted(gate.calls) == [str(p) for p in paths[:threads]]
     session.set_correction(10)                  # allowed again
 
 
@@ -487,3 +489,65 @@ def test_only_photos_of_the_page_can_be_placed(session):
     with pytest.raises(SessionError) as raised:
         session.place(0, 0, 50, 20)
     assert str(raised.value) == "This photo is no longer among the chosen ones."
+
+
+# --- undoing a write -------------------------------------------------------------
+
+@needs_exiftool
+def test_a_write_is_undone_to_the_byte(session, events, tmp_path):
+    folder = tmp_path / "photos"
+    photo(folder, "a.jpg", "12:00:10")
+    photo(folder, "b.jpg", "12:00:20", "+02:00", "-GPSImgDirection=123.4",
+          "-XMP-exif:GPSDateTime=2015:05:05 10:00:00Z")
+    photo(folder, "c.jpg", "12:00:30", "+02:00", "-GPSLatitude=1", "-GPSLatitudeRef=S",
+          "-GPSLongitude=2", "-GPSLongitudeRef=W", "-XMP-exif:GPSLatitude=1")
+    paths = [folder / name for name in ("a.jpg", "b.jpg", "c.jpg")]
+    before = [p.read_bytes() for p in paths]
+    session.set_options(overwrite=True)
+    session.choose_photos(str(folder))
+    session.choose_track_files([str(write_gpx(tmp_path / "track.gpx", TRACK))])
+    events.wait("photos-done")
+    match = events.wait("matches", lambda d: d["matched"] == 3 and d["overwrite"])
+    with pytest.raises(SessionError) as raised:
+        session.undo()
+    assert str(raised.value) == "There is no write to undo."
+    session.write(match["version"])
+    assert events.wait("write-done")["written"] == 3
+    assert events.wait("undo") == {"count": 3} and session.state()["undo"] == 3
+    journals = list((tmp_path / "state" / "gpxfoto" / "journal").iterdir())
+    assert len(journals) == 1
+    assert os.stat(journals[0]).st_mode & 0o077 == 0
+    assert os.stat(journals[0].parent).st_mode & 0o077 == 0
+    assert [p.read_bytes() for p in paths] != before
+    events.published.clear()
+    assert session.undo() == 3
+    assert events.wait("write-start")["kind"] == "undo"
+    done = events.wait("write-done")
+    assert done == {"kind": "undo", "total": 3, "written": 3, "failed": [], "cancelled": False,
+                    "not_written": 0}
+    assert [p.read_bytes() for p in paths] == before
+    changed = events.wait("photos-changed")["photos"]
+    assert [p["has_location"] for p in changed] == [False, False, True]
+    assert events.wait("undo") == {"count": 0}
+    assert list(journals[0].parent.iterdir()) == []
+    after = events.wait("matches", lambda d: d["results"])
+    assert [r["state"] for r in after["results"]] == ["matched", "matched", "matched"]
+
+
+@needs_exiftool
+def test_a_photo_changed_after_the_write_is_not_undone(session, events, tmp_path):
+    paths, match = ready_to_write(session, events, tmp_path, 2)
+    session.write(match["version"])
+    events.wait("write-done")
+    set_tags(paths[1], "-Artist=someone else")
+    events.published.clear()
+    session.undo()
+    done = events.wait("write-done")
+    assert done["written"] == 1
+    # Undo ids follow the journal, in the order the photos were written
+    assert [(f["name"], f["message"]) for f in done["failed"]] == [
+        ("p1.jpg", "another program changed the photo in the meantime")]
+    assert "GPSLatitude" not in read_tags(paths[0], "GPSLatitude")
+    assert "GPSLatitude" in read_tags(paths[1], "GPSLatitude")
+    # It can be tried again
+    assert events.wait("undo") == {"count": 1}

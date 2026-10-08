@@ -37,6 +37,7 @@ def settings(tmp_path, monkeypatch):
     """The settings of each test in a folder of its own."""
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
+    monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
 
 
 @pytest.fixture
@@ -99,6 +100,7 @@ def test_the_page_itself_needs_no_token(server, site):
                                           ("GET", "/api/thumbnail?generation=0&id=0"),
                                           ("GET", "/api/browse"), ("POST", "/api/echo"),
                                           ("POST", "/api/write"), ("POST", "/api/position"),
+                                          ("POST", "/api/undo"),
                                           ("POST", "/api/write/cancel")])
 # Header values are bytes: "\xc4\x85" is "ą" in UTF-8, "\xb3" no UTF-8 at all
 @pytest.mark.parametrize("token", [None, "wrong", "", "\xc4\x85", "\xb3"])

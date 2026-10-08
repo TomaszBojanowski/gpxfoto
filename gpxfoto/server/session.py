@@ -19,13 +19,14 @@ import time
 from collections import OrderedDict
 from gettext import gettext as _, ngettext
 
+from gpxfoto.engine.journal import Journal
 from gpxfoto.engine.matching import corrected_times, match_photos, placed_by_hand, summarize
 from gpxfoto.engine.photos import (
     exif_thumbnail, find_photos, photo_from_metadata, read_metadata)
 from gpxfoto.engine.track import find_tracks, load_track, quick_span, tracks_needed
 from gpxfoto.server import files
 from gpxfoto.server.geometry import track_lines
-from gpxfoto.server.writing import Job, Writing
+from gpxfoto.server.writing import Job, UndoJob, Writing
 
 # Photos are read in batches of this many, so that the list fills as it goes
 PHOTO_BATCH = 100
@@ -75,6 +76,7 @@ class Session:
         self.results = []                # its PhotoResult of each photo
         self._match_number = 0
         self.writing = None              # Writing, while the photos are written
+        self.journals = []               # Journal of each write that can be undone, the last last
         self._thumbnails = OrderedDict()
         self._upload_dir = None
         self._wanted = False
@@ -214,14 +216,39 @@ class Session:
                     for i, r in enumerate(self.results) if r.reason is None]
             if not jobs:
                 raise SessionError(_("No photo has a location to write."))
-            self.writing = Writing(jobs, self.events.publish, self._written)
+            try:
+                journal = Journal.create()
+            except OSError as e:
+                raise SessionError(_("The journal for undoing the write cannot be made: "
+                                     "{error}").format(error=e.strerror or e)) from None
+            self.writing = Writing("write", jobs, self.events.publish, self._written, journal)
             writing = self.writing
         self.events.publish("write-start", writing.progress())
         writing.start()
         return len(jobs)
 
+    def undo(self):
+        """Start undoing the last write that is not undone yet."""
+        with self.lock:
+            self._not_writing()
+            journal = self.journals[-1] if self.journals else None
+            entries = journal.entries() if journal is not None else []
+            if not entries:
+                raise SessionError(_("There is no write to undo."))
+            jobs = [UndoJob(k, path, before, written)
+                    for k, (path, before, written) in enumerate(entries)]
+            self.writing = Writing("undo", jobs, self.events.publish, self._undone, journal)
+            writing = self.writing
+        self.events.publish("write-start", writing.progress())
+        writing.start()
+        return len(jobs)
+
+    def undoable(self):
+        """How many photos undoing the last write would restore; the lock is held."""
+        return len(self.journals[-1].entries()) if self.journals else 0
+
     def cancel_write(self):
-        """Write no more photos; those being written are finished."""
+        """Change no more photos; those being changed are finished."""
         with self.lock:
             writing = self.writing
         if writing is not None:
@@ -237,26 +264,55 @@ class Session:
     def _written(self, writing):
         """The writing ended: the written photos have a location now."""
         with self.lock:
+            if writing.written:
+                self.journals.append(writing.journal)
+            else:
+                writing.journal.keep([])
+            names = {index: os.path.basename(self.photos[index].path)
+                     for index, _message in writing.failed}
+            changed = [(index, True, seen) for index, seen in writing.written]
+        self._ended(writing, changed, names)
+
+    def _undone(self, writing):
+        """The undoing ended: the restored photos are as they were before the write."""
+        jobs = writing.jobs
+        restored = {k for k, _seen in writing.written}
+        # The others can still be undone
+        writing.journal.keep([(job.path, job.before, job.written) for job in jobs
+                              if job.id not in restored])
+        with self.lock:
+            if not writing.journal.entries():
+                self.journals.remove(writing.journal)
+            index = {os.path.realpath(photo.path): i for i, photo in enumerate(self.photos)}
+            changed = [(index[jobs[k].path], bool(jobs[k].before.get("had_location")), seen)
+                       for k, seen in writing.written if jobs[k].path in index]
+            names = {k: os.path.basename(jobs[k].path) for k, _message in writing.failed}
+        self._ended(writing, changed, names)
+
+    def _ended(self, writing, changed, names):
+        """Photos were written or restored: changed holds (index, whether it has
+        a location now, its os.stat()) of each; names the names of the failed."""
+        with self.lock:
             generation = self.photo_generation
-            changed = []
-            for index, seen in sorted(writing.written, key=lambda item: item[0]):
-                self.photos[index] = self.photos[index]._replace(has_location=True)
+            summaries = []
+            for index, has_location, seen in sorted(changed, key=lambda item: item[0]):
+                self.photos[index] = self.photos[index]._replace(has_location=has_location)
                 # Its location is the photo's own now
                 self.placed.pop(index, None)
                 self.seen[index] = seen
                 # The thumbnail is the same, but the file is a new one
                 self._thumbnails.pop(self.photos[index].path, None)
-                changed.append(self._photo_summary(index, self.photos[index],
-                                                   self.looks[index]))
-            names = {index: os.path.basename(self.photos[index].path)
-                     for index, _message in writing.failed}
+                summaries.append(self._photo_summary(index, self.photos[index],
+                                                     self.looks[index]))
             self.writing = None
+            undoable = self.undoable()
             if not self._closed:
                 self._want_match()
         summary = writing.summary()
         for failure in summary["failed"]:
             failure["name"] = names[failure["id"]]
-        self.events.publish("photos-changed", {"generation": generation, "photos": changed})
+        self.events.publish("photos-changed", {"generation": generation, "photos": summaries})
+        self.events.publish("undo", {"count": undoable})
         self.events.publish("write-done", summary)
 
     def place(self, generation, index, lat=None, lon=None):
@@ -311,6 +367,7 @@ class Session:
                 "correction": self.correction, "overwrite": self.overwrite,
                 "stops": self.stops, "matches": self.match,
                 "writing": None if self.writing is None else self.writing.progress(),
+                "undo": self.undoable(),
             }
 
     def thumbnail(self, generation, index):

@@ -23,7 +23,8 @@ const state = {
   matchVersion: null,     // its number, which a write names
   loading: false,
   tracksLoading: false,
-  writing: null,          // the progress of the write under way
+  writing: null,          // the progress of the write or undo under way
+  undo: 0,                // how many photos undoing the last write would restore
   found: 0,
   trackGeneration: 0,
   trackChoice: null,
@@ -98,6 +99,8 @@ function showProgress() {
   let text = _("Reading photos: {done} of {total}");
   if (writing && writing.cancelled) {
     text = _("Cancelling: finishing the photos being written…");
+  } else if (writing && writing.kind === "undo") {
+    text = _("Undoing the write: {done} of {total}");
   } else if (writing) {
     text = _("Writing locations: {done} of {total}");
   }
@@ -432,8 +435,13 @@ function showPhotos() {
 function showWriteButton() {
   const matched = state.results.filter(isMatched).length;
   const write = $("write");
-  write.textContent = state.writing ? _("Writing…") : format(ngettext("Write {count} location",
-    "Write {count} locations", matched), { count: number(matched) });
+  let text = format(ngettext("Write {count} location", "Write {count} locations", matched),
+    { count: number(matched) });
+  if (state.writing) {
+    text = state.writing.kind === "undo" ? _("Undoing…") : _("Writing…");
+  }
+  write.textContent = text;
+  $("undo").hidden = !state.undo;
   // Only a match of everything chosen, as the page shows it
   write.disabled = Boolean(state.writing) || !matched || state.loading || state.tracksLoading
     || state.matchVersion === null;
@@ -634,7 +642,7 @@ function paragraph(text, kind = "") {
 
 // While the photos are written, nothing can be chosen anew
 const LOCKED = ["choose-photos", "choose-tracks", "overwrite", "stops", "correction",
-  "minus-hour", "plus-hour", "reset-correction", "edit"];
+  "minus-hour", "plus-hour", "reset-correction", "edit", "undo"];
 
 function showWriting() {
   for (const id of LOCKED) {
@@ -675,35 +683,61 @@ $("write").addEventListener("click", async () => {
   }
 });
 
+$("undo").addEventListener("click", async () => {
+  const content = [paragraph(format(ngettext(
+    "The GPS data of {count} photo will be restored as it was before the last write.",
+    "The GPS data of {count} photos will be restored as they were before the last write.",
+    state.undo), { count: number(state.undo) })),
+  paragraph(_("A photo changed by another program since then is left as it is."))];
+  if (!await ask(_("Undo the last write?"), content, _("Undo"))) {
+    return;
+  }
+  try {
+    await post("undo", {});
+  } catch (error) {
+    notice(error.message);
+  }
+});
+
 $("cancel-write").addEventListener("click", () => {
   post("write/cancel", {}).catch((error) => notice(error.message));
 });
 
 function showWritten(summary) {
-  const content = [paragraph(format(_("Written: {written}, errors: {errors}"),
+  const undo = summary.kind === "undo";
+  const counts = undo ? _("Restored: {written}, errors: {errors}")
+    : _("Written: {written}, errors: {errors}");
+  const content = [paragraph(format(counts,
     { written: number(summary.written), errors: number(summary.failed.length) }))];
   if (summary.written) {
-    content.push(paragraph(_("The image data of every written file was verified as "
-      + "unchanged.")));
+    content.push(paragraph(undo
+      ? _("Every restored photo is the same, to the byte, as before the write.")
+      : _("The image data of every written file was verified as unchanged.")));
   }
   if (summary.not_written) {
-    content.push(paragraph(format(ngettext(
-      "{count} photo was not written, as the writing was cancelled.",
-      "{count} photos were not written, as the writing was cancelled.", summary.not_written),
-    { count: number(summary.not_written) })));
+    const left = undo
+      ? ngettext("{count} photo was not restored, as the undoing was cancelled.",
+        "{count} photos were not restored, as the undoing was cancelled.", summary.not_written)
+      : ngettext("{count} photo was not written, as the writing was cancelled.",
+        "{count} photos were not written, as the writing was cancelled.", summary.not_written);
+    content.push(paragraph(format(left, { count: number(summary.not_written) })));
   }
   if (summary.failed.length) {
     const failures = document.createElement("ul");
+    const failed = undo ? _("Could not restore {name}: {error} (file unchanged)")
+      : _("Could not write {name}: {error} (file unchanged)");
     for (const failure of summary.failed) {
       const item = document.createElement("li");
       item.className = "error";
-      item.textContent = format(_("Could not write {name}: {error} (file unchanged)"),
-        { name: failure.name, error: failure.message });
+      item.textContent = format(failed, { name: failure.name, error: failure.message });
       failures.append(item);
     }
     content.push(failures);
   }
-  const title = summary.cancelled ? _("Writing cancelled") : _("Writing finished");
+  let title = summary.cancelled ? _("Writing cancelled") : _("Writing finished");
+  if (undo) {
+    title = summary.cancelled ? _("Undoing cancelled") : _("Undoing finished");
+  }
   ask(title, content, _("Close"), false);
 }
 
@@ -876,6 +910,10 @@ const handlers = {
       showProgress();
     }
   },
+  "undo": (data) => {
+    state.undo = data.count;
+    showWriteButton();
+  },
   "write-done": (data) => {
     state.writing = null;
     showWriting();
@@ -938,6 +976,7 @@ async function catchUp() {
     showCorrection();
   }
   state.writing = data.writing;
+  state.undo = data.undo;
   showChoices();
   showTracks();
   showPhotos();

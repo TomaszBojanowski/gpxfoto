@@ -11,6 +11,7 @@ export const PAGE_TEXTS = [
   // Translators: a button that turns on moving photos on the map by hand
   N_("Edit locations"),
   N_("Options"),
+  N_("Undo the last write"),
   N_("Overwrite existing locations"),
   N_("Photos that already have a location also get one from the track. Their existing location will be overwritten."),
   N_("Stops"),

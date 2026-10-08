@@ -58,6 +58,7 @@ class Api:
             ("POST", "position"): self.post_position,
             ("POST", "write"): self.post_write,
             ("POST", "write/cancel"): self.post_cancel_write,
+            ("POST", "undo"): self.post_undo,
         }
 
     def handle(self, handler, method, name, query):
@@ -148,6 +149,10 @@ class Api:
     def post_write(self, handler, query):
         total = self.session.write(_field(handler.read_json(), "match", int))
         handler.send_json({"total": total}, HTTPStatus.ACCEPTED)
+
+    def post_undo(self, handler, query):
+        handler.read_json()
+        handler.send_json({"total": self.session.undo()}, HTTPStatus.ACCEPTED)
 
     def post_cancel_write(self, handler, query):
         handler.read_json()
