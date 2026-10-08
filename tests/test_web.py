@@ -76,3 +76,44 @@ def test_numbers_follow_the_locale():
     """)
     assert out[0][1] == "0,25" and out[0][0].replace(" ", " ") in ("1 234,5", "1234,5")
     assert out[1] == "3.14"
+
+
+@needs_node
+def test_exact_duration_matches_the_terminal():
+    out = run_module("format.js", """
+        return [0, 4, 4.5, 59, 60, 61, 3600, 3610, 3660, 3661.25, -1800, 86400].map(
+            s => m.exactDuration(s, true));
+    """)
+    assert out == ["+0 s", "+4 s", "+4.5 s", "+59 s", "+1 min", "+1 min 1 s", "+1 h",
+                   "+1 h 0 min 10 s", "+1 h 1 min", "+1 h 1 min 1.25 s", "−30 min", "+24 h"]
+
+
+@needs_node
+def test_clock_times_keep_the_photo_s_time_zone():
+    out = run_module("format.js", """
+        return [m.clockTime("2024-05-01T12:00:50.000+02:00"), m.clockTime(null),
+                m.clockTimeOfUnix(1714557650, "2024-05-01T12:00:50.000+02:00"),
+                m.clockTimeOfUnix(1714557650, "2024-05-01T06:00:50.000-04:00")];
+    """)
+    assert out == ["12:00:50", "", "12:00:50", "06:00:50"]
+
+
+@needs_node
+def test_coordinates_in_the_regional_format():
+    out = run_module("format.js", """
+        return m.coordinates(50.0005, -20.001);
+    """)
+    assert out == "50.000500, -20.001000"
+
+
+def test_every_text_of_the_page_is_marked_for_translation():
+    """Texts in index.html are translated by data-text and data-label, from
+    the list in texts.js that xgettext reads."""
+    import re
+    with open(os.path.join(ROOT, "gpxfoto", "web", "index.html"), encoding="utf-8") as f:
+        page = f.read()
+    with open(os.path.join(JS, "texts.js"), encoding="utf-8") as f:
+        marked = set(re.findall(r'N_\("((?:[^"\\]|\\.)*)"\)', f.read()))
+    used = set(re.findall(r'data-(?:text|label)="([^"]*)"', page))
+    assert used and used <= marked
+    assert marked - used == set()

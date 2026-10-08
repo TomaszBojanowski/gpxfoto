@@ -259,7 +259,7 @@ def test_every_message_is_translated(language):
 SAME_IN_POLISH = {"%(heading)s:", "argument %(argument_name)s: %(message)s", "{elevation} m",
                   "{seconds} s", "{minutes} min", "{hours} h {minutes} min", "{hours} h",
                   "{minutes} min {seconds} s", "{hours} h {minutes} min {seconds} s",
-                  "UTC{offset}", "{metres} m", "{kilometres} km"}
+                  "UTC{offset}", "{metres} m", "{kilometres} km", "−1 h", "+1 h"}
 
 
 def test_polish_messages_are_not_copies_of_the_english_ones():
@@ -409,7 +409,9 @@ def test_help_is_polish(polish_cli, capsys):
     assert help_texts == HELP
     english = [e["msgid"] for e in read_po(POLISH)[1]
                if e["msgstr"][0] != e["msgid"] and placeholders(e["msgid"]) == ([], [], [])]
-    assert [message for message in english if message in output] == []
+    # As whole words: "Track" is a message of its own, but also part of GPSTrack
+    assert [message for message in english
+            if re.search(r"(?<!\w)" + re.escape(message) + r"(?!\w)", output)] == []
 
 
 @pytest.mark.parametrize("args, message", [

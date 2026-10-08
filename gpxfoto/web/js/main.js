@@ -1,0 +1,555 @@
+// The page of the browser interface: it shows what the server's session
+// holds and sends the user's choices back. All the work happens on the
+// server; this thread only draws and handles input.
+
+import { base64, get, listen, post } from "./api.js";
+import { choose } from "./chooser.js";
+import { clockTime, clockTimeOfUnix, coordinates, exactDuration } from "./format.js";
+import { _, format, loadCatalog, ngettext } from "./i18n.js";
+import { PhotoList } from "./list.js";
+import { PhotoMap, roundThumbnail } from "./map.js";
+
+const state = {
+  photoGeneration: 0,
+  folder: null,
+  photos: [],             // summaries from the server, by id
+  results: [],            // the last match, by id
+  loading: false,
+  found: 0,
+  trackGeneration: 0,
+  trackChoice: null,
+  tracks: new Map(),      // id -> summary
+  correction: 0,
+  base: 0,                // whole hours; the slider covers base ± 30 min
+  overwrite: false,
+  stops: true,
+  filter: "all",
+  selected: null,
+  fitted: false,
+};
+
+const $ = (id) => document.getElementById(id);
+
+// --- texts of the page -------------------------------------------------
+
+function translatePage() {
+  for (const element of document.querySelectorAll("[data-text]")) {
+    element.textContent = _(element.dataset.text);
+  }
+  for (const element of document.querySelectorAll("[data-label]")) {
+    element.setAttribute("aria-label", _(element.dataset.label));
+    element.title = _(element.dataset.label);
+  }
+  document.title = "gpxfoto";
+}
+
+// --- notices -----------------------------------------------------------
+
+function notice(message, kind = "error") {
+  const element = document.createElement("div");
+  element.className = "notice " + kind;
+  const text = document.createElement("p");
+  text.textContent = message;
+  const close = document.createElement("button");
+  close.type = "button";
+  close.textContent = "×";
+  close.setAttribute("aria-label", _("Close"));
+  close.addEventListener("click", () => element.remove());
+  element.append(text, close);
+  $("notices").append(element);
+  while ($("notices").children.length > 5) {
+    $("notices").firstElementChild.remove();
+  }
+}
+
+function progress(done, total) {
+  const box = $("progress");
+  if (total === null) {
+    box.hidden = true;
+    return;
+  }
+  box.hidden = false;
+  box.querySelector("span").style.width = (total ? (100 * done) / total : 0) + "%";
+  box.querySelector("p").textContent = format(_("Reading photos: {done} of {total}"),
+    { done, total });
+}
+
+// --- thumbnails ----------------------------------------------------------
+
+function thumbnailUrl(generation, id) {
+  return "/api/thumbnail?" + new URLSearchParams({ generation, id });
+}
+
+async function mapThumbnail(generation, id) {
+  const photo = state.photos[id];
+  if (generation !== state.photoGeneration || !photo || !photo.thumbnail) {
+    return null;
+  }
+  try {
+    const response = await fetch(thumbnailUrl(generation, id));
+    if (!response.ok) {
+      return null;
+    }
+    return await roundThumbnail(await response.blob(), photo.orientation);
+  } catch (error) {
+    return null;
+  }
+}
+
+// --- the list ------------------------------------------------------------
+
+function detailOf(photo, result) {
+  if (!result) {
+    return photo.reason || "";
+  }
+  if (result.state === "matched" || result.state === "stop") {
+    const parts = [];
+    if (result.overwrites) {
+      parts.push(_("will overwrite the existing location"));
+    }
+    if (result.stop) {
+      parts.push(format(_("stop {start} – {end}"), {
+        start: clockTimeOfUnix(result.stop[0], result.time),
+        end: clockTimeOfUnix(result.stop[1], result.time),
+      }));
+    } else {
+      parts.push(coordinates(result.lat, result.lon));
+    }
+    return parts.join(" · ");
+  }
+  if (result.state === "has_location") {
+    return format(_("skipped: {reason}"), { reason: result.reason });
+  }
+  return format(_("skipped: {reason}"), { reason: result.reason || "" });
+}
+
+function renderRow(row, id, selected) {
+  const photo = state.photos[id];
+  const result = state.results[id];
+  row.classList.add(result ? result.state : "waiting");
+  row.classList.toggle("selected", selected);
+  row.replaceChildren();
+  const thumb = document.createElement("span");
+  thumb.className = "thumb";
+  if (photo.thumbnail) {
+    const image = document.createElement("img");
+    image.alt = "";
+    image.className = "o" + photo.orientation;
+    image.loading = "lazy";
+    image.addEventListener("error", () => image.remove());
+    image.src = thumbnailUrl(state.photoGeneration, id);
+    thumb.append(image);
+  }
+  const text = document.createElement("span");
+  text.className = "text";
+  const name = document.createElement("span");
+  name.className = "name";
+  name.textContent = photo.name;
+  const detail = document.createElement("span");
+  detail.className = "detail";
+  detail.textContent = detailOf(photo, result);
+  if (result && result.overwrites) {
+    detail.classList.add("overwrites");
+  }
+  text.append(name, detail);
+  const time = document.createElement("span");
+  time.className = "time";
+  time.textContent = clockTime(result && result.time ? result.time : photo.taken);
+  row.append(thumb, text, time);
+}
+
+function isMatched(result) {
+  return result && (result.state === "matched" || result.state === "stop");
+}
+
+function visibleIds() {
+  const ids = [];
+  for (const photo of state.photos) {
+    const result = state.results[photo.id];
+    if (state.filter === "all"
+        || (state.filter === "matched" && isMatched(result))
+        || (state.filter === "skipped" && !isMatched(result))) {
+      ids.push(photo.id);
+    }
+  }
+  return ids;
+}
+
+const list = new PhotoList($("list"), { render: renderRow, onSelect: (id) => select(id) });
+
+// --- the map -------------------------------------------------------------
+
+// The part of the map the panels leave free, with some room around
+function mapPadding() {
+  const width = window.innerWidth;
+  const height = window.innerHeight;
+  const toolbar = $("toolbar").getBoundingClientRect();
+  const sidebar = $("sidebar").getBoundingClientRect();
+  const timebar = $("timebar").getBoundingClientRect();
+  const margin = 24;
+  const padding = { top: toolbar.bottom + margin, right: margin };
+  if (sidebar.top > toolbar.bottom + margin) {
+    // A narrow window: the list is at the bottom, under the time correction
+    padding.left = margin;
+    padding.bottom = height - Math.min(sidebar.top, timebar.top) + margin;
+  } else {
+    padding.left = sidebar.right + margin;
+    padding.bottom = height - timebar.top + margin;
+  }
+  // A window too small for the panels: use all of it
+  if (padding.top + padding.bottom > height - 2 * margin
+      || padding.left + padding.right > width - 2 * margin) {
+    return { top: margin, bottom: margin, left: margin, right: margin };
+  }
+  return padding;
+}
+
+const photoMap = new PhotoMap($("map"), {
+  thumbnail: mapThumbnail,
+  onSelect: (id) => select(id),
+  padding: mapPadding,
+});
+
+function select(id) {
+  state.selected = id;
+  list.select(id);
+  const result = state.results[id];
+  photoMap.select(id, isMatched(result) ? result : null);
+}
+
+// --- what the page shows -------------------------------------------------
+
+function showPhotos() {
+  const count = state.photos.length;
+  $("empty").hidden = count > 0;
+  const matched = state.results.filter(isMatched).length;
+  const skipped = state.results.length - matched;
+  const buttons = document.querySelectorAll(".filters button");
+  const labels = {
+    all: format(_("All ({count})"), { count }),
+    matched: format(_("Matched ({count})"), { count: matched }),
+    skipped: format(_("Skipped ({count})"), { count: state.results.length ? skipped : 0 }),
+  };
+  for (const button of buttons) {
+    button.textContent = labels[button.dataset.filter];
+    button.setAttribute("aria-pressed", String(button.dataset.filter === state.filter));
+  }
+  list.setIds(visibleIds());
+  const write = $("write");
+  write.textContent = format(ngettext("Write {count} location", "Write {count} locations",
+    matched), { count: matched });
+  write.disabled = true;
+}
+
+function showSummary(match) {
+  if (!match) {
+    $("summary").textContent = "";
+    return;
+  }
+  let text = format(_("Matched: {matched}, skipped: {skipped}"),
+    { matched: match.matched, skipped: match.skipped });
+  if (match.matched && state.stops) {
+    text += " · " + format(ngettext("During stops: {count} of {matched} matched photo",
+      "During stops: {count} of {matched} matched photos", match.matched),
+    { count: match.at_stops, matched: match.matched });
+  }
+  $("summary").textContent = text;
+}
+
+function applyMatch(match) {
+  if (!match || match.generation !== state.photoGeneration) {
+    return;
+  }
+  state.results = match.results;
+  showSummary(match);
+  photoMap.setPhotos(state.photoGeneration, match.results.filter(isMatched));
+  showPhotos();
+  if (!state.fitted) {
+    const points = match.results.filter(isMatched).map((r) => [r.lon, r.lat]);
+    if (points.length) {
+      state.fitted = true;
+      photoMap.fitTo(points);
+    }
+  }
+}
+
+function folderName(path) {
+  return path.split("/").filter(Boolean).pop() || path;
+}
+
+function showChoices() {
+  const photosValue = $("photos-value");
+  if (state.folder) {
+    photosValue.textContent = folderName(state.folder);
+    photosValue.parentElement.title = state.folder;
+  }
+  const tracksValue = $("tracks-value");
+  const choice = state.trackChoice;
+  if (choice) {
+    const names = choice.files ? choice.files.map(folderName) : [folderName(choice.folder)];
+    tracksValue.textContent = names.join(", ");
+    tracksValue.parentElement.title = (choice.files || [choice.folder]).join("\n");
+  }
+}
+
+function showTracks() {
+  const tracks = [...state.tracks.values()];
+  photoMap.setTracks(tracks);
+  if (!state.fitted && tracks.length) {
+    const points = tracks.flatMap((t) => t.lines.flat());
+    if (points.length) {
+      photoMap.fitTo(points);
+    }
+  }
+}
+
+// --- the time correction -------------------------------------------------
+
+const slider = $("correction");
+let sending = false;
+let pending = null;
+
+function showCorrection() {
+  slider.value = String(state.correction - state.base);
+  $("correction-value").textContent = exactDuration(state.correction, state.correction !== 0);
+}
+
+async function sendCorrection(seconds) {
+  pending = seconds;
+  if (sending) {
+    return;
+  }
+  sending = true;
+  // Only the newest value is sent; those in between are skipped
+  while (pending !== null) {
+    const value = pending;
+    pending = null;
+    try {
+      await post("correction", { seconds: value });
+    } catch (error) {
+      notice(error.message);
+    }
+  }
+  sending = false;
+}
+
+function setCorrection(seconds, base = Math.round(seconds / 3600) * 3600) {
+  state.correction = seconds;
+  state.base = base;
+  showCorrection();
+  sendCorrection(seconds);
+}
+
+slider.addEventListener("input", () => {
+  setCorrection(state.base + Number(slider.value), state.base);
+});
+$("minus-hour").addEventListener("click", () =>
+  setCorrection(state.correction - 3600, state.base - 3600));
+$("plus-hour").addEventListener("click", () =>
+  setCorrection(state.correction + 3600, state.base + 3600));
+$("reset-correction").addEventListener("click", () => setCorrection(0, 0));
+
+// --- choices ---------------------------------------------------------------
+
+$("choose-photos").addEventListener("click", async () => {
+  const chosen = await choose("photos", state.folder || "");
+  if (chosen && chosen.folder) {
+    try {
+      await post("photos", chosen);
+    } catch (error) {
+      notice(error.message);
+    }
+  }
+});
+
+$("choose-tracks").addEventListener("click", async () => {
+  const choice = state.trackChoice;
+  const start = choice ? (choice.folder || choice.files[0].replace(/\/[^/]*$/, "")) : "";
+  const chosen = await choose("tracks", start);
+  if (chosen) {
+    try {
+      await post("tracks", chosen);
+    } catch (error) {
+      notice(error.message);
+    }
+  }
+});
+
+const optionsButton = $("options-button");
+const optionsMenu = $("options-menu");
+optionsButton.addEventListener("click", () => {
+  optionsMenu.hidden = !optionsMenu.hidden;
+  optionsButton.setAttribute("aria-expanded", String(!optionsMenu.hidden));
+});
+document.addEventListener("click", (event) => {
+  if (!optionsMenu.hidden && !event.target.closest(".menu")) {
+    optionsMenu.hidden = true;
+    optionsButton.setAttribute("aria-expanded", "false");
+  }
+});
+$("overwrite").addEventListener("change", (event) => {
+  post("options", { overwrite: event.target.checked }).catch((error) => notice(error.message));
+});
+$("stops").addEventListener("change", (event) => {
+  state.stops = event.target.checked;
+  post("options", { stops: event.target.checked }).catch((error) => notice(error.message));
+});
+
+for (const button of document.querySelectorAll(".filters button")) {
+  button.addEventListener("click", () => {
+    state.filter = button.dataset.filter;
+    showPhotos();
+  });
+}
+
+// --- dropping GPX files ----------------------------------------------------
+
+const dropZone = $("drop-zone");
+let dragDepth = 0;
+
+function carriesFiles(event) {
+  return event.dataTransfer && Array.from(event.dataTransfer.types).includes("Files");
+}
+
+document.addEventListener("dragenter", (event) => {
+  if (carriesFiles(event)) {
+    dragDepth += 1;
+    dropZone.hidden = false;
+  }
+});
+document.addEventListener("dragleave", () => {
+  dragDepth = Math.max(0, dragDepth - 1);
+  if (!dragDepth) {
+    dropZone.hidden = true;
+  }
+});
+document.addEventListener("dragover", (event) => {
+  if (carriesFiles(event)) {
+    event.preventDefault();
+  }
+});
+document.addEventListener("drop", async (event) => {
+  event.preventDefault();
+  dragDepth = 0;
+  dropZone.hidden = true;
+  const dropped = Array.from(event.dataTransfer.files);
+  const tracks = dropped.filter((file) => /\.gpx$/i.test(file.name));
+  if (!tracks.length) {
+    notice(_("Only GPX files can be dropped here. Choose the folder with photos with the "
+      + "Photos button."), "info");
+    return;
+  }
+  try {
+    const files = [];
+    for (const file of tracks) {
+      files.push({ name: file.name, data: base64(await file.arrayBuffer()) });
+    }
+    await post("tracks/drop", { files });
+  } catch (error) {
+    notice(error.message);
+  }
+});
+
+// --- events from the server -----------------------------------------------
+
+function resetPhotos(generation, folder) {
+  state.photoGeneration = generation;
+  state.folder = folder;
+  state.photos = [];
+  state.results = [];
+  state.selected = null;
+  state.fitted = state.tracks.size > 0;
+  photoMap.setPhotos(generation, []);
+  showSummary(null);
+  showChoices();
+  showPhotos();
+}
+
+const handlers = {
+  "photos-reset": (data) => {
+    if (data.generation > state.photoGeneration) {
+      resetPhotos(data.generation, data.folder);
+      progress(0, 0);
+    }
+  },
+  "photos-found": (data) => {
+    if (data.generation === state.photoGeneration) {
+      progress(0, data.total);
+    }
+  },
+  "photos": (data) => {
+    if (data.generation !== state.photoGeneration) {
+      return;
+    }
+    for (const photo of data.photos) {
+      state.photos[photo.id] = photo;
+    }
+    progress(data.done, data.total);
+    showPhotos();
+  },
+  "photos-done": (data) => {
+    if (data.generation === state.photoGeneration) {
+      progress(0, null);
+    }
+  },
+  "tracks-reset": (data) => {
+    if (data.generation > state.trackGeneration) {
+      state.trackGeneration = data.generation;
+      state.trackChoice = data.choice;
+      state.tracks = new Map();
+      state.fitted = false;
+      showChoices();
+      showTracks();
+    }
+  },
+  "track": (data) => {
+    if (data.generation === state.trackGeneration) {
+      state.tracks.set(data.track.id, data.track);
+      showTracks();
+    }
+  },
+  "matches": applyMatch,
+  "error": (data) => notice(data.message),
+};
+
+// The whole state, when the page (re)connects or a choice changed
+async function refreshState() {
+  let data;
+  try {
+    data = await get("state");
+  } catch (error) {
+    notice(error.message);
+    return;
+  }
+  if (data.photos.generation !== state.photoGeneration || !state.photos.length) {
+    resetPhotos(data.photos.generation, data.photos.folder);
+  }
+  for (const photo of data.photos.photos) {
+    state.photos[photo.id] = photo;
+  }
+  progress(0, data.photos.loading ? 0 : null);
+  state.trackGeneration = data.tracks.generation;
+  state.trackChoice = data.tracks.choice;
+  state.tracks = new Map(data.tracks.tracks.map((track) => [track.id, track]));
+  state.overwrite = data.overwrite;
+  state.stops = data.stops;
+  $("overwrite").checked = data.overwrite;
+  $("stops").checked = data.stops;
+  if (!sending) {
+    state.correction = data.correction;
+    state.base = Math.round(data.correction / 3600) * 3600;
+    showCorrection();
+  }
+  showChoices();
+  showTracks();
+  showPhotos();
+  applyMatch(data.matches);
+}
+
+// --- start -----------------------------------------------------------------
+
+await loadCatalog();
+translatePage();
+showCorrection();
+showPhotos();
+listen(handlers, refreshState);

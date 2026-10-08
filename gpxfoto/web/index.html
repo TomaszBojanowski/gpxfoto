@@ -3,8 +3,102 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
 <title>gpxfoto</title>
+<link rel="stylesheet" href="/static/vendor/maplibre-gl/maplibre-gl.css">
+<link rel="stylesheet" href="/static/app.css">
+<script type="module" src="/static/js/main.js"></script>
 </head>
 <body>
+<div id="map"></div>
+
+<header id="toolbar" class="panel">
+  <button id="choose-photos" class="chooser-button" type="button">
+    <span class="caption" data-text="Photos"></span>
+    <span class="value" id="photos-value" data-text="Choose a folder…"></span>
+  </button>
+  <button id="choose-tracks" class="chooser-button" type="button">
+    <span class="caption" data-text="Track"></span>
+    <span class="value" id="tracks-value" data-text="Choose a GPX file…"></span>
+  </button>
+  <span class="spacer"></span>
+  <div class="menu">
+    <button id="options-button" type="button" aria-haspopup="true" aria-expanded="false"
+            data-text="Options"></button>
+    <div id="options-menu" class="menu-body panel" hidden>
+      <label class="switch">
+        <input type="checkbox" id="overwrite">
+        <span class="switch-text">
+          <strong data-text="Overwrite existing locations"></strong>
+          <small data-text="Photos that already have a location also get one from the track. Their existing location will be overwritten."></small>
+        </span>
+      </label>
+      <label class="switch">
+        <input type="checkbox" id="stops" checked>
+        <span class="switch-text">
+          <strong data-text="Stops"></strong>
+          <small data-text="Photos taken while standing still get the steadier position of the stop."></small>
+        </span>
+      </label>
+    </div>
+  </div>
+  <button id="write" class="primary" type="button" disabled></button>
+</header>
+
+<aside id="sidebar" class="panel">
+  <div id="notices"></div>
+  <div id="progress" hidden><div class="bar"><span></span></div><p></p></div>
+  <p id="summary"></p>
+  <div class="filters" role="group">
+    <button type="button" data-filter="all" aria-pressed="true"></button>
+    <button type="button" data-filter="matched" aria-pressed="false"></button>
+    <button type="button" data-filter="skipped" aria-pressed="false"></button>
+  </div>
+  <div id="list" role="listbox" tabindex="0"><div class="spacer"></div></div>
+  <div id="empty">
+    <p data-text="Choose a folder with photos and a track to start."></p>
+    <p data-text="A GPX file can also be dropped anywhere on this page."></p>
+  </div>
+</aside>
+
+<footer id="timebar" class="panel">
+  <label for="correction" data-text="Time correction"></label>
+  <button id="minus-hour" type="button" class="small" data-text="−1 h"></button>
+  <input type="range" id="correction" min="-1800" max="1800" step="1" value="0">
+  <button id="plus-hour" type="button" class="small" data-text="+1 h"></button>
+  <output id="correction-value" for="correction"></output>
+  <button id="reset-correction" type="button" class="small" data-text="Reset"></button>
+</footer>
+
+<dialog id="chooser">
+  <form method="dialog">
+    <header>
+      <h2 id="chooser-title"></h2>
+      <button value="cancel" class="close" type="submit" data-label="Close">×</button>
+    </header>
+    <div class="chooser-body">
+      <nav id="chooser-places"></nav>
+      <section class="browser">
+        <div class="path-row">
+          <input id="chooser-path" type="text" spellcheck="false" autocomplete="off"
+                 data-label="Folder or file">
+          <button id="chooser-go" type="button" data-text="Open"></button>
+        </div>
+        <ol id="chooser-crumbs"></ol>
+        <p id="chooser-error" role="alert" hidden></p>
+        <ul id="chooser-entries"></ul>
+      </section>
+    </div>
+    <footer>
+      <label class="check"><input type="checkbox" id="chooser-recursive">
+        <span data-text="Include subfolders"></span></label>
+      <span class="spacer"></span>
+      <button value="cancel" type="submit" data-text="Cancel"></button>
+      <button id="chooser-accept" class="primary" type="button"></button>
+    </footer>
+  </form>
+</dialog>
+
+<div id="drop-zone" hidden><p data-text="Drop the GPX file to use it as the track"></p></div>
 </body>
 </html>
