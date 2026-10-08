@@ -661,7 +661,7 @@ def test_check_exiftool_reports_a_broken_one(monkeypatch):
 PREFIX = ["exiftool", "-json", "-n", "-DateTimeOriginal", "-CreateDate",
           "-OffsetTimeOriginal", "-OffsetTime", "-SubSecTimeOriginal",
           "-GPSLatitude", "-GPSLongitude", "-Model", "-Panasonic:TimeStamp", "-Orientation",
-          "-Error", "--"]
+          "-ThumbnailLength", "-Error", "--"]
 
 
 @pytest.fixture
@@ -893,3 +893,17 @@ def test_orientation_is_read(tmp_path):
     meta = read_metadata([str(path), str(plain)])
     assert meta[0]["Orientation"] == 6
     assert "Orientation" not in meta[1]
+
+
+@needs_exiftool
+def test_thumbnail_length_is_read(tmp_path):
+    # The page asks for the thumbnails of only the photos that have one
+    path = tmp_path / "a.jpg"
+    path.write_bytes(make_jpeg())
+    (tmp_path / "thumb.jpg").write_bytes(THUMBNAIL)
+    set_tags(path, f"-ThumbnailImage<={tmp_path / 'thumb.jpg'}")
+    plain = tmp_path / "plain.jpg"
+    plain.write_bytes(make_jpeg())
+    meta = read_metadata([str(path), str(plain)])
+    assert meta[0]["ThumbnailLength"] == len(THUMBNAIL)
+    assert "ThumbnailLength" not in meta[1]

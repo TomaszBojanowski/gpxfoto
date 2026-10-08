@@ -97,7 +97,8 @@ def test_photos_come_in_batches_as_they_are_read(session, events, tmp_path, monk
     assert [b["done"] for b in batches] == [2, 4, 5]
     first = batches[0]["photos"][0]
     assert first == {"id": 0, "name": "p0.jpg", "taken": "2024-05-01T12:00:10.000+02:00",
-                     "tz": "camera", "reason": None, "has_location": False, "orientation": 1}
+                     "tz": "camera", "reason": None, "has_location": False, "orientation": 1,
+                     "thumbnail": False}
     state = session.state()["photos"]
     assert (state["loading"], len(state["photos"])) == (False, 5)
 
@@ -242,6 +243,7 @@ def test_thumbnails(session, events, tmp_path):
     photo(tmp_path / "photos", "b.jpg")
     generation = session.choose_photos(str(tmp_path / "photos"))
     events.wait("photos-done")
+    assert [p["thumbnail"] for p in session.state()["photos"]["photos"]] == [True, False]
     assert session.thumbnail(generation, 0) == thumbnail
     assert session.thumbnail(generation, 0) == thumbnail       # from memory
     assert session.thumbnail(generation, 1) is None

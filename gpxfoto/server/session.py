@@ -49,7 +49,7 @@ class Session:
         self.photo_generation = 0
         self.photo_folder = None
         self.photos = []                 # Photo
-        self.orientations = []           # EXIF Orientation of each photo, or None
+        self.looks = []                  # (EXIF Orientation or None, has a thumbnail) of each photo
         self.photos_loading = False
         self.track_generation = 0
         self.track_choice = None         # {"files": [...]} or {"folder": ..., "recursive": ...}
@@ -82,7 +82,7 @@ class Session:
             self.photo_generation += 1
             generation = self.photo_generation
             self.photo_folder = folder
-            self.photos, self.orientations = [], []
+            self.photos, self.looks = [], []
             self.photos_loading = True
             self._thumbnails.clear()
             self.match = None
@@ -151,7 +151,7 @@ class Session:
             self.summaries = {}
             self.tracks_loading = True
             stops = self.stops
-        self.events.publish("tracks-reset", {"generation": generation})
+        self.events.publish("tracks-reset", {"generation": generation, "choice": choice})
         threading.Thread(target=self._load_tracks, args=(generation, choice, stops),
                          daemon=True).start()
         return generation
@@ -194,7 +194,7 @@ class Session:
             return {
                 "photos": {"generation": self.photo_generation, "folder": self.photo_folder,
                            "loading": self.photos_loading,
-                           "photos": [self._photo_summary(i, p, self.orientations[i])
+                           "photos": [self._photo_summary(i, p, self.looks[i])
                                       for i, p in enumerate(self.photos)]},
                 "tracks": {"generation": self.track_generation, "choice": self.track_choice,
                            "loading": self.tracks_loading,
@@ -236,18 +236,19 @@ class Session:
                 self._photos_failed(generation, str(e))
                 return
             new = [photo_from_metadata(meta, None) for meta in metadata]
-            orientations = [meta.get("Orientation") for meta in metadata]
+            looks = [(meta.get("Orientation"), bool(meta.get("ThumbnailLength")))
+                     for meta in metadata]
             with self.lock:
                 if generation != self.photo_generation:
                     return
                 first = len(self.photos)
                 self.photos += new
-                self.orientations += orientations
+                self.looks += looks
                 self._want_match()
             self.events.publish("photos", {
                 "generation": generation, "done": first + len(new), "total": len(found),
-                "photos": [self._photo_summary(first + k, p, o)
-                           for k, (p, o) in enumerate(zip(new, orientations))]})
+                "photos": [self._photo_summary(first + k, p, look)
+                           for k, (p, look) in enumerate(zip(new, looks))]})
         with self.lock:
             if generation != self.photo_generation:
                 return
@@ -398,11 +399,13 @@ class Session:
                 "stops": [[round(s.lon, 6), round(s.lat, 6)] for s in track.stops]}
 
     @staticmethod
-    def _photo_summary(index, photo, orientation):
+    def _photo_summary(index, photo, look):
+        orientation, thumbnail = look
         return {"id": index, "name": os.path.basename(photo.path),
                 "taken": _time_text(photo.taken), "tz": photo.tz_source,
                 "reason": photo.reason, "has_location": photo.has_location,
-                "orientation": orientation if orientation in range(1, 9) else 1}
+                "orientation": orientation if orientation in range(1, 9) else 1,
+                "thumbnail": thumbnail}
 
     @staticmethod
     def _result(index, result, overwrite):

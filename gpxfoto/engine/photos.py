@@ -171,7 +171,7 @@ def _run_exiftool(files):
     command = ["exiftool", "-json", "-n", "-DateTimeOriginal", "-CreateDate",
                "-OffsetTimeOriginal", "-OffsetTime", "-SubSecTimeOriginal",
                "-GPSLatitude", "-GPSLongitude", "-Model", "-Panasonic:TimeStamp",
-               "-Orientation", "-Error", "--"] + files
+               "-Orientation", "-ThumbnailLength", "-Error", "--"] + files
     process = subprocess.run(command, capture_output=True, text=True, errors="replace")
     if not process.stdout.strip():
         return [], process.stderr
