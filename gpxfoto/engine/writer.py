@@ -87,6 +87,9 @@ def write_location(path, lat, lon, ele, time_utc, backup, replace=False, seen=No
     without a capture time: these fields are then removed, like the rest
     of the old location, and not written. A GPS time in XMP is then
     removed too, as it would be taken for the time of the new location.
+
+    Returns os.stat() of the written photo, or None when another program
+    changed it right after it was replaced.
     """
     # Comparisons with NaN are false, so this also rules out NaN and infinity
     if not (-90 <= lat <= 90 and -180 <= lon <= 180
@@ -98,6 +101,115 @@ def write_location(path, lat, lon, ele, time_utc, backup, replace=False, seen=No
         # Translators: {direction} is the value that cannot be written
         raise ValueError(_("invalid direction of travel: {direction}").format(
             direction=direction))
+    if replace:
+        arguments = ["-GPS:all=", "-XMP-exif:GPS*="]
+    else:
+        arguments = [f"-GPS:{tag}=" for tag in LOCATION_TAGS]
+    # The group is named, so that exiftool does not also write these
+    # values, without their N/S and E/W, into GPS tags found in XMP.
+    arguments += [
+        f"-GPS:GPSLatitude={abs(lat):.8f}", f"-GPS:GPSLatitudeRef={'N' if lat >= 0 else 'S'}",
+        f"-GPS:GPSLongitude={abs(lon):.8f}", f"-GPS:GPSLongitudeRef={'E' if lon >= 0 else 'W'}",
+        "-GPS:GPSMapDatum=WGS-84",
+    ]
+    if time_utc is not None:
+        arguments += [f"-GPS:GPSDateStamp={time_utc.year:04}:{time_utc:%m:%d}",
+                      f"-GPS:GPSTimeStamp={time_utc:%H:%M:%S}"]
+    elif not replace:
+        arguments += ["-XMP-exif:GPSDateTime="]
+    if ele is not None:
+        arguments += [f"-GPS:GPSAltitude={abs(ele):.1f}",
+                      f"-GPS:GPSAltitudeRef={0 if ele >= 0 else 1}"]
+    if (direction is not None or clear_direction) and not replace:
+        arguments += [f"-{group}:{tag}=" for group in ("GPS", "XMP-exif")
+                      for tag in TRAVEL_TAGS]
+    if direction is not None:
+        arguments += [f"-GPS:GPSTrack={direction}", "-GPS:GPSTrackRef=T"]
+    # Through a symbolic link, the file it points to is written
+    path = os.path.realpath(path)
+    return _rewrite(path, _exiftool(arguments, path), backup, seen)
+
+
+def metadata_head(path):
+    """What undoing a write of the photo at path needs: (head, digest).
+
+    head is the start of the file up to its image data, which holds all
+    its metadata; digest is the SHA-256 of the whole file. A write changes
+    only the head, so the head and the image data of the written photo
+    make up the photo as it is now, to the byte.
+    """
+    with open(path, "rb") as f:
+        head = f.read(_image_start(f))
+        digest = hashlib.sha256(head)
+        while block := f.read(1 << 20):
+            digest.update(block)
+    return head, digest.hexdigest()
+
+
+def restore_head(path, head, digest, seen=None):
+    """Put back the head that metadata_head() gave, before the photo at path was written.
+
+    seen is os.stat() of the photo as the write left it; it must not have
+    changed since, and its access time is kept. The result must be the
+    photo from before the write to the byte, with the SHA-256 digest, or
+    nothing is changed. It replaces the photo and returns as write_location() does.
+    """
+    path = os.path.realpath(path)
+
+    def make(temp):
+        result = hashlib.sha256(head)
+        with open(path, "rb") as source, \
+                open(os.open(temp, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), "wb") as f:
+            source.seek(_image_start(source))
+            f.write(head)
+            while block := source.read(1 << 20):
+                result.update(block)
+                f.write(block)
+        if result.hexdigest() != digest:
+            raise RuntimeError(_("the photo cannot be restored to the byte; it was left "
+                                 "as it is"))
+
+    return _rewrite(path, make, False, seen)
+
+
+def _image_start(f):
+    """Where the image data of the JPEG file f starts: its SOS segment."""
+    f.seek(0)
+    if f.read(2) != b"\xff\xd8":
+        raise ValueError(_("not a JPEG file"))
+    while True:
+        header = f.read(4)
+        if len(header) < 4 or header[0] != 0xFF:
+            raise ValueError(_("damaged JPEG structure"))
+        if header[1] == 0xDA:
+            position = f.tell() - 4
+            f.seek(0)
+            return position
+        length = int.from_bytes(header[2:4], "big")
+        if length < 2:
+            raise ValueError(_("damaged JPEG structure"))
+        f.seek(length - 2, os.SEEK_CUR)
+
+
+def _exiftool(arguments, path):
+    """make() for _rewrite(): exiftool with arguments writes the result."""
+    def make(temp):
+        command = ["exiftool", "-q", "-n", "-m", *arguments, "-o", temp, "--", path]
+        # Also readable only by its owner until it gets the photo's permissions
+        process = subprocess.run(command, capture_output=True, text=True, errors="replace",
+                                 umask=0o077)
+        if process.returncode != 0 or not os.path.exists(temp):
+            raise RuntimeError(process.stderr.strip() or _("exiftool did not write the file"))
+    return make
+
+
+def _rewrite(path, make, backup, seen):
+    """Replace the photo at path with what make(temp) writes to the file temp.
+
+    The result must hold the same image; it gets the photo's attributes
+    and replaces it atomically. Returns os.stat() of the new photo, or None
+    when another program changed it right after the replacement.
+    """
     # Through a symbolic link, the file it points to is written
     path = os.path.realpath(path)
     if is_backup_dir(os.path.dirname(path)):
@@ -119,37 +231,7 @@ def write_location(path, lat, lon, ele, time_utc, backup, replace=False, seen=No
     temp_dir = tempfile.mkdtemp(prefix=TEMP_PREFIX, dir=directory)
     try:
         temp = os.path.join(temp_dir, os.path.basename(path))
-        command = ["exiftool", "-q", "-n", "-m"]
-        if replace:
-            command += ["-GPS:all=", "-XMP-exif:GPS*="]
-        else:
-            command += [f"-GPS:{tag}=" for tag in LOCATION_TAGS]
-        # The group is named, so that exiftool does not also write these
-        # values, without their N/S and E/W, into GPS tags found in XMP.
-        command += [
-            f"-GPS:GPSLatitude={abs(lat):.8f}", f"-GPS:GPSLatitudeRef={'N' if lat >= 0 else 'S'}",
-            f"-GPS:GPSLongitude={abs(lon):.8f}", f"-GPS:GPSLongitudeRef={'E' if lon >= 0 else 'W'}",
-            "-GPS:GPSMapDatum=WGS-84",
-        ]
-        if time_utc is not None:
-            command += [f"-GPS:GPSDateStamp={time_utc.year:04}:{time_utc:%m:%d}",
-                        f"-GPS:GPSTimeStamp={time_utc:%H:%M:%S}"]
-        elif not replace:
-            command += ["-XMP-exif:GPSDateTime="]
-        if ele is not None:
-            command += [f"-GPS:GPSAltitude={abs(ele):.1f}",
-                        f"-GPS:GPSAltitudeRef={0 if ele >= 0 else 1}"]
-        if (direction is not None or clear_direction) and not replace:
-            command += [f"-{group}:{tag}=" for group in ("GPS", "XMP-exif")
-                        for tag in TRAVEL_TAGS]
-        if direction is not None:
-            command += [f"-GPS:GPSTrack={direction}", "-GPS:GPSTrackRef=T"]
-        command += ["-o", temp, "--", path]
-        # Also readable only by its owner until it gets the photo's permissions
-        process = subprocess.run(command, capture_output=True, text=True, errors="replace",
-                                 umask=0o077)
-        if process.returncode != 0 or not os.path.exists(temp):
-            raise RuntimeError(process.stderr.strip() or _("exiftool did not write the file"))
+        make(temp)
         if image_checksum(temp) != before:
             raise RuntimeError(_("exiftool changed the image data; the result was discarded"))
         _copy_attributes(path, original, access_ns, temp)
@@ -160,8 +242,15 @@ def write_location(path, lat, lon, ele, time_utc, backup, replace=False, seen=No
         if _changed(original, os.stat(path)):
             # Replacing the photo would undo that change
             raise RuntimeError(_("another program changed the photo in the meantime"))
+        result = os.stat(temp)
         os.replace(temp, path)       # atomic replacement
         _sync_directory(directory)
+        written = os.stat(path)
+        # A change by another program right after would be lost by undoing this
+        if (written.st_ino, written.st_size, written.st_mtime_ns) != (
+                result.st_ino, result.st_size, result.st_mtime_ns):
+            return None
+        return written
     finally:
         shutil.rmtree(temp_dir, ignore_errors=True)
 
