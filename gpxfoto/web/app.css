@@ -264,6 +264,12 @@ button.small { padding: 3px 8px; font-size: 13px; }
 
 /* The controls of the map stay clear of the panels */
 .maplibregl-ctrl-top-right { top: calc(var(--free-top, 74px) + 2px); }
+/* The page's round buttons must not round the buttons of the map, which
+   are rounded only at the ends of their group, with or without the focus */
+.maplibregl-ctrl-group button { border-radius: 0; }
+.maplibregl-ctrl-group button:first-child { border-radius: 4px 4px 0 0; }
+.maplibregl-ctrl-group button:last-child { border-radius: 0 0 4px 4px; }
+.maplibregl-ctrl-group button:only-child { border-radius: 4px; }
 .gpxfoto-ctrl button svg {
   width: 18px;
   height: 18px;
