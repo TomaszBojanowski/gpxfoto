@@ -166,6 +166,9 @@ function moreOf(photo, result) {
   const lines = [detailOf(photo, result)];
   if (isMatched(result)) {
     let position = coordinates(result.lat, result.lon);
+    if (lines[0] === position) {
+      lines.pop();              // the detail was the position alone: said once
+    }
     if (result.ele !== null && result.ele !== undefined) {
       position += " · " + format(_("{elevation} m"), { elevation: number(result.ele) });
     }
