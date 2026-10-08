@@ -254,3 +254,8 @@ gpxfoto is free software: you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free
 Software Foundation, either version 3 of the License, or (at your option)
 any later version. See [LICENSE](LICENSE).
+
+The map in the browser interface uses
+[MapLibre GL JS](https://maplibre.org/), which is included in
+`gpxfoto/web/vendor/` under the BSD-3-Clause license; see
+[its license](gpxfoto/web/vendor/maplibre-gl/LICENSE.txt).

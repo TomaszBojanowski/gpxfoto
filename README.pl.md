@@ -266,3 +266,8 @@ gpxfoto jest wolnym oprogramowaniem: można je rozpowszechniać i modyfikować
 na warunkach Powszechnej Licencji Publicznej GNU (GNU GPL), opublikowanej
 przez Free Software Foundation, w wersji 3 lub (według uznania) dowolnej
 późniejszej. Pełny tekst licencji znajduje się w pliku [LICENSE](LICENSE).
+
+Mapa w interfejsie w przeglądarce korzysta z biblioteki
+[MapLibre GL JS](https://maplibre.org/), dołączonej w katalogu
+`gpxfoto/web/vendor/` na licencji BSD-3-Clause; zob.
+[jej licencję](gpxfoto/web/vendor/maplibre-gl/LICENSE.txt).
