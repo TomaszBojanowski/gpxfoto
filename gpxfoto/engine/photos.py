@@ -75,6 +75,73 @@ def find_photos(paths, recursive):
     return found
 
 
+def exif_thumbnail(path):
+    """The JPEG thumbnail in the photo's EXIF data, as bytes, or None.
+
+    Only the metadata segments at the start of the file are read, never
+    the image itself.
+    """
+    try:
+        with open(path, "rb") as f:
+            if f.read(2) != b"\xff\xd8":
+                return None
+            while True:
+                header = f.read(4)
+                if len(header) < 4 or header[0] != 0xFF:
+                    return None
+                marker = header[1]
+                length = int.from_bytes(header[2:4], "big")
+                # The image data starts; the length includes its own two bytes
+                if marker == 0xDA or length < 2:
+                    return None
+                data = f.read(length - 2)
+                if marker == 0xE1 and data.startswith(b"Exif\0\0"):
+                    return _thumbnail_in_tiff(data[6:])
+    except OSError:
+        return None
+
+
+def _thumbnail_in_tiff(tiff):
+    """The thumbnail that IFD1 of the TIFF structure of EXIF points to."""
+    if tiff[:4] == b"II*\0":
+        order = "little"
+    elif tiff[:4] == b"MM\0*":
+        order = "big"
+    else:
+        return None
+
+    def number(offset, size):
+        if offset is None or offset + size > len(tiff):
+            return None
+        return int.from_bytes(tiff[offset:offset + size], order)
+
+    ifd0 = number(4, 4)
+    count = number(ifd0, 2)
+    if count is None:
+        return None
+    ifd1 = number(ifd0 + 2 + 12 * count, 4)
+    count = number(ifd1, 2) if ifd1 else None
+    if count is None:
+        return None
+    found = {}
+    for k in range(count):
+        entry = ifd1 + 2 + 12 * k
+        tag = number(entry, 2)
+        if tag is None:
+            return None
+        # JPEGInterchangeFormat and its length, a LONG or a SHORT
+        if tag in (0x0201, 0x0202):
+            short = number(entry + 2, 2) == 3
+            found[tag] = number(entry + 8, 2 if short else 4)
+    offset, length = found.get(0x0201), found.get(0x0202)
+    if not length or offset is None:
+        return None
+    thumbnail = tiff[offset:offset + length]
+    if len(thumbnail) != length or not thumbnail.startswith(b"\xff\xd8"):
+        return None
+    return thumbnail
+
+
 def check_exiftool():
     """Raise RuntimeError with exiftool's messages if it does not run."""
     process = subprocess.run(["exiftool", "-ver"], capture_output=True, text=True,

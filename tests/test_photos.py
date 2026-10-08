@@ -1,6 +1,7 @@
 """Finding photos, reading their metadata and working out the capture time."""
 import json
 import os
+import struct
 import subprocess
 import time
 from datetime import datetime, timedelta, timezone
@@ -11,7 +12,7 @@ from conftest import (
     latin2_name, make_jpeg, needs_exiftool, set_panasonic_time_stamp, set_tags)
 from gpxfoto.engine import photos
 from gpxfoto.engine.photos import (
-    TZ_CAMERA, TZ_MANUAL, TZ_SYSTEM, capture_time, check_exiftool, find_photos,
+    TZ_CAMERA, TZ_MANUAL, TZ_SYSTEM, capture_time, check_exiftool, exif_thumbnail, find_photos,
     parse_utc_offset, read_metadata)
 
 # POSIX rules work without the tz database: Central European Time with DST.
@@ -774,3 +775,108 @@ def test_read_metadata_reports_output_that_is_not_json(monkeypatch, stdout):
     assert str(raised.value) == "exiftool returned data that cannot be read"
 
 
+# --- EXIF thumbnails ------------------------------------------------------
+
+THUMBNAIL = make_jpeg(16, 12)
+
+
+def with_exif(tiff, photo=None):
+    """A JPEG whose first segment is an EXIF APP1 segment holding tiff."""
+    data = photo or make_jpeg()
+    segment = b"Exif\0\0" + tiff
+    return data[:2] + b"\xff\xe1" + struct.pack(">H", len(segment) + 2) + segment + data[2:]
+
+
+def tiff_with_thumbnail(thumbnail=THUMBNAIL, order="<", short=False, offset=None, length=None,
+                        ifd1=True):
+    """TIFF data with an IFD0 of one entry and an IFD1 pointing to thumbnail."""
+    magic = b"II*\0" if order == "<" else b"MM\0*"
+    ifd1_at = 8 + 2 + 12 + 4
+    data_at = ifd1_at + 2 + 2 * 12 + 4
+    ifd0 = (struct.pack(order + "H", 1) + struct.pack(order + "HHII", 0x0100, 4, 1, 64)
+            + struct.pack(order + "I", ifd1_at if ifd1 else 0))
+    values = (data_at if offset is None else offset, len(thumbnail) if length is None else length)
+    entries = b""
+    for tag, value in zip((0x0201, 0x0202), values):
+        if short:
+            entries += struct.pack(order + "HHIHH", tag, 3, 1, value, 0)
+        else:
+            entries += struct.pack(order + "HHII", tag, 4, 1, value)
+    ifd1_data = struct.pack(order + "H", 2) + entries + struct.pack(order + "I", 0)
+    return magic + struct.pack(order + "I", 8) + ifd0 + (ifd1_data if ifd1 else b"") + thumbnail
+
+
+@pytest.mark.parametrize("order", ["<", ">"], ids=["little-endian", "big-endian"])
+@pytest.mark.parametrize("short", [False, True], ids=["long", "short"])
+def test_exif_thumbnail(tmp_path, order, short):
+    path = tmp_path / "a.jpg"
+    path.write_bytes(with_exif(tiff_with_thumbnail(order=order, short=short)))
+    assert exif_thumbnail(path) == THUMBNAIL
+
+
+@pytest.mark.parametrize("tiff", [
+    tiff_with_thumbnail(ifd1=False),                         # no IFD1
+    tiff_with_thumbnail(length=0),
+    tiff_with_thumbnail(offset=10 ** 6),                     # beyond the data
+    tiff_with_thumbnail(length=len(THUMBNAIL) + 1),          # cut off
+    tiff_with_thumbnail(thumbnail=b"not a JPEG at all"),
+    b"XX*\0" + tiff_with_thumbnail()[4:],                     # no byte order
+    tiff_with_thumbnail()[:20],                              # IFD1 cut off
+    b"",
+])
+def test_no_exif_thumbnail(tmp_path, tiff):
+    path = tmp_path / "a.jpg"
+    path.write_bytes(with_exif(tiff))
+    assert exif_thumbnail(path) is None
+
+
+@pytest.mark.parametrize("data", [
+    make_jpeg(),                         # no EXIF
+    b"",
+    b"PNG not a JPEG",
+    make_jpeg()[:30],                    # cut off in the segments
+])
+def test_no_exif_thumbnail_without_exif(tmp_path, data):
+    path = tmp_path / "a.jpg"
+    path.write_bytes(data)
+    assert exif_thumbnail(path) is None
+    assert exif_thumbnail(tmp_path / "missing.jpg") is None
+
+
+def test_exif_thumbnail_reads_only_the_metadata(tmp_path, monkeypatch):
+    path = tmp_path / "a.jpg"
+    path.write_bytes(with_exif(tiff_with_thumbnail(), make_jpeg(4000, 3000)))
+    reads = []
+    real_open = open
+
+    class Counting:
+        def __init__(self, f):
+            self.f = f
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            self.f.close()
+
+        def read(self, size=-1):
+            data = self.f.read(size)
+            reads.append(len(data))
+            return data
+
+    monkeypatch.setattr("builtins.open", lambda *args, **kwargs: Counting(real_open(*args, **kwargs)))
+    assert exif_thumbnail(path) == THUMBNAIL
+    assert sum(reads) < 1000 < os.path.getsize(path) // 10
+
+
+@needs_exiftool
+@pytest.mark.parametrize("order", ["II", "MM"])
+def test_exif_thumbnail_written_by_exiftool(tmp_path, order):
+    path = tmp_path / "a.jpg"
+    path.write_bytes(make_jpeg())
+    (tmp_path / "thumb.jpg").write_bytes(THUMBNAIL)
+    set_tags(path, "-n", f"-ExifByteOrder={order}", f"-ThumbnailImage<={tmp_path / 'thumb.jpg'}")
+    stored = subprocess.run(["exiftool", "-b", "-ThumbnailImage", str(path)], check=True,
+                            capture_output=True).stdout
+    assert stored == THUMBNAIL
+    assert exif_thumbnail(path) == THUMBNAIL
