@@ -23,6 +23,32 @@ def setup():
     gettext.textdomain(DOMAIN)
 
 
+def catalog():
+    """The translations for the page of the browser interface.
+
+    Returns {"language", "locale", "messages", "plural"}: messages maps
+    each msgid to its translation, or the msgid of a message with plural
+    forms to the list of its forms; plural gives the index of the form
+    for counts 0 to 199, and for a larger count n, plural[100 + n % 100].
+    locale is a language tag for formatting numbers, such as "pl-PL".
+    """
+    translation = gettext.translation(DOMAIN, LOCALE_DIR, fallback=True)
+    messages = {}
+    for key, text in getattr(translation, "_catalog", {}).items():
+        if isinstance(key, tuple):
+            msgid, index = key
+            forms = messages.setdefault(msgid, [])
+            forms.extend([""] * (index + 1 - len(forms)))
+            forms[index] = text
+        elif key:
+            messages[key] = text
+    plural = getattr(translation, "plural", lambda n: int(n != 1))
+    language = (translation.info().get("language") or "en") if messages else "en"
+    name = locale.getlocale(locale.LC_NUMERIC)[0] or ""
+    return {"language": language, "locale": name.replace("_", "-") or language,
+            "messages": messages, "plural": [plural(n) for n in range(200)]}
+
+
 def number(value, decimals=0, width=0):
     """Format a number according to the regional settings."""
     return locale.format_string(f"%.{decimals}f", value, grouping=True).rjust(width)

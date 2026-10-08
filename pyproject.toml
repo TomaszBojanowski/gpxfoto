@@ -21,7 +21,7 @@ gpxfoto = "gpxfoto.cli:main"
 include = ["gpxfoto*"]
 
 [tool.setuptools.package-data]
-gpxfoto = ["web/*.*", "web/vendor/*.*", "web/vendor/maplibre-gl/*"]
+gpxfoto = ["web/*.*", "web/js/*.js", "web/vendor/*.*", "web/vendor/maplibre-gl/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

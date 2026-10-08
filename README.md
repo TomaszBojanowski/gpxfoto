@@ -233,7 +233,7 @@ translation is in `po/pl.po`. After changing messages, update the template
 and the translations:
 
 ```
-xgettext --files-from=po/POTFILES.in --from-code=UTF-8 --language=Python \
+xgettext --files-from=po/POTFILES.in --from-code=UTF-8 \
     --keyword=N_ --add-comments=Translators: --package-name=gpxfoto \
     --package-version=0.1.0 \
     --msgid-bugs-address=https://github.com/tomaszbojanowski/gpxfoto/issues \

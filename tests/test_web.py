@@ -1,0 +1,78 @@
+"""The JavaScript of the page, run in Node.js where it has no browser parts.
+
+Skipped without Node.js; the page itself is checked in the browser.
+"""
+import json
+import os
+import shutil
+import subprocess
+
+import pytest
+
+from conftest import ROOT
+
+needs_node = pytest.mark.skipif(shutil.which("node") is None, reason="Node.js is not installed")
+JS = os.path.join(ROOT, "gpxfoto", "web", "js")
+
+
+def run_module(name, code):
+    """Run code with the exports of web/js/name in scope; return its JSON output."""
+    script = (f"import * as m from {json.dumps(os.path.join(JS, name))};\n"
+              f"const out = (() => {{ {code} }})();\n"
+              "console.log(JSON.stringify(out));\n")
+    result = subprocess.run(["node", "--input-type=module", "-e", script], capture_output=True,
+                            text=True, check=True)
+    return json.loads(result.stdout)
+
+
+POLISH = {
+    "language": "pl", "locale": "pl-PL",
+    "messages": {"Matched: {matched}": "Dopasowano: {matched}",
+                 "{count} photo": ["{count} zdjęcie", "{count} zdjęcia", "{count} zdjęć"]},
+    "plural": [2, 0] + [1 if n % 10 in (2, 3, 4) and n % 100 not in (12, 13, 14) else 2
+                        for n in range(2, 200)],
+}
+
+
+@needs_node
+def test_translations_and_plural_forms():
+    out = run_module("i18n.js", f"""
+        m.setCatalog({json.dumps(POLISH)});
+        const forms = [0, 1, 2, 5, 12, 22, 25, 101, 102, 112, 1001, 1002, 10012].map(
+            n => m.format(m.ngettext("{{count}} photo", "{{count}} photos", n), {{count: n}}));
+        return [m._("Matched: {{matched}}"), m._("Not translated"), forms];
+    """)
+    assert out == ["Dopasowano: {matched}", "Not translated", [
+        "0 zdjęć", "1 zdjęcie", "2 zdjęcia", "5 zdjęć", "12 zdjęć", "22 zdjęcia", "25 zdjęć",
+        "101 zdjęć", "102 zdjęcia", "112 zdjęć", "1001 zdjęć", "1002 zdjęcia", "10012 zdjęć"]]
+
+
+@needs_node
+def test_without_a_catalog_the_english_text_is_used():
+    out = run_module("i18n.js", """
+        m.setCatalog({messages: {}, plural: []});
+        return [m.ngettext("{count} photo", "{count} photos", 1),
+                m.ngettext("{count} photo", "{count} photos", 3)];
+    """)
+    assert out == ["{count} photo", "{count} photos"]
+
+
+@needs_node
+def test_format_fills_in_only_known_placeholders():
+    out = run_module("i18n.js", """
+        return [m.format("{a} and {b}, not {c}", {a: 1, b: "x"}),
+                m.format("{toString}", {})];
+    """)
+    assert out == ["1 and x, not {c}", "{toString}"]
+
+
+@needs_node
+def test_numbers_follow_the_locale():
+    out = run_module("i18n.js", """
+        m.setCatalog({locale: "pl-PL", messages: {}, plural: []});
+        const polish = [m.number(1234.5, 1), m.number(0.25, 2)];
+        m.setCatalog({locale: "not a locale!", messages: {}, plural: []});
+        return [polish, m.number(3.14159, 2)];
+    """)
+    assert out[0][1] == "0,25" and out[0][0].replace(" ", " ") in ("1 234,5", "1234,5")
+    assert out[1] == "3.14"

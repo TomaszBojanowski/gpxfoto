@@ -268,3 +268,11 @@ def test_ui_is_in_the_help(tmp_path):
 def test_a_photo_named_like_the_option_after_two_dashes(tmp_path):
     result = run_cli("-g", "track.gpx", "--", "--ui", cwd=tmp_path)
     assert "Cannot read the GPX file track.gpx" in result.stderr
+
+
+def test_the_page_gets_its_translations(server):
+    server.api = Api(server.events)
+    response = request(server, "GET", "/api/i18n")
+    assert response.status == 200
+    catalog = json.loads(response.body)
+    assert set(catalog) == {"language", "locale", "messages", "plural"}

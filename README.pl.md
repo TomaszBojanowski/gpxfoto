@@ -244,7 +244,7 @@ gettext; polskie tłumaczenie znajduje się w `po/pl.po`. Po zmianie
 komunikatów należy zaktualizować szablon i tłumaczenia:
 
 ```
-xgettext --files-from=po/POTFILES.in --from-code=UTF-8 --language=Python \
+xgettext --files-from=po/POTFILES.in --from-code=UTF-8 \
     --keyword=N_ --add-comments=Translators: --package-name=gpxfoto \
     --package-version=0.1.0 \
     --msgid-bugs-address=https://github.com/tomaszbojanowski/gpxfoto/issues \
