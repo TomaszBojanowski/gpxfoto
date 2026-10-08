@@ -81,6 +81,12 @@ def write_location(path, lat, lon, ele, time_utc, backup, replace=False, seen=No
 
     seen is os.stat() of the photo from before its metadata was read: the
     photo must not have changed since, and its access time is kept.
+
+    time_utc is the time of the location, written as GPSDateStamp and
+    GPSTimeStamp. It is None for a location placed by hand on a photo
+    without a capture time: these fields are then removed, like the rest
+    of the old location, and not written. A GPS time in XMP is then
+    removed too, as it would be taken for the time of the new location.
     """
     # Comparisons with NaN are false, so this also rules out NaN and infinity
     if not (-90 <= lat <= 90 and -180 <= lon <= 180
@@ -123,10 +129,13 @@ def write_location(path, lat, lon, ele, time_utc, backup, replace=False, seen=No
         command += [
             f"-GPS:GPSLatitude={abs(lat):.8f}", f"-GPS:GPSLatitudeRef={'N' if lat >= 0 else 'S'}",
             f"-GPS:GPSLongitude={abs(lon):.8f}", f"-GPS:GPSLongitudeRef={'E' if lon >= 0 else 'W'}",
-            f"-GPS:GPSDateStamp={time_utc.year:04}:{time_utc:%m:%d}",
-            f"-GPS:GPSTimeStamp={time_utc:%H:%M:%S}",
             "-GPS:GPSMapDatum=WGS-84",
         ]
+        if time_utc is not None:
+            command += [f"-GPS:GPSDateStamp={time_utc.year:04}:{time_utc:%m:%d}",
+                        f"-GPS:GPSTimeStamp={time_utc:%H:%M:%S}"]
+        elif not replace:
+            command += ["-XMP-exif:GPSDateTime="]
         if ele is not None:
             command += [f"-GPS:GPSAltitude={abs(ele):.1f}",
                         f"-GPS:GPSAltitudeRef={0 if ele >= 0 else 1}"]

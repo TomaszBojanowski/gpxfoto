@@ -1088,6 +1088,48 @@ def test_date_stamp_has_a_four_digit_year(photo):
 
 
 @needs_exiftool
+@pytest.mark.parametrize("replace", [False, True])
+def test_without_a_time_the_old_time_stamps_are_removed(tmp_path, photo, replace):
+    """A location placed by hand on a photo without a capture time has no
+    time; the old location's time must not stay with the new location."""
+    os.chmod(photo, 0o604)
+    set_tags(photo, "-GPSLatitude=1", "-GPSLatitudeRef=S", "-GPSLongitude=2",
+             "-GPSLongitudeRef=W", "-GPSAltitude=812", "-GPSAltitudeRef=0",
+             "-GPSDateStamp=2020:01:02", "-GPSTimeStamp=03:04:05")
+    os.utime(photo, ns=(MTIME_NS, MTIME_NS))
+    checksum = image_checksum(photo)
+    write_location(photo, 50.0614, -19.9366, None, None, backup=False, replace=replace)
+    assert gps_tags(photo) == {
+        "GPSLatitudeRef": "N", "GPSLatitude": 50.0614, "GPSLongitudeRef": "W",
+        "GPSLongitude": 19.9366, "GPSMapDatum": "WGS-84"}
+    assert image_checksum(photo) == checksum
+    assert state(photo)[1:] == (MTIME_NS, 0o604)
+    assert os.listdir(tmp_path) == ["photo.jpg"]
+
+
+def test_without_a_time_no_time_stamp_is_given_to_exiftool(photo, fake_exiftool):
+    fake = fake_exiftool()
+    write_location(photo, 50.0, 19.0, None, None, backup=False)
+    given = [arg for arg in fake.commands[0] if "Stamp" in arg or "DateTime" in arg]
+    assert given == ["-GPS:GPSDateStamp=", "-GPS:GPSTimeStamp=", "-XMP-exif:GPSDateTime="]
+
+
+@needs_exiftool
+def test_without_a_time_an_old_gps_time_in_xmp_is_removed(photo):
+    """It would be read as the time of the new location."""
+    set_tags(photo, "-XMP-exif:GPSDateTime=2015:05:05 10:00:00Z",
+             "-XMP-exif:DateTimeOriginal=2015:05:05 12:00:00")
+    checksum = image_checksum(photo)
+    write_location(photo, 50.0, 19.0, None, None, backup=False)
+    assert "GPSDateTime" not in read_tags(photo, "GPSDateTime")
+    assert read_tags(photo, "XMP-exif:all") == {"DateTimeOriginal": "2015:05:05 12:00:00"}
+    assert image_checksum(photo) == checksum
+    # With a time, the new time stamps are the GPS time, and XMP is left alone
+    write_location(photo, 50.0, 19.0, None, TIME, backup=False)
+    assert read_tags(photo, "GPSDateTime") == {"GPSDateTime": "2026:06:01 08:30:15Z"}
+
+
+@needs_exiftool
 @pytest.mark.parametrize("mode", [0o640, 0o600, 0o444])
 def test_image_mode_and_mtime_are_preserved(tmp_path, photo, mode):
     os.chmod(photo, mode)
