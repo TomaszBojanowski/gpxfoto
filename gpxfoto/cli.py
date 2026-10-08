@@ -186,7 +186,20 @@ def build_parser():
                                "replaced").format(directory=BACKUP_DIR))
     parser.add_argument("-r", "--recursive", action="store_true",
                         help=_("also look for photos and tracks in subdirectories"))
+    parser.add_argument("--ui", action="store_true",
+                        help=_("open the interface in the browser instead, where the photos "
+                               "and tracks are chosen; no other arguments are given then"))
     return parser
+
+
+def ui_main(argv):
+    """gpxfoto --ui: the browser interface, which takes no other arguments."""
+    parser = argparse.ArgumentParser(prog="gpxfoto", allow_abbrev=False,
+                                     usage="%(prog)s --ui")
+    parser.add_argument("--ui", action="store_true", required=True)
+    parser.parse_args(argv)
+    from gpxfoto.server.ui import run
+    run()
 
 
 def time_check_note(check):
@@ -609,8 +622,11 @@ def no_points(count):
 
 def main():
     i18n.setup()
+    argv = sys.argv[1:]
+    if "--ui" in argv[:argv.index("--") if "--" in argv else len(argv)]:
+        return ui_main(argv)
     parser = build_parser()
-    args = parser.parse_args(join_negative_time_zone(sys.argv[1:]))
+    args = parser.parse_args(join_negative_time_zone(argv))
     if (args.clock_photo is None) != (args.clock_time is None):
         given, other = (("--clock-photo", "--clock-time") if args.clock_time is None
                         else ("--clock-time", "--clock-photo"))

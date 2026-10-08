@@ -1,0 +1,270 @@
+"""The local server of the browser interface: security, files and events.
+
+The server runs in-process on a free port; requests go through
+http.client, so no browser is needed.
+"""
+import http.client
+import json
+import os
+import re
+import signal
+import subprocess
+import sys
+import threading
+import time
+import urllib.parse
+
+import pytest
+
+from conftest import ROOT, needs_exiftool, run_cli
+from gpxfoto.server import events
+from gpxfoto.server.api import Api
+from gpxfoto.server.app import Server
+
+
+class EchoApi(Api):
+    """Answers POST /api/echo with the JSON it got."""
+
+    def __init__(self, events):
+        super().__init__(events)
+        self.routes[("POST", "echo")] = lambda handler, query: handler.send_json(
+            {"got": handler.read_json(limit=100)})
+
+
+@pytest.fixture
+def server():
+    server = Server()
+    server.api = EchoApi(server.events)
+    thread = threading.Thread(target=server.serve_forever, args=(0.05,), daemon=True)
+    thread.start()
+    yield server
+    server.close()
+    thread.join(5)
+
+
+def request(server, method, path, headers=None, body=None, cookie=True, host=None):
+    """Send a request as the page would, with headers changed by headers."""
+    connection = http.client.HTTPConnection("127.0.0.1", server.port, timeout=10)
+    sent = {"Host": host or server.host}
+    if cookie:
+        sent["Cookie"] = f"{server.cookie}={server.token}"
+    if method == "POST":
+        sent["Origin"] = server.origin
+        sent["Content-Type"] = "application/json"
+    sent.update(headers or {})
+    connection.putrequest(method, path, skip_host=True, skip_accept_encoding=True)
+    for name, value in sent.items():
+        if value is not None:
+            connection.putheader(name, value)
+    data = json.dumps(body).encode() if body is not None and not isinstance(body, bytes) else body
+    if data is not None:
+        connection.putheader("Content-Length", str(len(data)))
+    connection.endheaders(data)
+    response = connection.getresponse()
+    response.body = response.read()
+    connection.close()
+    return response
+
+
+def test_listens_only_on_this_computer(server):
+    assert server.server_address[0] == "127.0.0.1"
+    assert server.url == f"http://127.0.0.1:{server.port}/?token={server.token}"
+    assert len(server.token) >= 40
+
+
+def test_the_token_in_the_address_becomes_a_cookie(server):
+    response = request(server, "GET", f"/?token={server.token}", cookie=False,
+                       headers={"Sec-Fetch-Site": "none"})
+    assert response.status == 303
+    assert response.getheader("Location") == "/"
+    assert response.getheader("Set-Cookie") == (
+        f"gpxfoto-{server.port}={server.token}; Path=/; HttpOnly; SameSite=Strict")
+    page = request(server, "GET", "/")
+    assert page.status == 200
+    assert page.getheader("Content-Type") == "text/html; charset=utf-8"
+    assert b"<title>gpxfoto</title>" in page.body
+
+
+@pytest.mark.parametrize("path", ["/", "/static/index.html", "/api/events", "/api/echo",
+                                  "/static/vendor/maplibre-gl/maplibre-gl.mjs"])
+@pytest.mark.parametrize("cookie", [None, "wrong", ""])
+def test_every_request_needs_the_token(server, path, cookie):
+    headers = {} if cookie is None else {"Cookie": f"{server.cookie}={cookie}"}
+    response = request(server, "GET", path, headers=headers, cookie=False)
+    assert response.status == 403
+    assert b"Open the address that gpxfoto showed in the terminal" in response.body
+
+
+def test_a_wrong_token_in_the_address_is_refused(server):
+    response = request(server, "GET", "/?token=guess", cookie=False)
+    assert response.status == 403
+    assert response.getheader("Set-Cookie") is None
+
+
+def test_the_cookie_of_another_server_does_not_count(server):
+    other = f"gpxfoto-{server.port + 1}={server.token}"
+    assert request(server, "GET", "/", headers={"Cookie": other}, cookie=False).status == 403
+
+
+@pytest.mark.parametrize("host", ["localhost:{port}", "evil.example", "127.0.0.1",
+                                  "127.0.0.1:{other}", "evil.example:{port}"])
+def test_requests_must_name_this_server_in_host(server, host):
+    # A web page can make the browser send requests here under its own
+    # name (DNS rebinding): Host gives it away
+    host = host.format(port=server.port, other=server.port + 1)
+    assert request(server, "GET", "/", host=host).status == 421
+
+
+@pytest.mark.parametrize("origin", ["http://evil.example", "null",
+                                    "http://localhost:{port}", "https://127.0.0.1:{port}"])
+@pytest.mark.parametrize("method", ["GET", "POST"])
+def test_requests_from_other_pages_are_refused(server, origin, method):
+    origin = origin.format(port=server.port)
+    response = request(server, method, "/api/echo", headers={"Origin": origin}, body={"a": 1})
+    assert response.status == 403
+
+
+def test_changes_need_an_origin(server):
+    assert request(server, "POST", "/api/echo", headers={"Origin": None}, body={}).status == 403
+    response = request(server, "POST", "/api/echo", body={"a": 1})
+    assert (response.status, json.loads(response.body)) == (200, {"got": {"a": 1}})
+
+
+@pytest.mark.parametrize("site", ["cross-site", "same-site"])
+def test_requests_the_browser_marks_as_from_elsewhere_are_refused(server, site):
+    assert request(server, "GET", "/", headers={"Sec-Fetch-Site": site}).status == 403
+    assert request(server, "GET", "/", headers={"Sec-Fetch-Site": "same-origin"}).status == 200
+
+
+@pytest.mark.parametrize("content_type, body, status", [
+    ("text/plain", {"a": 1}, 415),           # a form can send this from any page
+    ("application/x-www-form-urlencoded", b"a=1", 415),
+    ("application/json", b"{not json", 400),
+    ("application/json", {"long": "x" * 200}, 413),
+])
+def test_only_small_json_bodies_are_accepted(server, content_type, body, status):
+    response = request(server, "POST", "/api/echo", headers={"Content-Type": content_type},
+                       body=body)
+    assert response.status == status
+
+
+def test_static_files_and_their_headers(server):
+    response = request(server, "GET", "/static/vendor/maplibre-gl/maplibre-gl.mjs")
+    assert response.status == 200
+    assert response.getheader("Content-Type") == "text/javascript; charset=utf-8"
+    assert response.getheader("X-Content-Type-Options") == "nosniff"
+    assert response.getheader("X-Frame-Options") == "DENY"
+    policy = response.getheader("Content-Security-Policy")
+    assert "default-src 'self'" in policy and "script-src 'self';" in policy
+    assert "frame-ancestors 'none'" in policy and "unsafe" not in policy
+    tag = response.getheader("ETag")
+    again = request(server, "GET", "/static/vendor/maplibre-gl/maplibre-gl.mjs",
+                    headers={"If-None-Match": tag})
+    assert (again.status, again.body) == (304, b"")
+
+
+@pytest.mark.parametrize("path", [
+    "/static/../server/app.py", "/static/%2e%2e/server/app.py", "/static/vendor/../../cli.py",
+    "/static//etc/passwd", "/static/vendor/%2F..%2F..%2Fcli.py", "/static/.hidden",
+    "/static/vendor\\..\\..\\cli.py", "/static/", "/static/vendor", "/static/index.html%00.js",
+    "/static/vendor/README.md", "/nothing", "/api/nothing",
+])
+def test_nothing_outside_the_page_files_is_served(server, path):
+    assert request(server, "GET", path).status == 404
+
+
+def test_events_reach_every_page(server):
+    connection = http.client.HTTPConnection("127.0.0.1", server.port, timeout=10)
+    connection.request("GET", "/api/events", headers={
+        "Host": server.host, "Cookie": f"{server.cookie}={server.token}"})
+    response = connection.getresponse()
+    assert response.getheader("Content-Type") == "text/event-stream; charset=utf-8"
+    assert response.fp.readline() == b": connected\n"
+    assert response.fp.readline() == b"\n"
+    assert server.events.listeners() == 1
+    server.events.publish("photos", {"count": 2, "name": "zdjęcie"})
+    assert response.fp.readline() == b"event: photos\n"
+    assert json.loads(response.fp.readline()[len(b"data: "):]) == {"count": 2, "name": "zdjęcie"}
+    connection.close()
+
+
+def test_the_program_ends_when_the_last_page_has_gone(server, monkeypatch):
+    monkeypatch.setattr(events, "HEARTBEAT", 0.1)
+    watcher = threading.Thread(target=server.watch_pages, kwargs={"grace": 0.3, "step": 0.05},
+                               daemon=True)
+    watcher.start()
+    time.sleep(0.2)
+    assert not server.stopping.is_set()          # no page yet: keep waiting for it
+    connection = http.client.HTTPConnection("127.0.0.1", server.port, timeout=10)
+    connection.request("GET", "/api/events", headers={
+        "Host": server.host, "Cookie": f"{server.cookie}={server.token}"})
+    response = connection.getresponse()
+    assert response.fp.readline() == b": connected\n"
+    time.sleep(0.5)
+    assert not server.stopping.is_set()          # a page listens
+    response.close()
+    connection.close()
+    # Noticed at the next heartbeat at the latest, then after the grace
+    assert server.stopping.wait(10)
+    watcher.join(5)
+
+
+# --- gpxfoto --ui -----------------------------------------------------------
+
+def start_ui(tmp_path):
+    """Run gpxfoto --ui with a browser that only notes the address it gets."""
+    browser = tmp_path / "browser"
+    browser.write_text(f"#!/bin/sh\necho \"$1\" > {tmp_path / 'opened'}\n")
+    browser.chmod(0o755)
+    environment = {k: v for k, v in os.environ.items() if not k.startswith(("LC_", "LANG"))}
+    environment.update({"LC_ALL": "C.UTF-8", "PYTHONPATH": ROOT, "BROWSER": str(browser),
+                        "PYTHONUNBUFFERED": "1"})
+    environment.pop("DISPLAY", None)
+    environment.pop("WAYLAND_DISPLAY", None)
+    process = subprocess.Popen([sys.executable, "-m", "gpxfoto", "--ui"], env=environment,
+                               stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    first = process.stdout.readline()
+    second = process.stdout.readline()
+    return process, first, second
+
+
+@needs_exiftool
+def test_ui_shows_its_address_opens_the_browser_and_ends_with_ctrl_c(tmp_path):
+    process, first, second = start_ui(tmp_path)
+    try:
+        url = first.strip().split(" runs at ")[1]
+        assert re.fullmatch(r"http://127\.0\.0\.1:\d+/\?token=[\w-]{40,}", url)
+        assert second == "If no browser opens, open that address. Press Ctrl+C to quit.\n"
+        for _ in range(100):
+            if (tmp_path / "opened").exists():
+                break
+            time.sleep(0.05)
+        assert (tmp_path / "opened").read_text().strip() == url
+        parts = urllib.parse.urlsplit(url)
+        connection = http.client.HTTPConnection(parts.hostname, parts.port, timeout=10)
+        connection.request("GET", f"/?{parts.query}", headers={"Host": parts.netloc})
+        assert connection.getresponse().status == 303
+        connection.close()
+    finally:
+        process.send_signal(signal.SIGINT)
+        out, err = process.communicate(timeout=10)
+    assert process.returncode == 0
+    assert out == "" and err == ""
+
+
+def test_ui_takes_no_other_arguments(tmp_path):
+    result = run_cli("--ui", "-g", "track.gpx", "photos", cwd=tmp_path)
+    assert result.returncode == 2
+    assert result.stderr.startswith("usage: gpxfoto --ui\n")
+    assert "unrecognized arguments: -g track.gpx photos" in result.stderr
+
+
+def test_ui_is_in_the_help(tmp_path):
+    result = run_cli("--help", cwd=tmp_path)
+    assert "--ui" in result.stdout
+    assert "open the interface in the browser instead" in " ".join(result.stdout.split())
+
+
+def test_a_photo_named_like_the_option_after_two_dashes(tmp_path):
+    result = run_cli("-g", "track.gpx", "--", "--ui", cwd=tmp_path)
+    assert "Cannot read the GPX file track.gpx" in result.stderr

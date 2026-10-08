@@ -5,3 +5,5 @@ gpxfoto/engine/photos.py
 gpxfoto/engine/track.py
 gpxfoto/engine/writer.py
 gpxfoto/i18n.py
+gpxfoto/server/app.py
+gpxfoto/server/ui.py
