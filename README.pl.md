@@ -147,13 +147,14 @@ podany z nazwy, a potem ten, który zapisuje punkty częściej. Jeśli dwie
 trasy z katalogu, których punkty leżą równie blisko czasu zdjęcia,
 umieszczają zdjęcie w miejscach odległych o ponad 200 m, zdjęcie zostaje
 pominięte. Plik z katalogu, którego nie można odczytać, zostaje pominięty z
-komunikatem, a pozostałe trasy są używane tak, jakby go nie było; zdjęcie,
-które obejmowałby tylko ten plik, zostaje pominięte, a gpxfoto kończy
-działanie z kodem wyjścia 1. Plik podany z nazwy, którego nie można
-odczytać, przerywa działanie programu. Przy zdjęciu, którego czasu nie
-obejmuje żadna trasa, podana jest najbliższa trasa w ciągu doby. Aby przy
-wielu plikach pozostać szybkim, gpxfoto najpierw odczytuje z każdego pliku
-tylko czasy, a w całości czyta jedynie pliki potrzebne dla zdjęć.
+komunikatem, gdy gpxfoto próbuje go odczytać, a pozostałe trasy są używane
+tak, jakby go nie było; zdjęcie, które obejmowałby tylko ten plik, zostaje
+pominięte, a gpxfoto kończy działanie z kodem wyjścia 1. Plik podany z
+nazwy, którego nie można odczytać, przerywa działanie programu. Przy
+zdjęciu, którego czasu nie obejmuje żadna trasa, podana jest najbliższa
+trasa w ciągu doby. Aby przy wielu plikach pozostać szybkim, gpxfoto
+najpierw odczytuje z każdego pliku tylko czasy, a w całości czyta jedynie
+pliki potrzebne dla zdjęć.
 
 ### Postoje
 

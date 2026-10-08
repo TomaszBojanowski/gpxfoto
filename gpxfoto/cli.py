@@ -365,16 +365,26 @@ def covering(tracks, results, max_gap):
                   key=lambda track: track.first)
 
 
+def skip_track_file(error):
+    """Report a track file found in a directory that cannot be read."""
+    print(printable(str(error)), file=sys.stderr)
+    print("  " + _("This file is skipped; the other tracks are used."), file=sys.stderr)
+
+
 def with_nearest_tracks(results, tracks, spans, stops, skipped=()):
-    """results, where a photo no track covers names the nearest track file,
-    and the tracks loaded for that. skipped are files that cannot be read."""
+    """results, where a photo no track covers names the nearest track file;
+    the tracks loaded for that; and the files among them that cannot be
+    read, which are reported. skipped are files already known to be so."""
     loaded = {}
+    failed = []
 
     def load(path):
         if path not in loaded:
             try:
                 loaded[path] = load_track([path], named=False, stops=stops)
-            except ValueError:
+            except ValueError as e:
+                skip_track_file(e)
+                failed.append(path)
                 loaded[path] = None     # not read again for the next photo
         return loaded[path]
 
@@ -398,7 +408,7 @@ def with_nearest_tracks(results, tracks, spans, stops, skipped=()):
                 result = result._replace(reason=reason.format(duration=i18n.duration(seconds)),
                                          files=(path,))
         changed.append(result)
-    return changed, [track for track in loaded.values() if track is not None]
+    return changed, [track for track in loaded.values() if track is not None], failed
 
 
 def usable_offset(offset):
@@ -695,9 +705,7 @@ def main():
             except ValueError as e:
                 # A file found in a directory is skipped, and the other
                 # tracks are used as if it were not there
-                print(printable(str(e)), file=sys.stderr)
-                print("  " + _("This file is skipped; the other tracks are used."),
-                      file=sys.stderr)
+                skip_track_file(e)
                 skipped_files.append(path)
                 if spans[path] is not None:
                     unreadable.append((path, spans[path]))
@@ -709,8 +717,9 @@ def main():
                            label=labels.get, unreadable=unreadable)
     nearby = []
     if found:
-        results, nearby = with_nearest_tracks(results, tracks, spans, not args.no_stops,
-                                              skipped_files)
+        results, nearby, failed = with_nearest_tracks(results, tracks, spans,
+                                                      not args.no_stops, skipped_files)
+        skipped_files += failed
     if found:
         used = covering(tracks, results, args.max_gap)
         total = len(named) + len(found)

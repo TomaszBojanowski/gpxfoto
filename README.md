@@ -141,14 +141,15 @@ its own, and each photo gets the track that covers its time; a position is
 never made up from two different files. If several tracks cover a photo,
 the one with recorded points closest to its time wins, then a file given by
 name, then the one that records more often. If two tracks from the
-directory with points equally close to a photo’s time put it more than 200
-m apart, it is skipped. A file in the directory that cannot be read is
-skipped with a message, and the other tracks are used as if it were not
-there; a photo that only that file would cover is skipped, and gpxfoto
-exits with status 1 at the end. A file given by name that cannot be read
-stops the run. A photo that no track covers is shown with the nearest track
-within a day. To stay quick with many files, gpxfoto first scans each file
-for its times and reads in full only the files the photos need.
+directory with points equally close to a photo’s time put it more than
+200 m apart, it is skipped. A file in the directory that cannot be read is
+skipped with a message when gpxfoto reads it, and the other tracks are used
+as if it were not there; a photo that only that file would cover is
+skipped, and gpxfoto exits with status 1 at the end. A file given by name
+that cannot be read stops the run. A photo that no track covers is shown
+with the nearest track within a day. To stay quick with many files, gpxfoto
+first scans each file for its times and reads in full only the files the
+photos need.
 
 ### Stops
 

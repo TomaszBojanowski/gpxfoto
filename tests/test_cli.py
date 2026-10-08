@@ -13,6 +13,7 @@ from conftest import (
     hike_gpx, latin2_name, make_jpeg, needs_exiftool, read_tags, run_cli,
     set_panasonic_time_stamp, set_tags, write_gpx)
 from gpxfoto import cli, i18n
+from gpxfoto.engine import track as track_module
 from gpxfoto.engine.checks import Jump, Motion, ShiftHint, Shot
 from gpxfoto.engine.clock import correction_from, parse_reading
 from gpxfoto.engine.writer import image_checksum
@@ -378,6 +379,30 @@ def test_every_track_file_that_cannot_be_read_is_skipped(photo, tmp_path):
 
 
 @needs_exiftool
+def test_a_track_file_that_cannot_be_read_is_read_once(photo, track_dir, monkeypatch, capsys):
+    """Not again for each photo whose nearest track it would be."""
+    text = (track_dir / "day2.GPX").read_text()
+    (track_dir / "day2.GPX").write_text(text[:text.rindex("</trkpt>")])
+    chile = photo("chile.jpg", taken("12:00:50", "-04:00", date="2024:05:02"))
+    for hour in (1, 2, 3):          # half a day after day2.GPX, which no track covers
+        photo(f"later{hour}.jpg", taken(f"0{hour}:00:00", "-04:00", date="2024:05:03"))
+    reads = []
+    read_points = track_module._read_points
+    monkeypatch.setattr(track_module, "_read_points",
+                        lambda path: reads.append(os.path.basename(path)) or read_points(path))
+    monkeypatch.setenv("LANGUAGE", "C")
+    monkeypatch.setattr(i18n, "setup", lambda: None)
+    monkeypatch.setattr(sys, "argv", ["gpxfoto", str(chile.parent), "-g", str(track_dir)])
+
+    with pytest.raises(SystemExit) as exit_info:
+        cli.main()
+
+    assert exit_info.value.code == 1
+    assert reads.count("day2.GPX") == 1
+    assert capsys.readouterr().err.count("This file is skipped") == 1
+
+
+@needs_exiftool
 def test_named_track_file_that_cannot_be_read_still_stops_the_run(photo, track_dir, tmp_path):
     broken = tmp_path / "broken.gpx"
     broken.write_text("<gpx>")
@@ -404,8 +429,11 @@ def test_a_file_that_cannot_be_read_is_not_named_as_the_nearest_track(photo, tra
 
     result = run_cli(path, "-g", track_dir)
 
-    # Not needed for any photo, so not reported
-    assert result.returncode == 0 and result.stderr == ""
+    # Read only to find the nearest track, and reported like any other
+    assert result.returncode == 1
+    error, skipped = result.stderr.splitlines()
+    assert error.startswith(f"Cannot read the GPX file {track_dir / 'later.gpx'}: ")
+    assert skipped == SKIPPED_FILE
 
     assert result.stdout.splitlines()[1] == (
         "  a.jpg            12:31:40  skipped: 30 min after the end of the nearest track "
@@ -1691,6 +1719,26 @@ def test_no_shift_from_photos_placed_by_two_tracks(photo_series, tmp_path, hike_
     assert warnings(result.stdout) == []
     result = run_cli("photos", "-g", hike)
     assert warnings(result.stdout)[0] == SHIFT_WARNING
+
+
+@needs_exiftool
+def test_shift_when_photos_are_skipped_for_a_track_that_cannot_be_read(
+        photo_series, tmp_path, hike_points):
+    # The hike is split in two files and the second one is cut off: the
+    # photos in its time are skipped, as they would be without it, and the
+    # shift is still found on the first one
+    tracks = tmp_path / "tracks"
+    tracks.mkdir()
+    split = T0 + 130 * 60
+    hike_gpx(tracks / "a.gpx", [p for p in hike_points if p[0] < split])
+    broken = hike_gpx(tracks / "b.gpx", [p for p in hike_points if p[0] >= split])
+    broken.write_text(broken.read_text()[:-30])
+    photo_series(at_stops(3600))
+    result = run_cli("photos", "-g", tracks)
+    assert result.returncode == 1
+    assert "skipped: the track b.gpx cannot be read" in result.stdout
+    assert warnings(result.stdout)[0].startswith(
+        "Warning: with the photo times shifted by -1 h, clearly more photos fall during stops")
 
 
 @needs_exiftool
