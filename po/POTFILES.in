@@ -7,4 +7,5 @@ gpxfoto/engine/writer.py
 gpxfoto/i18n.py
 gpxfoto/server/app.py
 gpxfoto/server/files.py
+gpxfoto/server/session.py
 gpxfoto/server/ui.py

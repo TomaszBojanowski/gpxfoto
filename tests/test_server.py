@@ -38,6 +38,7 @@ def server():
     thread = threading.Thread(target=server.serve_forever, args=(0.05,), daemon=True)
     thread.start()
     yield server
+    server.api.close()
     server.close()
     thread.join(5)
 
@@ -291,3 +292,43 @@ def test_the_page_browses_folders(server, tmp_path):
     assert json.loads(response.body) == {"error": f"No such folder: {missing}"}
     places = json.loads(request(server, "GET", "/api/places").body)
     assert set(places) == {"places", "recent"}
+
+
+@pytest.mark.parametrize("path, body, message", [
+    ("/api/photos", {}, "folder expected"),
+    ("/api/photos", {"folder": 5}, "folder: wrong type"),
+    ("/api/photos", {"folder": "/x", "recursive": "yes"}, "recursive: wrong type"),
+    ("/api/photos", [], "an object expected"),
+    ("/api/tracks", {"files": ["a", 1]}, "files: wrong type"),
+    ("/api/tracks", {"files": "a.gpx"}, "files: wrong type"),
+    ("/api/tracks/drop", {"files": [{"name": "a.gpx"}]}, "data expected"),
+    ("/api/correction", {"seconds": "60"}, "seconds: wrong type"),
+    ("/api/correction", {"seconds": True}, "seconds: wrong type"),
+    ("/api/options", {"overwrite": 1}, "overwrite: wrong type"),
+])
+def test_requests_of_the_wrong_form_are_refused(server, path, body, message):
+    server.api = Api(server.events)
+    response = request(server, "POST", path, body=body)
+    assert (response.status, json.loads(response.body)) == (400, {"error": message})
+
+
+def test_choices_that_cannot_be_used_are_explained(server, tmp_path):
+    server.api = Api(server.events)
+    response = request(server, "POST", "/api/photos", body={"folder": str(tmp_path / "x")})
+    assert response.status == 400
+    assert json.loads(response.body) == {"error": f"Not a folder: {tmp_path / 'x'}"}
+    response = request(server, "POST", "/api/correction", body={"seconds": 1e9})
+    assert response.status == 400
+
+
+@pytest.mark.parametrize("query", ["", "?generation=1", "?generation=x&id=0", "?generation=1&id=0"])
+def test_thumbnails_only_of_the_photos_of_the_page(server, query):
+    server.api = Api(server.events)
+    assert request(server, "GET", "/api/thumbnail" + query).status in (400, 404)
+
+
+def test_state_of_a_new_page(server):
+    server.api = Api(server.events)
+    state = json.loads(request(server, "GET", "/api/state").body)
+    assert state["photos"] == {"generation": 0, "folder": None, "loading": False, "photos": []}
+    assert (state["correction"], state["overwrite"], state["stops"]) == (0.0, False, True)

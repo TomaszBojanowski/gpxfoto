@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: gpxfoto 0.1.0\n"
 "Report-Msgid-Bugs-To: https://github.com/tomaszbojanowski/gpxfoto/issues\n"
-"POT-Creation-Date: 2026-10-08 16:13+0000\n"
+"POT-Creation-Date: 2026-10-08 16:19+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -103,7 +103,7 @@ msgstr ""
 msgid "invalid %(type)s value: %(value)r"
 msgstr ""
 
-#: gpxfoto/cli.py:77
+#: gpxfoto/cli.py:77 gpxfoto/server/session.py:163
 #, python-brace-format
 msgid "not a valid number of seconds: {value}"
 msgstr ""
@@ -493,7 +493,7 @@ msgstr ""
 msgid "taken during a stop"
 msgstr ""
 
-#: gpxfoto/cli.py:619
+#: gpxfoto/cli.py:619 gpxfoto/server/session.py:275
 msgid "The GPX file contains no track points with timestamps."
 msgid_plural "The GPX files contain no track points with timestamps."
 msgstr[0] ""
@@ -520,7 +520,8 @@ msgstr ""
 msgid "The time zone must be in the form +HH:MM, for example +02:00 or -05:00."
 msgstr ""
 
-#: gpxfoto/cli.py:668
+#: gpxfoto/cli.py:668 gpxfoto/server/session.py:101
+#: gpxfoto/server/session.py:290
 msgid "No GPX files found."
 msgstr ""
 
@@ -652,7 +653,7 @@ msgstr ""
 msgid "the corrected capture time is out of range"
 msgstr ""
 
-#: gpxfoto/engine/photos.py:74
+#: gpxfoto/engine/photos.py:74 gpxfoto/server/session.py:104
 #, python-brace-format
 msgid "No such file or directory: {path}"
 msgstr ""
@@ -708,7 +709,7 @@ msgid "no track covers this time"
 msgstr ""
 
 #. Translators: {error} describes the problem, e.g. “No such file or directory”
-#: gpxfoto/engine/track.py:438
+#: gpxfoto/engine/track.py:438 gpxfoto/server/session.py:129
 #, python-brace-format
 msgid "Cannot read the GPX file {path}: {error}"
 msgstr ""
@@ -883,7 +884,8 @@ msgstr ""
 msgid "No such folder: {path}"
 msgstr ""
 
-#: gpxfoto/server/files.py:44
+#: gpxfoto/server/files.py:44 gpxfoto/server/session.py:81
+#: gpxfoto/server/session.py:114
 #, python-brace-format
 msgid "Not a folder: {path}"
 msgstr ""
