@@ -57,6 +57,22 @@ def match_photo(photo, tracks, correction, max_gap, overwrite=False, label=os.pa
                        time_check=time_check, stop=found.stop, files=found.files)
 
 
+def placed_by_hand(photo, correction, lat, lon):
+    """Return the PhotoResult of photo placed by hand at lat, lon.
+
+    It has no elevation and no track files. Its time is the corrected
+    capture time, when the photo has one.
+    """
+    time = time_utc = None
+    if photo.taken is not None:
+        try:
+            time = photo.taken + timedelta(seconds=correction)
+            time_utc = time.astimezone(timezone.utc)
+        except OverflowError:
+            time = None
+    return PhotoResult(photo, time, time_utc, lat, lon)
+
+
 def corrected_times(photos, correction, overwrite=False):
     """The sorted Unix times of the photos that would be matched, after correction."""
     times = []

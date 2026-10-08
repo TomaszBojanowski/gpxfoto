@@ -183,10 +183,10 @@ Zrobione:
 - lista zdjęć (wirtualna) z miniaturami EXIF, filtrami i rozwiniętym wierszem zaznaczonego zdjęcia (pełne współrzędne, wysokość);
 - logo jak w gpxfilm, ikona karty z `data/icons`, tłumaczenie polskie kompletne;
 - poprawki po przeglądzie kodu (zdarzenia przy przeładowaniu strony, podwójny margines mapy, nazwy plików spoza UTF-8, limit czasu exiftoola i inne);
-- zapis z potwierdzeniem, postępem, „Anuluj” i podsumowaniem: kilka plików naraz (4 wątki), zapisywane jest dokładnie dopasowanie widoczne na stronie, plik zmieniony przez inny program po odczycie nie jest zapisywany; w trakcie zapisu zmiany wyboru są zablokowane; zamknięcie karty lub Ctrl+C dokańcza bieżące pliki i nie zaczyna następnych; przeglądarka pyta o potwierdzenie zamknięcia karty.
+- zapis z potwierdzeniem, postępem, „Anuluj” i podsumowaniem: kilka plików naraz (4 wątki), zapisywane jest dokładnie dopasowanie widoczne na stronie, plik zmieniony przez inny program po odczycie nie jest zapisywany; w trakcie zapisu zmiany wyboru są zablokowane; zamknięcie karty lub Ctrl+C dokańcza bieżące pliki i nie zaczyna następnych; przeglądarka pyta o potwierdzenie zamknięcia karty;
+- tryb edycji położenia (przycisk „Edytuj położenie”, domyślnie wyłączony): przeciąganie miniatury na mapie, umieszczanie zaznaczonego zdjęcia bez położenia kliknięciem w mapę, powrót do położenia z trasy; zdjęcie umieszczone ręcznie nie ma wysokości, a bez czasu wykonania także czasu GPS (stary czas GPS, również z XMP, jest wtedy usuwany).
 
 Do zrobienia:
-- tryb edycji położenia (osobny przycisk, domyślnie wyłączony): przeciąganie miniatury, umieszczanie pominiętego zdjęcia, powrót do położenia z trasy;
 - cofanie zapisu przywracające metadane GPS sprzed zapisu (dziennik zapisu, ta sama weryfikacja sumy obrazu);
 - ostrzeżenia na stronie: przesunięcie o pełne godziny (z przyciskiem zastosowania), zdjęcia w ruchu, skoki, niezgodność z czasem UTC aparatu, strefy czasowe, najbliższa trasa przy folderze tras;
 - skrót `.desktop` z ikoną; propozycja uruchamiania na macOS;

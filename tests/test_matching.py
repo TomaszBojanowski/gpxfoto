@@ -4,7 +4,8 @@ from datetime import datetime, timedelta, timezone
 import pytest
 
 from gpxfoto.engine.matching import (
-    PhotoResult, Summary, corrected_times, match_photo, match_photos, summarize)
+    PhotoResult, Summary, corrected_times, match_photo, match_photos, placed_by_hand,
+    summarize)
 from gpxfoto.engine.photos import TZ_CAMERA, TZ_MANUAL, Photo
 from gpxfoto.engine.track import Track, find_stops, locate
 
@@ -127,3 +128,17 @@ def test_corrected_times_of_the_photos_to_match():
     assert corrected_times(photos, 10) == [T0 + 10, T0 + 60]
     assert corrected_times(photos, 10, overwrite=True) == [T0 + 10, T0 + 20, T0 + 60]
     assert corrected_times(photos, 1e12) == []
+
+
+def test_a_photo_placed_by_hand_keeps_its_corrected_time():
+    result = placed_by_hand(photo((12, 0, 50), has_location=True), -50, 49.5, 19.25)
+    assert (result.lat, result.lon, result.ele, result.reason, result.files) == (
+        49.5, 19.25, None, None, ())
+    assert result.time == datetime(2024, 5, 1, 12, 0, 0, tzinfo=WARSAW)
+    assert result.time_utc == datetime(2024, 5, 1, 10, 0, 0, tzinfo=timezone.utc)
+
+
+def test_a_photo_without_a_time_placed_by_hand_has_none():
+    result = placed_by_hand(Photo("a.jpg", None, None, "no capture time in EXIF", False),
+                            0, 49.5, 19.25)
+    assert (result.time, result.time_utc, result.reason) == (None, None, None)

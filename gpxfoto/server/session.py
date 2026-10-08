@@ -9,6 +9,7 @@ While the photos are written, nothing can be chosen anew.
 """
 import base64
 import binascii
+import math
 import os
 import re
 import shutil
@@ -18,7 +19,7 @@ import time
 from collections import OrderedDict
 from gettext import gettext as _, ngettext
 
-from gpxfoto.engine.matching import corrected_times, match_photos, summarize
+from gpxfoto.engine.matching import corrected_times, match_photos, placed_by_hand, summarize
 from gpxfoto.engine.photos import (
     exif_thumbnail, find_photos, photo_from_metadata, read_metadata)
 from gpxfoto.engine.track import find_tracks, load_track, quick_span, tracks_needed
@@ -56,6 +57,7 @@ class Session:
         self.photos = []                 # Photo
         self.looks = []                  # (EXIF Orientation or None, has a thumbnail) of each photo
         self.seen = []                   # os.stat() of each photo before it was read, or None
+        self.placed = {}                 # index -> (lat, lon) of the photos placed by hand
         self.photos_loading = False
         self.track_generation = 0
         self.track_choice = None         # {"files": [...]} or {"folder": ..., "recursive": ...}
@@ -93,6 +95,7 @@ class Session:
             generation = self.photo_generation
             self.photo_folder = folder
             self.photos, self.looks, self.seen = [], [], []
+            self.placed = {}
             self.photos_loading = True
             self._thumbnails.clear()
             self.match, self.results = None, []
@@ -238,6 +241,8 @@ class Session:
             changed = []
             for index, seen in sorted(writing.written, key=lambda item: item[0]):
                 self.photos[index] = self.photos[index]._replace(has_location=True)
+                # Its location is the photo's own now
+                self.placed.pop(index, None)
                 self.seen[index] = seen
                 # The thumbnail is the same, but the file is a new one
                 self._thumbnails.pop(self.photos[index].path, None)
@@ -253,6 +258,27 @@ class Session:
             failure["name"] = names[failure["id"]]
         self.events.publish("photos-changed", {"generation": generation, "photos": changed})
         self.events.publish("write-done", summary)
+
+    def place(self, generation, index, lat=None, lon=None):
+        """Place a photo by hand at lat, lon; without them, it is matched on the track again."""
+        if lat is not None or lon is not None:
+            try:
+                lat, lon = float(lat), float(lon)
+            except (TypeError, ValueError):
+                lat = lon = math.nan
+            # Comparisons with NaN are false, so this also rules out NaN and infinity
+            if not (-90 <= lat <= 90 and -180 <= lon <= 180):
+                raise SessionError(_("invalid location: {location}").format(
+                    location=f"{lat}, {lon}"))
+        with self.lock:
+            self._not_writing()
+            if generation != self.photo_generation or not 0 <= index < len(self.photos):
+                raise SessionError(_("This photo is no longer among the chosen ones."))
+            if lat is None:
+                self.placed.pop(index, None)
+            else:
+                self.placed[index] = (lat, lon)
+            self._want_match()
 
     def close(self):
         """Stop the work in the background; photos being written are finished first."""
@@ -438,6 +464,7 @@ class Session:
             photos = list(self.photos)
             correction, overwrite, stops = self.correction, self.overwrite, self.stops
             spans, loaded = dict(self.spans), dict(self.loaded)
+            placed = dict(self.placed)
         # Of a folder of tracks, the files the photos need are read now
         for path in tracks_needed(spans, corrected_times(photos, correction, overwrite), MAX_GAP):
             if path in loaded:
@@ -467,11 +494,15 @@ class Session:
             unreadable = list(self.unreadable)
         results = match_photos(photos, tracks, correction, MAX_GAP, overwrite=overwrite,
                                label=os.path.basename, unreadable=unreadable)
+        for index, (lat, lon) in placed.items():
+            if index < len(results):
+                results[index] = placed_by_hand(photos[index], correction, lat, lon)
         summary = summarize(results)
         match = {
             "version": None, "generation": photo_generation, "tracks": track_generation,
             "correction": correction, "overwrite": overwrite,
-            "results": [self._result(i, r, overwrite) for i, r in enumerate(results)],
+            "results": [self._result(i, r, overwrite, i in placed)
+                        for i, r in enumerate(results)],
             "matched": summary.matched, "skipped": summary.skipped,
             "at_stops": summary.at_stops,
         }
@@ -512,10 +543,13 @@ class Session:
                 "thumbnail": thumbnail}
 
     @staticmethod
-    def _result(index, result, overwrite):
+    def _result(index, result, overwrite, manual=False):
         entry = {"id": index, "time": _time_text(result.time), "reason": result.reason,
                  "files": [os.path.basename(p) for p in result.files]}
-        if result.reason is None:
+        if manual:
+            entry.update(state="manual", lat=round(result.lat, 7), lon=round(result.lon, 7),
+                         ele=None, overwrites=result.photo.has_location)
+        elif result.reason is None:
             entry.update(state="stop" if result.stop is not None else "matched",
                          lat=round(result.lat, 7), lon=round(result.lon, 7),
                          ele=None if result.ele is None else round(result.ele, 1),

@@ -13,6 +13,7 @@
   --stop: #2563c9;
   --skipped: #8a9099;
   --located: #b8860b;
+  --manual: #8e44ad;
   --error: #c42b1c;
   --shadow: 0 2px 12px rgba(0, 0, 0, 0.18);
   --radius: 12px;
@@ -33,6 +34,7 @@
     --stop: #6ea0f5;
     --skipped: #8f959e;
     --located: #e0b33a;
+    --manual: #c28be0;
     --error: #ff7b6e;
     --shadow: 0 2px 16px rgba(0, 0, 0, 0.5);
   }
@@ -184,6 +186,7 @@ button.small { padding: 3px 8px; font-size: 13px; }
 
 .filters { display: flex; gap: 4px; padding: 4px 8px 8px; }
 .filters button { flex: 1 1 auto; font-size: 12px; padding: 4px 6px; white-space: nowrap; }
+#edit[aria-pressed="true"],
 .filters button[aria-pressed="true"] { background: var(--accent); color: var(--accent-fg); border-color: transparent; }
 
 #list {
@@ -231,6 +234,10 @@ button.small { padding: 3px 8px; font-size: 13px; }
 .row.matched .thumb { border-color: var(--matched); }
 .row.stop .thumb { border-color: var(--stop); }
 .row.has_location .thumb { border-color: var(--located); }
+.row.manual .thumb { border-color: var(--manual); }
+.row .actions { display: flex; flex-direction: column; align-items: flex-start; gap: 4px;
+  margin-top: 6px; }
+.row .hint { font-size: 12px; color: var(--fg-dim); }
 
 .row .text { min-width: 0; flex: 1; display: flex; flex-direction: column; }
 

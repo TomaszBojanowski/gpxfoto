@@ -55,6 +55,7 @@ class Api:
             ("POST", "correction"): self.post_correction,
             ("POST", "options"): self.post_options,
             ("POST", "preferences"): self.post_preferences,
+            ("POST", "position"): self.post_position,
             ("POST", "write"): self.post_write,
             ("POST", "write/cancel"): self.post_cancel_write,
         }
@@ -135,6 +136,13 @@ class Api:
         data = handler.read_json()
         self.session.set_options(overwrite=_field(data, "overwrite", bool, None),
                                  stops=_field(data, "stops", bool, None))
+        handler.send_json({}, HTTPStatus.ACCEPTED)
+
+    def post_position(self, handler, query):
+        data = handler.read_json()
+        self.session.place(_field(data, "generation", int), _field(data, "id", int),
+                           _field(data, "lat", (int, float), None),
+                           _field(data, "lon", (int, float), None))
         handler.send_json({}, HTTPStatus.ACCEPTED)
 
     def post_write(self, handler, query):

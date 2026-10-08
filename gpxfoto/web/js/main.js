@@ -34,6 +34,7 @@ const state = {
   stops: true,
   filter: "all",
   selected: null,
+  editing: false,         // photos can be moved on the map by hand
   // The map shows all of the tracks, until the user moves it
   autoFit: true,
   mapStyle: null,
@@ -133,10 +134,13 @@ function detailOf(photo, result) {
   if (!result) {
     return photo.reason || "";
   }
-  if (result.state === "matched" || result.state === "stop") {
+  if (isMatched(result)) {
     const parts = [];
     if (result.overwrites) {
       parts.push(_("will overwrite the existing location"));
+    }
+    if (result.state === "manual") {
+      parts.push(_("placed by hand"));
     }
     if (result.stop) {
       parts.push(format(_("stop {start} – {end}"), {
@@ -200,6 +204,9 @@ function renderRow(row, id, selected) {
     }
     text.append(detail);
   }
+  if (selected && state.editing && !state.writing) {
+    text.append(editActions(result));
+  }
   const time = document.createElement("span");
   time.className = "time";
   time.textContent = clockTime(result && result.time ? result.time : photo.taken);
@@ -207,7 +214,7 @@ function renderRow(row, id, selected) {
 }
 
 function isMatched(result) {
-  return result && (result.state === "matched" || result.state === "stop");
+  return Boolean(result) && ["matched", "stop", "manual"].includes(result.state);
 }
 
 function visibleIds() {
@@ -227,6 +234,59 @@ function visibleIds() {
 }
 
 const list = new PhotoList($("list"), { render: renderRow, onSelect: (id) => select(id) });
+
+// --- placing photos by hand ------------------------------------------------
+
+// What the selected row offers while editing
+function editActions(result) {
+  const actions = document.createElement("span");
+  actions.className = "actions";
+  const hint = document.createElement("span");
+  hint.className = "hint";
+  if (result && result.state === "manual") {
+    hint.textContent = _("Drag the photo on the map to move it.");
+    const back = document.createElement("button");
+    back.type = "button";
+    back.className = "small";
+    back.dataset.action = "unplace";
+    back.textContent = _("Use the position from the track");
+    actions.append(hint, back);
+  } else if (isMatched(result)) {
+    hint.textContent = _("Drag the photo on the map to move it.");
+    actions.append(hint);
+  } else {
+    hint.textContent = _("Click on the map where this photo was taken.");
+    actions.append(hint);
+  }
+  return actions;
+}
+
+async function place(id, position) {
+  try {
+    await post("position", { generation: state.photoGeneration, id,
+      lat: position ? position.lat : null, lon: position ? position.lon : null });
+  } catch (error) {
+    notice(error.message);
+    // The photo goes back where it was
+    photoMap.showDragged(null);
+  }
+}
+
+$("list").addEventListener("click", (event) => {
+  const button = event.target.closest("button[data-action]");
+  if (button && button.dataset.action === "unplace") {
+    place(Number(button.closest(".row").dataset.id), null);
+  }
+});
+
+function setEditing(editing) {
+  state.editing = editing;
+  $("edit").setAttribute("aria-pressed", String(editing));
+  photoMap.setEditing(editing);
+  list.refresh();
+}
+
+$("edit").addEventListener("click", () => setEditing(!state.editing));
 
 // --- the map -------------------------------------------------------------
 
@@ -282,6 +342,14 @@ function makeMap() {
       padding: mapPadding,
       onFit: () => showWhole(),
       onStyle: (name) => setMapStyle(name, true),
+      onMove: (id, position) => place(id, position),
+      // A click on the map places the selected photo that has no position
+      onPlace: (position) => {
+        const id = state.selected;
+        if (id !== null && state.photos[id] && !isMatched(state.results[id])) {
+          place(id, position);
+        }
+      },
     });
   } catch (error) {
     notice(_("The map cannot be shown: this browser does not allow WebGL."));
@@ -566,11 +634,14 @@ function paragraph(text, kind = "") {
 
 // While the photos are written, nothing can be chosen anew
 const LOCKED = ["choose-photos", "choose-tracks", "overwrite", "stops", "correction",
-  "minus-hour", "plus-hour", "reset-correction"];
+  "minus-hour", "plus-hour", "reset-correction", "edit"];
 
 function showWriting() {
   for (const id of LOCKED) {
     $(id).disabled = Boolean(state.writing);
+  }
+  if (state.writing && state.editing) {
+    setEditing(false);
   }
   showProgress();
   showWriteButton();

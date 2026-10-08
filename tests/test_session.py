@@ -424,3 +424,66 @@ def test_a_photo_changed_after_it_was_read_is_not_written(session, events, tmp_p
     assert "GPSLatitude" not in read_tags(paths[1], "GPSLatitude")
     changed = events.wait("photos-changed")["photos"]
     assert [p["id"] for p in changed] == [0]
+
+
+# --- placing photos by hand ----------------------------------------------------
+
+@needs_exiftool
+def test_photos_placed_by_hand_are_written_there(session, events, tmp_path):
+    photo(tmp_path / "photos", "a.jpg", "12:00:50")
+    photo(tmp_path / "photos", "late.jpg", "15:00:00")
+    photo(tmp_path / "photos", "nodate.jpg", "12:00:00", None, "-DateTimeOriginal=")
+    photo(tmp_path / "photos", "located.jpg", "12:00:50", "+02:00", "-GPSLatitude=1",
+          "-GPSLatitudeRef=N", "-GPSLongitude=2", "-GPSLongitudeRef=E",
+          "-GPSDateStamp=2020:01:01", "-GPSTimeStamp=01:02:03")
+    session.choose_photos(str(tmp_path / "photos"))
+    session.choose_track_files([str(write_gpx(tmp_path / "track.gpx", TRACK))])
+    events.wait("photos-done")
+    first = events.wait("matches", lambda d: d["results"] and d["tracks"] == 1 and d["matched"])
+    generation = first["generation"]
+    names = [p["name"] for p in session.state()["photos"]["photos"]]
+    index = {name: names.index(name) for name in names}
+    for name, lat in (("a.jpg", 51.5), ("late.jpg", 52.5), ("nodate.jpg", -33.25),
+                      ("located.jpg", 10.0)):
+        session.place(generation, index[name], lat, 21.25)
+    match = events.wait("matches", lambda d: d["matched"] == 4)
+    results = {names[r["id"]]: r for r in match["results"]}
+    assert {name: (r["state"], r["lat"], r["ele"], r["overwrites"])
+            for name, r in results.items()} == {
+        "a.jpg": ("manual", 51.5, None, False), "late.jpg": ("manual", 52.5, None, False),
+        "nodate.jpg": ("manual", -33.25, None, False),
+        "located.jpg": ("manual", 10.0, None, True)}
+    assert results["nodate.jpg"]["time"] is None
+    # Back on the track
+    session.place(generation, index["a.jpg"])
+    match = events.wait("matches", lambda d: d["results"]
+                        and d["results"][index["a.jpg"]]["state"] == "matched"
+                        and d["matched"] == 4)
+    assert match["results"][index["a.jpg"]]["lat"] == 50.0005
+    session.write(match["version"])
+    assert events.wait("write-done")["written"] == 4
+    folder = tmp_path / "photos"
+    assert read_tags(folder / "late.jpg", "GPSLatitude", "GPSDateStamp", "GPSTimeStamp") == {
+        "GPSLatitude": 52.5, "GPSDateStamp": "2024:05:01", "GPSTimeStamp": "13:00:00"}
+    assert read_tags(folder / "nodate.jpg", "GPSLatitude", "GPSLatitudeRef", "GPSDateStamp") == {
+        "GPSLatitude": -33.25, "GPSLatitudeRef": "S"}
+    assert read_tags(folder / "located.jpg", "GPSLatitude", "GPSDateStamp") == {
+        "GPSLatitude": 10.0, "GPSDateStamp": "2024:05:01"}
+    assert read_tags(folder / "a.jpg", "GPSLatitude") == {"GPSLatitude": 50.0005}
+    # Written, the photos have their own locations, no longer placed by hand
+    after = events.wait("matches", lambda d: d["version"] > match["version"])
+    assert [r["state"] for r in after["results"]] == ["has_location"] * 4
+    assert session.placed == {}
+
+
+@pytest.mark.parametrize("lat, lon", [(91, 0), (0, 180.5), (math.nan, 0), (0, math.inf),
+                                      (1, None), (None, 1)])
+def test_places_off_the_earth_are_refused(session, lat, lon):
+    with pytest.raises(SessionError):
+        session.place(0, 0, lat, lon)
+
+
+def test_only_photos_of_the_page_can_be_placed(session):
+    with pytest.raises(SessionError) as raised:
+        session.place(0, 0, 50, 20)
+    assert str(raised.value) == "This photo is no longer among the chosen ones."

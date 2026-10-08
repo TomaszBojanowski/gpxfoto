@@ -98,7 +98,7 @@ def test_the_page_itself_needs_no_token(server, site):
 @pytest.mark.parametrize("method, path", [("GET", "/api/state"), ("GET", "/api/events"),
                                           ("GET", "/api/thumbnail?generation=0&id=0"),
                                           ("GET", "/api/browse"), ("POST", "/api/echo"),
-                                          ("POST", "/api/write"),
+                                          ("POST", "/api/write"), ("POST", "/api/position"),
                                           ("POST", "/api/write/cancel")])
 # Header values are bytes: "\xc4\x85" is "ą" in UTF-8, "\xb3" no UTF-8 at all
 @pytest.mark.parametrize("token", [None, "wrong", "", "\xc4\x85", "\xb3"])
@@ -366,6 +366,8 @@ def test_the_page_browses_folders(server, tmp_path):
     ("/api/correction", {"seconds": True}, "seconds: wrong type"),
     ("/api/options", {"overwrite": 1}, "overwrite: wrong type"),
     ("/api/write", {}, "match expected"),
+    ("/api/position", {"generation": 0, "id": 0, "lat": "5"}, "lat: wrong type"),
+    ("/api/position", {"generation": 0}, "id expected"),
     ("/api/write", {"match": "1"}, "match: wrong type"),
     ("/api/write", {"match": None}, "match: wrong type"),
 ])

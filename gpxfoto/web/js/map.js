@@ -21,12 +21,18 @@ const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
 // The colours drawn on the map follow the map's style, not the page's
 const PALETTES = {
   light: { track: "#e2561c", casing: "#ffffff", accent: "#2563c9", matched: "#2a9d55",
-    stop: "#2563c9", skipped: "#8a9099", located: "#b8860b", placeholder: "#c9ced4" },
+    stop: "#2563c9", skipped: "#8a9099", located: "#b8860b", manual: "#8e44ad",
+    placeholder: "#c9ced4" },
   dark: { track: "#ff8a3d", casing: "#1e2024", accent: "#6ea0f5", matched: "#4cc47a",
-    stop: "#6ea0f5", skipped: "#8f959e", located: "#e0b33a", placeholder: "#4a4f57" },
+    stop: "#6ea0f5", skipped: "#8f959e", located: "#e0b33a", manual: "#c28be0",
+    placeholder: "#4a4f57" },
 };
 
 const EMPTY = { type: "FeatureCollection", features: [] };
+// The layers of the photos, which can be clicked and, while editing, dragged
+const PHOTO_LAYERS = ["photo-thumbs", "photo-rings", "fan-thumbs", "fan-rings"];
+// A press that moves less than this is a click, not a drag
+const DRAG_START = 4;                // px
 
 function duration(ms) {
   return reducedMotion.matches ? 0 : ms;
@@ -86,10 +92,16 @@ export class PhotoMap {
   // onSelect(id) when a photo on the map is clicked; padding() -> the
   // margins of the map the panels cover, {top, bottom, left, right} in px;
   // onFit() for the button that shows the whole track; onStyle(name) for
-  // the button that switches between the light and the dark map
-  constructor(container, { thumbnail, onSelect, padding, onFit, onStyle }) {
+  // the button that switches between the light and the dark map; while
+  // editing, onMove(id, {lat, lon}) when a photo was dragged and
+  // onPlace({lat, lon}) when the map was clicked beside the photos
+  constructor(container, { thumbnail, onSelect, padding, onFit, onStyle, onMove, onPlace }) {
     this.thumbnail = thumbnail;
     this.onSelect = onSelect;
+    this.onMove = onMove;
+    this.onPlace = onPlace;
+    this.editing = false;
+    this.drag = null;                // {id, start, feature, moved} of the photo being dragged
     this.padding = padding;
     this.tracks = EMPTY;
     this.photos = EMPTY;
@@ -124,19 +136,36 @@ export class PhotoMap {
     this.map.addControl(new ScaleControl(), "bottom-right");
     this.map.setMissingStyleImageResolver((name) => this.addThumbnail(name));
     this.map.on("style.load", () => this.addLayers());
-    for (const layer of ["photo-thumbs", "photo-rings", "fan-thumbs", "fan-rings"]) {
+    for (const layer of PHOTO_LAYERS) {
       this.map.on("click", layer, (event) => this.onSelect(event.features[0].properties.id));
-      this.map.on("mouseenter", layer, () => { this.map.getCanvas().style.cursor = "pointer"; });
+      this.map.on("mouseenter", layer, () => {
+        this.map.getCanvas().style.cursor = this.editing ? "grab" : "pointer";
+      });
       this.map.on("mouseleave", layer, () => { this.map.getCanvas().style.cursor = ""; });
+      this.map.on("mousedown", layer, (event) => this.startDrag(event));
+      this.map.on("touchstart", layer, (event) => {
+        if (event.points.length === 1) {
+          this.startDrag(event);
+        }
+      });
     }
+    this.map.on("mousemove", (event) => this.moveDrag(event));
+    this.map.on("touchmove", (event) => this.moveDrag(event));
+    this.map.on("mouseup", (event) => this.endDrag(event));
+    this.map.on("touchend", (event) => this.endDrag(event));
     this.map.on("mouseenter", "clusters", () => { this.map.getCanvas().style.cursor = "pointer"; });
     this.map.on("mouseleave", "clusters", () => { this.map.getCanvas().style.cursor = ""; });
     this.map.on("click", "clusters", (event) => this.openCluster(event.features[0]));
     this.map.on("click", (event) => {
+      const layers = [...PHOTO_LAYERS, "clusters"].filter((layer) => this.map.getLayer(layer));
+      if (this.map.queryRenderedFeatures(event.point, { layers }).length) {
+        return;
+      }
       // A click beside the fanned-out photos folds them back
-      if (this.fan && !this.map.queryRenderedFeatures(event.point, {
-        layers: ["fan-thumbs", "fan-rings", "clusters"] }).length) {
+      if (this.fan) {
         this.closeFan();
+      } else if (this.editing) {
+        this.onPlace({ lat: event.lngLat.lat, lon: event.lngLat.lng });
       }
     });
     // The fan is laid out in px of the zoom it was opened at
@@ -196,7 +225,7 @@ export class PhotoMap {
     const clustered = ["has", "point_count"];
     const unclustered = ["!", ["has", "point_count"]];
     const ringColor = ["match", ["get", "state"], "stop", c.stop, "has_location", c.located,
-      "matched", c.matched, c.skipped];
+      "matched", c.matched, "manual", c.manual, c.skipped];
     map.addLayer({ id: "clusters", type: "circle", source: "photos", filter: clustered,
       paint: { "circle-color": c.accent,
         "circle-radius": ["step", ["get", "point_count"], 15, 10, 19, 100, 24],
@@ -230,6 +259,17 @@ export class PhotoMap {
     map.addLayer({ id: "fan-thumbs", type: "symbol", source: "fan", filter: leg,
       layout: { "icon-image": ["get", "image"], "icon-allow-overlap": true,
         "icon-ignore-placement": true } });
+    // A photo being dragged, and where it was dropped until the photos come again
+    map.addSource("drag", { type: "geojson", data: EMPTY });
+    map.addLayer({ id: "drag-ring", type: "circle", source: "drag",
+      paint: { "circle-radius": 19, "circle-color": ringColor,
+        "circle-stroke-width": 2, "circle-stroke-color": c.casing } });
+    map.addLayer({ id: "drag-thumb", type: "symbol", source: "drag",
+      layout: { "icon-image": ["get", "image"], "icon-allow-overlap": true,
+        "icon-ignore-placement": true } });
+    this.baseFilters = { "photo-thumbs": unclustered, "photo-rings": unclustered,
+      "fan-thumbs": leg, "fan-rings": leg };
+    this.drag = null;
     for (const [layer, source] of [["photo-selected", "photos"], ["fan-selected", "fan"]]) {
       map.addLayer({ id: layer, type: "circle", source,
         filter: ["==", ["get", "id"], this.selected],
@@ -288,6 +328,80 @@ export class PhotoMap {
     const source = this.map.getSource("photos");
     if (source) {
       source.setData(this.photos);
+    }
+    // A dropped photo is in its new place now
+    if (this.drag && this.drag.dropped) {
+      this.showDragged(null);
+    }
+  }
+
+  // While editing, photos can be dragged and the map clicked to place one
+  setEditing(editing) {
+    this.editing = editing;
+    if (!editing && this.drag) {
+      this.showDragged(null);
+    }
+  }
+
+  startDrag(event) {
+    if (!this.editing || this.drag) {
+      return;
+    }
+    const feature = event.features[0];
+    // The map does not move along
+    event.preventDefault();
+    this.drag = { id: feature.properties.id, start: event.point, moved: false,
+      feature: { type: "Feature", properties: { ...feature.properties },
+        geometry: { type: "Point", coordinates: [event.lngLat.lng, event.lngLat.lat] } } };
+  }
+
+  moveDrag(event) {
+    const drag = this.drag;
+    if (!drag || drag.dropped) {
+      return;
+    }
+    // The button was let go outside the map
+    if (event.originalEvent.buttons === 0 && event.type === "mousemove") {
+      this.showDragged(null);
+      return;
+    }
+    if (!drag.moved && Math.hypot(event.point.x - drag.start.x,
+      event.point.y - drag.start.y) < DRAG_START) {
+      return;
+    }
+    if (!drag.moved) {
+      drag.moved = true;
+      this.map.getCanvas().style.cursor = "grabbing";
+    }
+    drag.feature.geometry.coordinates = [event.lngLat.lng, event.lngLat.lat];
+    this.showDragged(drag);
+  }
+
+  endDrag(event) {
+    const drag = this.drag;
+    if (!drag || drag.dropped) {
+      return;
+    }
+    if (!drag.moved) {
+      this.drag = null;            // a click, which selects the photo
+      return;
+    }
+    drag.dropped = true;
+    this.map.getCanvas().style.cursor = "";
+    const [lon, lat] = drag.feature.geometry.coordinates;
+    this.onMove(drag.id, { lat, lon });
+  }
+
+  // Draw the dragged photo instead of the photo in its old place; null ends it
+  showDragged(drag) {
+    this.drag = drag;
+    if (!this.map.getSource("drag")) {
+      return;
+    }
+    this.map.getSource("drag").setData(drag
+      ? { type: "FeatureCollection", features: [drag.feature] } : EMPTY);
+    for (const [layer, filter] of Object.entries(this.baseFilters)) {
+      this.map.setFilter(layer, drag ? ["all", filter, ["!=", ["get", "id"], drag.id]] : filter);
     }
   }
 
