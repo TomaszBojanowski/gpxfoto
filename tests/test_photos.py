@@ -660,7 +660,8 @@ def test_check_exiftool_reports_a_broken_one(monkeypatch):
 
 PREFIX = ["exiftool", "-json", "-n", "-DateTimeOriginal", "-CreateDate",
           "-OffsetTimeOriginal", "-OffsetTime", "-SubSecTimeOriginal",
-          "-GPSLatitude", "-GPSLongitude", "-Model", "-Panasonic:TimeStamp", "-Error", "--"]
+          "-GPSLatitude", "-GPSLongitude", "-Model", "-Panasonic:TimeStamp", "-Orientation",
+          "-Error", "--"]
 
 
 @pytest.fixture
@@ -880,3 +881,15 @@ def test_exif_thumbnail_written_by_exiftool(tmp_path, order):
                             capture_output=True).stdout
     assert stored == THUMBNAIL
     assert exif_thumbnail(path) == THUMBNAIL
+
+
+@needs_exiftool
+def test_orientation_is_read(tmp_path):
+    path = tmp_path / "portrait.jpg"
+    path.write_bytes(make_jpeg())
+    set_tags(path, "-n", "-Orientation=6")
+    plain = tmp_path / "plain.jpg"
+    plain.write_bytes(make_jpeg())
+    meta = read_metadata([str(path), str(plain)])
+    assert meta[0]["Orientation"] == 6
+    assert "Orientation" not in meta[1]
