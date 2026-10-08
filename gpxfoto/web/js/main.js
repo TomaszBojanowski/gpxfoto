@@ -5,9 +5,13 @@
 import { base64, get, listen, post } from "./api.js";
 import { choose } from "./chooser.js";
 import { clockTime, clockTimeOfUnix, coordinates, exactDuration } from "./format.js";
-import { _, format, loadCatalog, ngettext } from "./i18n.js";
+import { _, format, loadCatalog, ngettext, number } from "./i18n.js";
 import { PhotoList } from "./list.js";
 import { PhotoMap, roundThumbnail } from "./map.js";
+import { loadBaseStyle } from "./styles.js";
+
+// The map's style is fetched while the page starts
+loadBaseStyle().catch(() => {});
 
 const state = {
   photoGeneration: 0,
@@ -25,7 +29,9 @@ const state = {
   stops: true,
   filter: "all",
   selected: null,
-  fitted: false,
+  // The map shows all of the tracks, until the user moves it
+  autoFit: true,
+  mapStyle: null,
 };
 
 const $ = (id) => document.getElementById(id);
@@ -41,6 +47,7 @@ function translatePage() {
     element.title = _(element.dataset.label);
   }
   document.title = "gpxfoto";
+  photoMap.updateTexts();
 }
 
 // --- notices -----------------------------------------------------------
@@ -123,11 +130,25 @@ function detailOf(photo, result) {
   return format(_("skipped: {reason}"), { reason: result.reason || "" });
 }
 
+// The lines a selected row adds: the whole of its detail and the position
+function moreOf(photo, result) {
+  const lines = [detailOf(photo, result)];
+  if (isMatched(result)) {
+    let position = coordinates(result.lat, result.lon);
+    if (result.ele !== null && result.ele !== undefined) {
+      position += " · " + format(_("{elevation} m"), { elevation: number(result.ele) });
+    }
+    lines.push(position);
+  }
+  return lines.filter(Boolean);
+}
+
 function renderRow(row, id, selected) {
   const photo = state.photos[id];
   const result = state.results[id];
   row.classList.add(result ? result.state : "waiting");
   row.classList.toggle("selected", selected);
+  row.classList.toggle("expanded", selected);
   row.replaceChildren();
   const thumb = document.createElement("span");
   thumb.className = "thumb";
@@ -145,13 +166,16 @@ function renderRow(row, id, selected) {
   const name = document.createElement("span");
   name.className = "name";
   name.textContent = photo.name;
-  const detail = document.createElement("span");
-  detail.className = "detail";
-  detail.textContent = detailOf(photo, result);
-  if (result && result.overwrites) {
-    detail.classList.add("overwrites");
+  text.append(name);
+  for (const line of selected ? moreOf(photo, result) : [detailOf(photo, result)]) {
+    const detail = document.createElement("span");
+    detail.className = "detail";
+    detail.textContent = line;
+    if (result && result.overwrites && !text.querySelector(".overwrites")) {
+      detail.classList.add("overwrites");
+    }
+    text.append(detail);
   }
-  text.append(name, detail);
   const time = document.createElement("span");
   time.className = "time";
   time.textContent = clockTime(result && result.time ? result.time : photo.taken);
@@ -179,38 +203,97 @@ const list = new PhotoList($("list"), { render: renderRow, onSelect: (id) => sel
 
 // --- the map -------------------------------------------------------------
 
-// The part of the map the panels leave free, with some room around
-function mapPadding() {
-  const width = window.innerWidth;
-  const height = window.innerHeight;
+// The part of the map the panels leave free: how far it is from each edge
+function freeArea() {
   const toolbar = $("toolbar").getBoundingClientRect();
   const sidebar = $("sidebar").getBoundingClientRect();
   const timebar = $("timebar").getBoundingClientRect();
-  const margin = 24;
-  const padding = { top: toolbar.bottom + margin, right: margin };
-  if (sidebar.top > toolbar.bottom + margin) {
+  if (sidebar.top > toolbar.bottom + 24) {
     // A narrow window: the list is at the bottom, under the time correction
-    padding.left = margin;
-    padding.bottom = height - Math.min(sidebar.top, timebar.top) + margin;
-  } else {
-    padding.left = sidebar.right + margin;
-    padding.bottom = height - timebar.top + margin;
+    return { top: toolbar.bottom, right: 0, left: 0,
+      bottom: window.innerHeight - Math.min(sidebar.top, timebar.top) };
   }
+  return { top: toolbar.bottom, right: 0, left: sidebar.right,
+    bottom: window.innerHeight - timebar.top };
+}
+
+// The free part with some room around, for showing places on the map
+function mapPadding() {
+  const free = freeArea();
+  const margin = 24;
+  const padding = { top: free.top + margin, right: free.right + margin,
+    bottom: free.bottom + margin, left: free.left + margin };
   // A window too small for the panels: use all of it
-  if (padding.top + padding.bottom > height - 2 * margin
-      || padding.left + padding.right > width - 2 * margin) {
+  if (padding.top + padding.bottom > window.innerHeight - 2 * margin
+      || padding.left + padding.right > window.innerWidth - 2 * margin) {
     return { top: margin, bottom: margin, left: margin, right: margin };
   }
   return padding;
 }
 
+// The buttons of the map stay in its free part
+function placeMapControls() {
+  const free = freeArea();
+  const root = document.documentElement.style;
+  root.setProperty("--free-top", Math.round(free.top) + "px");
+  root.setProperty("--free-bottom", Math.round(free.bottom) + "px");
+}
+const panels = new ResizeObserver(() => placeMapControls());
+for (const id of ["toolbar", "sidebar", "timebar"]) {
+  panels.observe($(id));
+}
+window.addEventListener("resize", () => placeMapControls());
+
 const photoMap = new PhotoMap($("map"), {
   thumbnail: mapThumbnail,
   onSelect: (id) => select(id),
   padding: mapPadding,
+  onFit: () => showWhole(),
+  onStyle: (name) => setMapStyle(name, true),
 });
 
+// Moved by hand, the map stays where the user put it
+photoMap.map.on("movestart", (event) => {
+  if (event.originalEvent) {
+    state.autoFit = false;
+  }
+});
+
+// All of the tracks, or without them the photos placed on the map
+function wholeView() {
+  const points = [...state.tracks.values()].flatMap((track) => track.lines.flat());
+  return points.length ? points : state.results.filter(isMatched).map((r) => [r.lon, r.lat]);
+}
+
+function showWhole() {
+  photoMap.fitTo(wholeView());
+}
+
+// While tracks and photos come in, the map keeps all of them in view
+let fitTimer = null;
+function followWhole() {
+  if (state.autoFit) {
+    clearTimeout(fitTimer);
+    fitTimer = setTimeout(() => {
+      if (state.autoFit) {
+        showWhole();
+      }
+    }, 200);
+  }
+}
+
+function setMapStyle(name, chosen = false) {
+  if (name !== state.mapStyle) {
+    state.mapStyle = name;
+    photoMap.setStyleName(name);
+  }
+  if (chosen) {
+    post("preferences", { map_style: name }).catch((error) => notice(error.message));
+  }
+}
+
 function select(id) {
+  state.autoFit = false;
   state.selected = id;
   list.select(id);
   const result = state.results[id];
@@ -264,12 +347,8 @@ function applyMatch(match) {
   showSummary(match);
   photoMap.setPhotos(state.photoGeneration, match.results.filter(isMatched));
   showPhotos();
-  if (!state.fitted) {
-    const points = match.results.filter(isMatched).map((r) => [r.lon, r.lat]);
-    if (points.length) {
-      state.fitted = true;
-      photoMap.fitTo(points);
-    }
+  if (!state.tracks.size) {
+    followWhole();
   }
 }
 
@@ -295,11 +374,8 @@ function showChoices() {
 function showTracks() {
   const tracks = [...state.tracks.values()];
   photoMap.setTracks(tracks);
-  if (!state.fitted && tracks.length) {
-    const points = tracks.flatMap((t) => t.lines.flat());
-    if (points.length) {
-      photoMap.fitTo(points);
-    }
+  if (tracks.length) {
+    followWhole();
   }
 }
 
@@ -458,7 +534,7 @@ function resetPhotos(generation, folder) {
   state.photos = [];
   state.results = [];
   state.selected = null;
-  state.fitted = state.tracks.size > 0;
+  state.autoFit = true;
   photoMap.setPhotos(generation, []);
   showSummary(null);
   showChoices();
@@ -497,7 +573,7 @@ const handlers = {
       state.trackGeneration = data.generation;
       state.trackChoice = data.choice;
       state.tracks = new Map();
-      state.fitted = false;
+      state.autoFit = true;
       showChoices();
       showTracks();
     }
@@ -510,6 +586,7 @@ const handlers = {
   },
   "matches": applyMatch,
   "error": (data) => notice(data.message),
+  "preferences": (data) => setMapStyle(data.map_style),
 };
 
 // The whole state, when the page (re)connects or a choice changed
@@ -533,6 +610,7 @@ async function refreshState() {
   state.tracks = new Map(data.tracks.tracks.map((track) => [track.id, track]));
   state.overwrite = data.overwrite;
   state.stops = data.stops;
+  setMapStyle(data.preferences.map_style);
   $("overwrite").checked = data.overwrite;
   $("stops").checked = data.stops;
   if (!sending) {

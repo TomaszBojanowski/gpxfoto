@@ -117,3 +117,79 @@ def test_every_text_of_the_page_is_marked_for_translation():
     used = set(re.findall(r'data-(?:text|label)="([^"]*)"', page))
     assert used and used <= marked
     assert marked - used == set()
+
+
+@needs_node
+def test_colours_of_the_map_styles_are_read():
+    out = run_module("styles.js", """
+        return ["#fff", "#f8f4f0", "#ffffff80", "rgb(158,189,255)", "rgba(176, 213, 154, 1)",
+                "rgb(27 ,27 ,29)", "hsl(35,8%,85%)", "hsla(98,61%,72%,0.7)", "interpolate",
+                "red", "#12345", "rgb(1,2)"].map(c => m.parseColor(c) && m.formatColor(m.parseColor(c)));
+    """)
+    assert out == ["hsla(0,0%,100%,1)", "hsla(30,36.4%,95.7%,1)", "hsla(0,0%,100%,0.502)",
+                   "hsla(220.8,100%,81%,1)", "hsla(97.6,41.3%,72%,1)", "hsla(240,3.6%,11%,1)",
+                   "hsla(35,8%,85%,1)", "hsla(98,61%,72%,0.7)", None, None, None, None]
+
+
+@needs_node
+def test_the_dark_map_is_made_from_the_light_one():
+    light = {
+        "version": 8, "sources": {}, "layers": [
+            {"id": "background", "type": "background", "paint": {"background-color": "#f8f4f0"}},
+            {"id": "wood", "type": "fill", "paint": {"fill-color": [
+                "interpolate", ["linear"], ["zoom"], 9, "hsla(98,61%,72%,0.7)", 12, "#fff"]}},
+            {"id": "path", "type": "line", "paint": {"line-color": "hsl(0,0%,100%)"}},
+            {"id": "label", "type": "symbol", "layout": {"text-field": "{name}"},
+             "paint": {"text-halo-color": "#fff"}},
+            {"id": "wetland", "type": "fill", "paint": {"fill-pattern": "wetland",
+                                                       "fill-opacity": 0.8}},
+            {"id": "relief", "type": "raster", "source": "x"},
+        ]}
+    out = run_module("styles.js", f"""
+        const light = {json.dumps(light)};
+        const before = JSON.stringify(light);
+        const dark = m.darkStyle(light);
+        const lightness = c => m.parseColor(c).l;
+        const paint = id => dark.layers.find(l => l.id === id).paint;
+        return {{
+            unchanged: JSON.stringify(light) === before,
+            background: lightness(paint("background")["background-color"]),
+            wood: paint("wood")["fill-color"].slice(0, 4),
+            woodLight: lightness(paint("wood")["fill-color"][4]),
+            path: lightness(paint("path")["line-color"]),
+            label: lightness(paint("label")["text-color"]),
+            halo: lightness(paint("label")["text-halo-color"]),
+            wetland: paint("wetland")["fill-opacity"],
+            relief: paint("relief")["raster-brightness-max"],
+        }};
+    """)
+    assert out["unchanged"]
+    # Dark, but not black: the land, its cover and the paths can be told apart
+    assert 0.15 < out["background"] < 0.2
+    assert out["wood"] == ["interpolate", ["linear"], ["zoom"], 9]
+    assert out["background"] < out["woodLight"] < out["path"]
+    assert out["path"] > 0.45
+    assert out["halo"] < 0.15 < 0.85 < out["label"]
+    assert out["wetland"] == pytest.approx(0.28)
+    assert out["relief"] < 1
+
+
+@needs_node
+def test_photos_at_one_place_fan_out_apart():
+    out = run_module("fan.js", """
+        return [1, 2, 5, 8, 9, 40].map(n => {
+            const o = m.fanOffsets(n);
+            let apart = Infinity;
+            for (let i = 0; i < n; i++) {
+                for (let j = i + 1; j < n; j++) {
+                    apart = Math.min(apart, Math.hypot(o[i][0] - o[j][0], o[i][1] - o[j][1]));
+                }
+            }
+            const near = Math.min(...o.map(([x, y]) => Math.hypot(x, y)));
+            return [o.length, apart, near];
+        });
+    """)
+    for n, (count, apart, near) in zip([1, 2, 5, 8, 9, 40], out):
+        assert count == n
+        # Thumbnails 40 px across neither touch each other nor their place
+        assert (apart is None or apart > 43) and near > 43.9

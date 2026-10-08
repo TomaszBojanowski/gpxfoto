@@ -83,6 +83,16 @@ button.small { padding: 3px 8px; font-size: 13px; }
 
 .spacer { flex: 1; }
 
+/* The name of the program, as in its sister gpxfilm */
+.logo {
+  margin: 0 6px 0 8px;
+  font: 800 24px/1 system-ui, -apple-system, "Segoe UI", sans-serif;
+  white-space: nowrap;
+  color: var(--fg);
+}
+
+.logo span { color: #e01b24; }
+
 /* Toolbar */
 #toolbar {
   top: 12px;
@@ -220,6 +230,12 @@ button.small { padding: 3px 8px; font-size: 13px; }
 .row.has_location .thumb { border-color: var(--located); }
 
 .row .text { min-width: 0; flex: 1; display: flex; flex-direction: column; }
+
+/* The selected row shows all of its detail, on as many lines as it needs */
+.row.expanded { height: auto; min-height: 60px; align-items: flex-start; padding: 8px 12px; }
+.row.expanded .thumb { margin-top: 0; }
+.row.expanded .detail { white-space: normal; overflow-wrap: anywhere; }
+.row.expanded .time { margin-top: 2px; }
 .row .name { font-weight: 600; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .row .detail {
   font-size: 12px;
@@ -237,8 +253,21 @@ button.small { padding: 3px 8px; font-size: 13px; }
 #empty p { margin: 0 0 8px; }
 
 /* The controls of the map stay clear of the panels */
-.maplibregl-ctrl-top-right { top: 84px; }
-.maplibregl-ctrl-bottom-right { bottom: 68px; }
+.maplibregl-ctrl-top-right { top: calc(var(--free-top, 74px) + 2px); }
+.gpxfoto-ctrl button svg {
+  width: 18px;
+  height: 18px;
+  margin: 5px;
+  fill: none;
+  stroke: #333;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.gpxfoto-ctrl button[aria-pressed="true"] { background: #2563c9; }
+.gpxfoto-ctrl button[aria-pressed="true"] svg { stroke: #ffffff; fill: #ffffff; }
+.maplibregl-ctrl-bottom-right { bottom: calc(var(--free-bottom, 62px) + 2px); }
 
 /* Time correction */
 #timebar {
@@ -379,14 +408,13 @@ button.small { padding: 3px 8px; font-size: 13px; }
 /* Narrow windows: the list becomes a sheet at the bottom */
 @media (max-width: 760px) {
   #toolbar { flex-wrap: wrap; left: 8px; right: 8px; top: 8px; }
-  .chooser-button { max-width: none; flex: 1 1 40%; }
+  .chooser-button { max-width: none; flex: 1 1 0; }
+  /* The choices on the first line, the options and writing on the second */
+  #toolbar .spacer { flex-basis: 100%; height: 0; }
   #sidebar { top: auto; left: 8px; right: 8px; bottom: 8px; width: auto; height: 42vh; }
   #timebar { left: 8px; right: 8px; bottom: calc(42vh + 16px); flex-wrap: wrap; }
   #timebar label { width: 100%; }
   #chooser-places { display: none; }
-  /* Zooming with the fingers or the wheel; the attribution goes under the toolbar */
-  .maplibregl-ctrl-top-right { display: none; }
-  .maplibregl-ctrl-bottom-right { top: 120px; bottom: auto; }
 }
 
 @media (prefers-reduced-motion: reduce) {

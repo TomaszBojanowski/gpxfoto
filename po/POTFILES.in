@@ -12,4 +12,5 @@ gpxfoto/server/ui.py
 gpxfoto/web/js/chooser.js
 gpxfoto/web/js/format.js
 gpxfoto/web/js/main.js
+gpxfoto/web/js/map.js
 gpxfoto/web/js/texts.js

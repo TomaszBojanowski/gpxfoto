@@ -3,54 +3,107 @@
 import {
   AttributionControl, LngLatBounds, Map as MapLibreMap, NavigationControl, ScaleControl,
 } from "../vendor/maplibre-gl/maplibre-gl.mjs";
+import { fanOffsets } from "./fan.js";
+import { _ } from "./i18n.js";
+import { darkStyle, loadBaseStyle, plainStyle } from "./styles.js";
 
-const STYLES = "https://tiles.openfreemap.org/styles/";
-// Without the map server (no internet), the tracks and photos are drawn
-// on a plain background
-const STYLE_TIMEOUT = 8000;          // ms
 const THUMB = 64;                    // px of a thumbnail image, drawn at half size
 const FONT = ["Noto Sans Bold"];
+const MAX_ZOOM = 20;
+// Photos closer than this on the screen are drawn as one group
+const CLUSTER_RADIUS = 40;           // px
+// A group of photos that only parts beyond this zoom, or never, as for
+// photos taken at one place, is fanned out around its place instead
+const FAN_ZOOM = 17;
 
-const dark = window.matchMedia("(prefers-color-scheme: dark)");
 const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
 
-function colors() {
-  const style = getComputedStyle(document.documentElement);
-  const read = (name) => style.getPropertyValue(name).trim();
-  return {
-    track: dark.matches ? "#ff8a3d" : "#e2561c",
-    casing: dark.matches ? "#1e2024" : "#ffffff",
-    accent: read("--accent"), matched: read("--matched"), stop: read("--stop"),
-    skipped: read("--skipped"), located: read("--located"),
-  };
+// The colours drawn on the map follow the map's style, not the page's
+const PALETTES = {
+  light: { track: "#e2561c", casing: "#ffffff", accent: "#2563c9", matched: "#2a9d55",
+    stop: "#2563c9", skipped: "#8a9099", located: "#b8860b", placeholder: "#c9ced4" },
+  dark: { track: "#ff8a3d", casing: "#1e2024", accent: "#6ea0f5", matched: "#4cc47a",
+    stop: "#6ea0f5", skipped: "#8f959e", located: "#e0b33a", placeholder: "#4a4f57" },
+};
+
+const EMPTY = { type: "FeatureCollection", features: [] };
+
+function duration(ms) {
+  return reducedMotion.matches ? 0 : ms;
 }
 
-function plainStyle() {
-  return {
-    version: 8,
-    sources: {},
-    layers: [{ id: "background", type: "background",
-      paint: { "background-color": dark.matches ? "#26292e" : "#eceff1" } }],
-  };
+function icon(paths) {
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("viewBox", "0 0 24 24");
+  svg.setAttribute("aria-hidden", "true");
+  for (const d of paths) {
+    const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    path.setAttribute("d", d);
+    svg.append(path);
+  }
+  return svg;
+}
+
+const ICONS = {
+  // A track between the corners of a frame
+  fit: ["M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5",
+    "M7.5 15.5c2-4 3.5 1 5.5-3s2.5-1.5 3.5-3.5"],
+  // A crescent moon
+  dark: ["M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5z"],
+};
+
+// Buttons in the style of the map's own, under the zoom buttons
+class ButtonsControl {
+  constructor(buttons) {
+    this.buttons = buttons;
+  }
+
+  onAdd() {
+    this.container = document.createElement("div");
+    this.container.className = "maplibregl-ctrl maplibregl-ctrl-group gpxfoto-ctrl";
+    for (const { element } of this.buttons) {
+      this.container.append(element);
+    }
+    return this.container;
+  }
+
+  onRemove() {
+    this.container.remove();
+  }
+}
+
+function controlButton(name, onClick) {
+  const element = document.createElement("button");
+  element.type = "button";
+  element.className = "gpxfoto-" + name;
+  element.append(icon(ICONS[name]));
+  element.addEventListener("click", onClick);
+  return { element };
 }
 
 export class PhotoMap {
   // thumbnail(generation, id) -> Promise of an ImageBitmap-like or null;
   // onSelect(id) when a photo on the map is clicked; padding() -> the
-  // margins of the map the panels cover, {top, bottom, left, right} in px
-  constructor(container, { thumbnail, onSelect, padding }) {
+  // margins of the map the panels cover, {top, bottom, left, right} in px;
+  // onFit() for the button that shows the whole track; onStyle(name) for
+  // the button that switches between the light and the dark map
+  constructor(container, { thumbnail, onSelect, padding, onFit, onStyle }) {
     this.thumbnail = thumbnail;
     this.onSelect = onSelect;
     this.padding = padding;
-    this.tracks = { type: "FeatureCollection", features: [] };
-    this.photos = { type: "FeatureCollection", features: [] };
+    this.tracks = EMPTY;
+    this.photos = EMPTY;
     this.selected = -1;
-    this.plain = false;
+    this.styleName = "light";
+    this.styleToken = 0;
+    this.fan = null;                 // {clusterId, ids} of the photos fanned out
+    this.revealToken = 0;
     this.map = new MapLibreMap({
       container,
-      style: STYLES + (dark.matches ? "dark" : "liberty"),
+      style: plainStyle(false),
       center: [15, 50],
       zoom: 3,
+      maxZoom: MAX_ZOOM,
       attributionControl: false,
       dragRotate: false,
       pitchWithRotate: false,
@@ -58,40 +111,72 @@ export class PhotoMap {
     this.map.touchZoomRotate.disableRotation();
     this.map.addControl(new AttributionControl({ compact: true }), "bottom-right");
     this.map.addControl(new NavigationControl({ showCompass: false }), "top-right");
+    this.fitButton = controlButton("fit", () => onFit());
+    this.darkButton = controlButton("dark", () =>
+      onStyle(this.styleName === "dark" ? "light" : "dark"));
+    this.map.addControl(new ButtonsControl([this.fitButton, this.darkButton]), "top-right");
     this.map.addControl(new ScaleControl(), "bottom-right");
-    this.map.on("style.load", () => this.addLayers());
     this.map.setMissingStyleImageResolver((name) => this.addThumbnail(name));
-    this.map.on("error", () => this.fallBack());
-    this.styleTimer = setTimeout(() => this.fallBack(), STYLE_TIMEOUT);
-    dark.addEventListener("change", () => {
-      // Without diff the old style is dropped at once, so a server that
-      // cannot be reached leads to the plain background again
-      this.plain = false;
-      this.map.setStyle(STYLES + (dark.matches ? "dark" : "liberty"), { diff: false });
-      this.styleTimer = setTimeout(() => this.fallBack(), STYLE_TIMEOUT);
-    });
-    for (const layer of ["photo-thumbs", "photo-rings"]) {
+    this.map.on("style.load", () => this.addLayers());
+    for (const layer of ["photo-thumbs", "photo-rings", "fan-thumbs", "fan-rings"]) {
       this.map.on("click", layer, (event) => this.onSelect(event.features[0].properties.id));
       this.map.on("mouseenter", layer, () => { this.map.getCanvas().style.cursor = "pointer"; });
       this.map.on("mouseleave", layer, () => { this.map.getCanvas().style.cursor = ""; });
     }
+    this.map.on("mouseenter", "clusters", () => { this.map.getCanvas().style.cursor = "pointer"; });
+    this.map.on("mouseleave", "clusters", () => { this.map.getCanvas().style.cursor = ""; });
     this.map.on("click", "clusters", (event) => this.openCluster(event.features[0]));
+    this.map.on("click", (event) => {
+      // A click beside the fanned-out photos folds them back
+      if (this.fan && !this.map.queryRenderedFeatures(event.point, {
+        layers: ["fan-thumbs", "fan-rings", "clusters"] }).length) {
+        this.closeFan();
+      }
+    });
+    // The fan is laid out in px of the zoom it was opened at
+    this.map.on("zoomstart", () => this.closeFan());
+    this.updateTexts();
   }
 
-  // The map server cannot be reached: draw on a plain background
-  fallBack() {
-    if (this.plain || this.map.isStyleLoaded()) {
-      return;
+  // The texts of the buttons, once the translations are there
+  updateTexts() {
+    const fit = _("Show the whole track");
+    this.fitButton.element.title = fit;
+    this.fitButton.element.setAttribute("aria-label", fit);
+    const dark = _("Dark map");
+    this.darkButton.element.title = dark;
+    this.darkButton.element.setAttribute("aria-label", dark);
+    this.darkButton.element.setAttribute("aria-pressed", String(this.styleName === "dark"));
+  }
+
+  get palette() {
+    return PALETTES[this.styleName];
+  }
+
+  // Switch to the light or the dark map; without the map server, the
+  // tracks and photos are drawn on a plain background
+  async setStyleName(name) {
+    this.styleName = name === "dark" ? "dark" : "light";
+    this.darkButton.element.setAttribute("aria-pressed", String(this.styleName === "dark"));
+    const token = ++this.styleToken;
+    let style;
+    try {
+      const light = await loadBaseStyle();
+      style = this.styleName === "dark" ? darkStyle(light) : structuredClone(light);
+    } catch (error) {
+      style = plainStyle(this.styleName === "dark");
     }
-    this.plain = true;
-    clearTimeout(this.styleTimer);
-    this.map.setStyle(plainStyle(), { diff: false });
+    if (token === this.styleToken) {
+      // The thumbnails are drawn again on the new style's placeholder colour
+      this.map.setStyle(style, { diff: false });
+    }
   }
 
   addLayers() {
-    clearTimeout(this.styleTimer);
     const map = this.map;
-    const c = colors();
+    const c = this.palette;
+    // A new style starts without the fan
+    this.fan = null;
     map.addSource("tracks", { type: "geojson", data: this.tracks });
     map.addLayer({ id: "track-casing", type: "line", source: "tracks",
       layout: { "line-join": "round", "line-cap": "round" },
@@ -100,32 +185,50 @@ export class PhotoMap {
       layout: { "line-join": "round", "line-cap": "round" },
       paint: { "line-color": c.track, "line-width": 3.5 } });
     map.addSource("photos", { type: "geojson", data: this.photos, cluster: true,
-      clusterRadius: 40, clusterMaxZoom: 17 });
+      clusterRadius: CLUSTER_RADIUS, clusterMaxZoom: MAX_ZOOM, maxzoom: MAX_ZOOM + 1 });
+    map.addSource("fan", { type: "geojson", data: EMPTY });
+    const clustered = ["has", "point_count"];
     const unclustered = ["!", ["has", "point_count"]];
-    map.addLayer({ id: "clusters", type: "circle", source: "photos",
-      filter: ["has", "point_count"],
+    const ringColor = ["match", ["get", "state"], "stop", c.stop, "has_location", c.located,
+      "matched", c.matched, c.skipped];
+    map.addLayer({ id: "clusters", type: "circle", source: "photos", filter: clustered,
       paint: { "circle-color": c.accent,
         "circle-radius": ["step", ["get", "point_count"], 15, 10, 19, 100, 24],
         "circle-stroke-width": 2, "circle-stroke-color": c.casing } });
     if (map.getStyle().glyphs) {
-      map.addLayer({ id: "cluster-count", type: "symbol", source: "photos",
-        filter: ["has", "point_count"],
+      map.addLayer({ id: "cluster-count", type: "symbol", source: "photos", filter: clustered,
         layout: { "text-field": ["get", "point_count_abbreviated"], "text-font": FONT,
           "text-size": 13, "text-allow-overlap": true },
         paint: { "text-color": "#ffffff" } });
     }
     map.addLayer({ id: "photo-rings", type: "circle", source: "photos", filter: unclustered,
-      paint: { "circle-radius": 19,
-        "circle-color": ["match", ["get", "state"], "stop", c.stop, "has_location", c.located,
-          "matched", c.matched, c.skipped],
+      paint: { "circle-radius": 19, "circle-color": ringColor,
         "circle-stroke-width": 2, "circle-stroke-color": c.casing } });
     map.addLayer({ id: "photo-thumbs", type: "symbol", source: "photos", filter: unclustered,
       layout: { "icon-image": ["get", "image"], "icon-allow-overlap": true,
         "icon-ignore-placement": true } });
-    map.addLayer({ id: "photo-selected", type: "circle", source: "photos",
-      filter: ["==", ["get", "id"], this.selected],
-      paint: { "circle-radius": 22, "circle-color": "rgba(0,0,0,0)",
-        "circle-stroke-width": 4, "circle-stroke-color": c.accent } });
+    // The fanned-out photos, joined to their place by thin lines
+    const isLine = ["==", ["geometry-type"], "LineString"];
+    const isPoint = ["==", ["geometry-type"], "Point"];
+    map.addLayer({ id: "fan-legs", type: "line", source: "fan", filter: isLine,
+      paint: { "line-color": c.accent, "line-width": 1.5, "line-opacity": 0.8 } });
+    map.addLayer({ id: "fan-centre", type: "circle", source: "fan",
+      filter: ["all", isPoint, ["get", "centre"]],
+      paint: { "circle-radius": 4, "circle-color": c.accent,
+        "circle-stroke-width": 1.5, "circle-stroke-color": c.casing } });
+    const leg = ["all", isPoint, ["!", ["get", "centre"]]];
+    map.addLayer({ id: "fan-rings", type: "circle", source: "fan", filter: leg,
+      paint: { "circle-radius": 19, "circle-color": ringColor,
+        "circle-stroke-width": 2, "circle-stroke-color": c.casing } });
+    map.addLayer({ id: "fan-thumbs", type: "symbol", source: "fan", filter: leg,
+      layout: { "icon-image": ["get", "image"], "icon-allow-overlap": true,
+        "icon-ignore-placement": true } });
+    for (const [layer, source] of [["photo-selected", "photos"], ["fan-selected", "fan"]]) {
+      map.addLayer({ id: layer, type: "circle", source,
+        filter: ["==", ["get", "id"], this.selected],
+        paint: { "circle-radius": 22, "circle-color": "rgba(0,0,0,0)",
+          "circle-stroke-width": 4, "circle-stroke-color": c.accent } });
+    }
   }
 
   // A thumbnail the photo layer asks for: a grey disc at once, the photo when it comes
@@ -137,7 +240,7 @@ export class PhotoMap {
     const canvas = document.createElement("canvas");
     canvas.width = canvas.height = THUMB;
     const context = canvas.getContext("2d");
-    context.fillStyle = dark.matches ? "#4a4f57" : "#c9ced4";
+    context.fillStyle = this.palette.placeholder;
     context.beginPath();
     context.arc(THUMB / 2, THUMB / 2, THUMB / 2, 0, 2 * Math.PI);
     context.fill();
@@ -173,21 +276,73 @@ export class PhotoMap {
         geometry: { type: "Point", coordinates: [p.lon, p.lat] },
       })),
     };
+    // The groups are made anew
+    this.closeFan();
     const source = this.map.getSource("photos");
     if (source) {
       source.setData(this.photos);
     }
   }
 
+  // Mark a photo; with its position, bring it into view, out of its group
   select(id, position) {
     this.selected = id === null ? -1 : id;
-    if (this.map.getLayer("photo-selected")) {
-      this.map.setFilter("photo-selected", ["==", ["get", "id"], this.selected]);
+    for (const layer of ["photo-selected", "fan-selected"]) {
+      if (this.map.getLayer(layer)) {
+        this.map.setFilter(layer, ["==", ["get", "id"], this.selected]);
+      }
     }
-    if (position) {
-      this.map.easeTo({ center: [position.lon, position.lat], padding: this.padding(),
-        zoom: Math.max(this.map.getZoom(), 15), duration: reducedMotion.matches ? 0 : 600 });
+    const token = ++this.revealToken;
+    if (position && !(this.fan && this.fan.ids.includes(id))) {
+      this.closeFan();
+      this.reveal(id, [position.lon, position.lat], token);
     }
+  }
+
+  async reveal(id, centre, token) {
+    for (let step = 0; step < 4 && token === this.revealToken; step++) {
+      await this.moveTo({ center: centre, zoom: Math.max(this.map.getZoom(), 15) });
+      if (token !== this.revealToken) {
+        return;
+      }
+      const group = await this.groupOf(id, centre);
+      if (!group || token !== this.revealToken) {
+        return;
+      }
+      const zoom = await this.map.getSource("photos")
+        .getClusterExpansionZoom(group.properties.cluster_id);
+      if (zoom > FAN_ZOOM || zoom > this.map.getMaxZoom()) {
+        await this.openFan(group);
+        return;
+      }
+      await this.moveTo({ center: centre, zoom });
+    }
+  }
+
+  // Resolves when the map has moved there and drawn the photos
+  async moveTo(options) {
+    await new Promise((resolve) => {
+      this.map.once("moveend", () => resolve());
+      this.map.easeTo({ ...options, padding: this.padding(), duration: duration(600) });
+    });
+    if (this.map.getSource("photos") && !this.map.isSourceLoaded("photos")) {
+      await new Promise((resolve) => this.map.once("idle", () => resolve()));
+    }
+  }
+
+  // The group drawn near centre that holds the photo, or null
+  async groupOf(id, centre) {
+    const point = this.map.project(centre);
+    const box = [[point.x - CLUSTER_RADIUS, point.y - CLUSTER_RADIUS],
+      [point.x + CLUSTER_RADIUS, point.y + CLUSTER_RADIUS]];
+    const source = this.map.getSource("photos");
+    for (const group of this.map.queryRenderedFeatures(box, { layers: ["clusters"] })) {
+      const leaves = await source.getClusterLeaves(group.properties.cluster_id, Infinity, 0);
+      if (leaves.some((leaf) => leaf.properties.id === id)) {
+        return group;
+      }
+    }
+    return null;
   }
 
   fitTo(coordinates) {
@@ -199,14 +354,65 @@ export class PhotoMap {
       bounds.extend(point);
     }
     this.map.fitBounds(bounds, { padding: this.padding(), maxZoom: 16,
-      duration: reducedMotion.matches ? 0 : 800 });
+      duration: duration(800) });
   }
 
+  // A click on a group: closer, or fanned out when it would not part
   async openCluster(feature) {
-    const source = this.map.getSource("photos");
-    const zoom = await source.getClusterExpansionZoom(feature.properties.cluster_id);
-    this.map.easeTo({ center: feature.geometry.coordinates, zoom,
-      duration: reducedMotion.matches ? 0 : 500 });
+    if (this.fan && this.fan.clusterId === feature.properties.cluster_id) {
+      return;
+    }
+    const zoom = await this.map.getSource("photos")
+      .getClusterExpansionZoom(feature.properties.cluster_id);
+    if (zoom > this.map.getMaxZoom()) {
+      await this.openFan(feature);
+    } else {
+      this.map.easeTo({ center: feature.geometry.coordinates, zoom, duration: duration(500) });
+    }
+  }
+
+  async openFan(group) {
+    const clusterId = group.properties.cluster_id;
+    const leaves = await this.map.getSource("photos").getClusterLeaves(clusterId, Infinity, 0);
+    leaves.sort((a, b) => a.properties.id - b.properties.id);
+    const centre = group.geometry.coordinates;
+    const middle = this.map.project(centre);
+    const features = [{ type: "Feature", properties: { centre: true },
+      geometry: { type: "Point", coordinates: centre } }];
+    fanOffsets(leaves.length).forEach(([dx, dy], k) => {
+      const at = this.map.unproject([middle.x + dx, middle.y + dy]);
+      const position = [at.lng, at.lat];
+      features.push({ type: "Feature", properties: { centre: false },
+        geometry: { type: "LineString", coordinates: [centre, position] } });
+      features.push({ type: "Feature", properties: { ...leaves[k].properties, centre: false },
+        geometry: { type: "Point", coordinates: position } });
+    });
+    this.fan = { clusterId, ids: leaves.map((leaf) => leaf.properties.id) };
+    this.map.getSource("fan").setData({ type: "FeatureCollection", features });
+    this.filterGroups();
+  }
+
+  closeFan() {
+    if (!this.map.getSource("fan")) {
+      return;
+    }
+    if (this.fan) {
+      this.fan = null;
+      this.map.getSource("fan").setData(EMPTY);
+    }
+    this.filterGroups();
+  }
+
+  // The group that is fanned out is not drawn itself
+  filterGroups() {
+    const filter = this.fan
+      ? ["all", ["has", "point_count"], ["!=", ["get", "cluster_id"], this.fan.clusterId]]
+      : ["has", "point_count"];
+    for (const layer of ["clusters", "cluster-count"]) {
+      if (this.map.getLayer(layer)) {
+        this.map.setFilter(layer, filter);
+      }
+    }
   }
 }
 
