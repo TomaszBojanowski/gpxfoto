@@ -1,6 +1,11 @@
 """gpxfoto --ui: start the local server and open the page in the browser."""
+import html
+import os
+import pathlib
 import shutil
+import signal
 import sys
+import tempfile
 import threading
 import webbrowser
 from gettext import gettext as _
@@ -16,18 +21,33 @@ def run(open_browser=True):
     from gpxfoto.server.api import Api     # the engine, loaded once the page is coming
     server = Server()
     server.api = Api(server.events)
+    # Ended like Ctrl+C when the terminal closes or the system asks
+    for signum in (signal.SIGTERM, getattr(signal, "SIGHUP", None)):
+        if signum is not None:
+            signal.signal(signum, lambda *args: server.stopping.set())
     threading.Thread(target=server.serve_forever, daemon=True).start()
     threading.Thread(target=server.watch_pages, daemon=True).start()
     # Translators: {url} is the address of the page of the browser interface
     print(_("gpxfoto runs at {url}").format(url=server.url))
     print(_("If no browser opens, open that address. Press Ctrl+C to quit."))
     sys.stdout.flush()
+    # The browser gets a file that leads to the page, never the address
+    # itself, which other users could read in the list of processes
+    opener = tempfile.mkdtemp(prefix="gpxfoto-")
     if open_browser:
-        threading.Thread(target=webbrowser.open, args=(server.url,), daemon=True).start()
+        page = os.path.join(opener, "open.html")
+        with open(os.open(page, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), "w",
+                  encoding="utf-8") as f:
+            f.write('<!DOCTYPE html><meta charset="utf-8"><title>gpxfoto</title>'
+                    f'<meta http-equiv="refresh" content="0;url={html.escape(server.url)}">')
+        threading.Thread(target=webbrowser.open, args=(pathlib.Path(page).as_uri(),),
+                         daemon=True).start()
     try:
         while not server.stopping.wait(0.5):
             pass
     except KeyboardInterrupt:
         pass
+    finally:
+        shutil.rmtree(opener, ignore_errors=True)
     server.api.close()
     server.close()

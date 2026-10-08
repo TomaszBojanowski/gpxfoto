@@ -51,12 +51,12 @@ def server():
     thread.join(5)
 
 
-def request(server, method, path, headers=None, body=None, cookie=True, host=None):
+def request(server, method, path, headers=None, body=None, token=True, host=None):
     """Send a request as the page would, with headers changed by headers."""
     connection = http.client.HTTPConnection("127.0.0.1", server.port, timeout=10)
     sent = {"Host": host or server.host}
-    if cookie:
-        sent["Cookie"] = f"{server.cookie}={server.token}"
+    if token:
+        sent["X-Gpxfoto-Token"] = server.token
     if method == "POST":
         sent["Origin"] = server.origin
         sent["Content-Type"] = "application/json"
@@ -77,42 +77,49 @@ def request(server, method, path, headers=None, body=None, cookie=True, host=Non
 
 def test_listens_only_on_this_computer(server):
     assert server.server_address[0] == "127.0.0.1"
-    assert server.url == f"http://127.0.0.1:{server.port}/?token={server.token}"
+    # In the fragment, which the browser never sends to any server
+    assert server.url == f"http://127.0.0.1:{server.port}/#{server.token}"
     assert len(server.token) >= 40
 
 
-def test_the_token_in_the_address_becomes_a_cookie(server):
-    response = request(server, "GET", f"/?token={server.token}", cookie=False,
-                       headers={"Sec-Fetch-Site": "none"})
-    assert response.status == 303
-    assert response.getheader("Location") == "/"
-    assert response.getheader("Set-Cookie") == (
-        f"gpxfoto-{server.port}={server.token}; Path=/; HttpOnly; SameSite=Strict")
-    page = request(server, "GET", "/")
+@pytest.mark.parametrize("site", [None, "none", "cross-site"])
+def test_the_page_itself_needs_no_token(server, site):
+    # It holds no data, and the browser may come to it from the file that
+    # started it
+    page = request(server, "GET", "/", token=False, headers={"Sec-Fetch-Site": site})
     assert page.status == 200
     assert page.getheader("Content-Type") == "text/html; charset=utf-8"
     assert b"<title>gpxfoto</title>" in page.body
+    assert page.getheader("Set-Cookie") is None
+    assert request(server, "GET", "/static/app.css", token=False).status == 200
+    assert request(server, "GET", "/api/i18n", token=False).status == 200
 
 
-@pytest.mark.parametrize("path", ["/", "/static/index.html", "/api/events", "/api/echo",
-                                  "/static/vendor/maplibre-gl/maplibre-gl.mjs"])
-@pytest.mark.parametrize("cookie", [None, "wrong", ""])
-def test_every_request_needs_the_token(server, path, cookie):
-    headers = {} if cookie is None else {"Cookie": f"{server.cookie}={cookie}"}
-    response = request(server, "GET", path, headers=headers, cookie=False)
+@pytest.mark.parametrize("method, path", [("GET", "/api/state"), ("GET", "/api/events"),
+                                          ("GET", "/api/thumbnail?generation=0&id=0"),
+                                          ("GET", "/api/browse"), ("POST", "/api/echo")])
+# Header values are bytes: "\xc4\x85" is "ą" in UTF-8, "\xb3" no UTF-8 at all
+@pytest.mark.parametrize("token", [None, "wrong", "", "\xc4\x85", "\xb3"])
+def test_every_request_for_data_needs_the_token(server, method, path, token):
+    server.api = EchoApi(server.events)
+    headers = {} if token is None else {"X-Gpxfoto-Token": token}
+    response = request(server, method, path, headers=headers, token=False, body={})
     assert response.status == 403
     assert b"Open the address that gpxfoto showed in the terminal" in response.body
 
 
-def test_a_wrong_token_in_the_address_is_refused(server):
-    response = request(server, "GET", "/?token=guess", cookie=False)
-    assert response.status == 403
-    assert response.getheader("Set-Cookie") is None
+def test_cookies_do_not_stand_for_the_token(server):
+    # Browsers send cookies to every server on 127.0.0.1, whatever its port
+    headers = {"Cookie": f"gpxfoto-{server.port}={server.token}"}
+    assert request(server, "GET", "/api/state", headers=headers, token=False).status == 403
 
 
-def test_the_cookie_of_another_server_does_not_count(server):
-    other = f"gpxfoto-{server.port + 1}={server.token}"
-    assert request(server, "GET", "/", headers={"Cookie": other}, cookie=False).status == 403
+def test_the_token_in_the_query_only_where_the_browser_asks_by_itself(server):
+    server.api = Api(server.events)
+    query = urllib.parse.urlencode({"token": server.token})
+    assert request(server, "GET", f"/api/state?{query}", token=False).status == 403
+    response = request(server, "GET", f"/api/thumbnail?generation=0&id=0&{query}", token=False)
+    assert response.status == 404              # no such photo, but let in
 
 
 @pytest.mark.parametrize("host", ["localhost:{port}", "evil.example", "127.0.0.1",
@@ -140,9 +147,13 @@ def test_changes_need_an_origin(server):
 
 
 @pytest.mark.parametrize("site", ["cross-site", "same-site"])
-def test_requests_the_browser_marks_as_from_elsewhere_are_refused(server, site):
-    assert request(server, "GET", "/", headers={"Sec-Fetch-Site": site}).status == 403
-    assert request(server, "GET", "/", headers={"Sec-Fetch-Site": "same-origin"}).status == 200
+@pytest.mark.parametrize("path", ["/api/i18n", "/static/app.css", "/api/echo"])
+def test_requests_the_browser_marks_as_from_elsewhere_are_refused(server, site, path):
+    method = "POST" if path == "/api/echo" else "GET"
+    headers = {"Sec-Fetch-Site": site}
+    assert request(server, method, path, headers=headers, body={}).status == 403
+    headers = {"Sec-Fetch-Site": "same-origin"}
+    assert request(server, method, path, headers=headers, body={}).status == 200
 
 
 @pytest.mark.parametrize("content_type, body, status", [
@@ -184,8 +195,7 @@ def test_nothing_outside_the_page_files_is_served(server, path):
 
 def test_events_reach_every_page(server):
     connection = http.client.HTTPConnection("127.0.0.1", server.port, timeout=10)
-    connection.request("GET", "/api/events", headers={
-        "Host": server.host, "Cookie": f"{server.cookie}={server.token}"})
+    connection.request("GET", f"/api/events?token={server.token}", headers={"Host": server.host})
     response = connection.getresponse()
     assert response.getheader("Content-Type") == "text/event-stream; charset=utf-8"
     assert response.fp.readline() == b": connected\n"
@@ -205,8 +215,7 @@ def test_the_program_ends_when_the_last_page_has_gone(server, monkeypatch):
     time.sleep(0.2)
     assert not server.stopping.is_set()          # no page yet: keep waiting for it
     connection = http.client.HTTPConnection("127.0.0.1", server.port, timeout=10)
-    connection.request("GET", "/api/events", headers={
-        "Host": server.host, "Cookie": f"{server.cookie}={server.token}"})
+    connection.request("GET", f"/api/events?token={server.token}", headers={"Host": server.host})
     response = connection.getresponse()
     assert response.fp.readline() == b": connected\n"
     time.sleep(0.5)
@@ -242,23 +251,41 @@ def test_ui_shows_its_address_opens_the_browser_and_ends_with_ctrl_c(tmp_path):
     process, first, second = start_ui(tmp_path)
     try:
         url = first.strip().split(" runs at ")[1]
-        assert re.fullmatch(r"http://127\.0\.0\.1:\d+/\?token=[\w-]{40,}", url)
+        assert re.fullmatch(r"http://127\.0\.0\.1:\d+/#[\w-]{40,}", url)
         assert second == "If no browser opens, open that address. Press Ctrl+C to quit.\n"
         for _ in range(100):
             if (tmp_path / "opened").exists():
                 break
             time.sleep(0.05)
-        assert (tmp_path / "opened").read_text().strip() == url
+        # The browser gets a file only its user can read, which leads to the
+        # address: the token is never in a command line
+        opened = (tmp_path / "opened").read_text().strip()
+        assert opened.startswith("file:///") and url not in opened
+        page = urllib.parse.urlsplit(opened).path
+        assert os.stat(page).st_mode & 0o777 == 0o600
+        assert os.stat(os.path.dirname(page)).st_mode & 0o777 == 0o700
+        with open(page, encoding="utf-8") as f:
+            assert f'<meta http-equiv="refresh" content="0;url={url}">' in f.read()
         parts = urllib.parse.urlsplit(url)
         connection = http.client.HTTPConnection(parts.hostname, parts.port, timeout=10)
-        connection.request("GET", f"/?{parts.query}", headers={"Host": parts.netloc})
-        assert connection.getresponse().status == 303
+        connection.request("GET", "/api/state", headers={"Host": parts.netloc,
+                                                         "X-Gpxfoto-Token": parts.fragment})
+        assert connection.getresponse().status == 200
         connection.close()
     finally:
         process.send_signal(signal.SIGINT)
         out, err = process.communicate(timeout=10)
     assert process.returncode == 0
     assert out == "" and err == ""
+    assert not os.path.exists(page)          # removed at the end
+
+
+@needs_exiftool
+def test_ui_ends_when_the_terminal_closes(tmp_path):
+    process, first, _second = start_ui(tmp_path)
+    process.send_signal(signal.SIGHUP)
+    out, err = process.communicate(timeout=10)
+    assert (process.returncode, out, err) == (0, "", "")
 
 
 def test_ui_takes_no_other_arguments(tmp_path):

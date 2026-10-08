@@ -1,8 +1,9 @@
 """The local HTTP server: security checks, the page, its files and events.
 
 The server listens on 127.0.0.1 only, on a free port. The address opened
-at start holds a random token, which the page then keeps as a cookie;
-every request must carry it. Requests must also name this server in Host
+at start holds a random token in its fragment, which the page keeps and
+sends with every request for data; the page's own files hold none and need
+no token. Requests must also name this server in Host
 and, when the browser sends them, come from this page in Origin and
 Sec-Fetch-Site, so that other web pages open in the browser can neither
 read nor change anything.
@@ -56,6 +57,20 @@ CONTENT_TYPES = {
 }
 
 
+# The header in which the page sends the token
+TOKEN_HEADER = "X-Gpxfoto-Token"
+# Requests the browser makes itself, without the header: they carry the
+# token in the query
+TOKEN_IN_QUERY = ("/api/events", "/api/thumbnail")
+# Requests that need no token: the translations of the page
+PUBLIC = ("/api/i18n",)
+
+
+def _same(given, token):
+    """Whether given is the token, in constant time; any text may be given."""
+    return hmac.compare_digest(given.encode("utf-8", "surrogateescape"), token.encode())
+
+
 class RequestError(Exception):
     """A request that cannot be served; the text is for the page."""
 
@@ -75,15 +90,14 @@ class Server(ThreadingHTTPServer):
         self.token = secrets.token_urlsafe(32)
         self.host = f"127.0.0.1:{self.port}"
         self.origin = f"http://{self.host}"
-        # The port tells apart the cookies of servers running at the same time
-        self.cookie = f"gpxfoto-{self.port}"
         self.events = Events()
         self.api = api
         self.stopping = threading.Event()
 
     @property
     def url(self):
-        return f"{self.origin}/?token={self.token}"
+        # A fragment never leaves the browser
+        return f"{self.origin}/#{self.token}"
 
     def handle_error(self, request, client_address):
         # A page that went away in the middle of an answer is no error
@@ -150,36 +164,26 @@ class Handler(BaseHTTPRequestHandler):
         if origin != server.origin and (origin is not None or method != "GET"):
             self.send_text(HTTPStatus.FORBIDDEN, "wrong Origin")
             return False
+        # The page holds no data: it may be opened from anywhere, also from
+        # the file through which the browser is started
+        if method == "GET" and path == "/":
+            return True
         if self.headers.get("Sec-Fetch-Site", "same-origin") not in ("same-origin", "none"):
             self.send_text(HTTPStatus.FORBIDDEN, "not from this page")
             return False
-        token = query.get("token", [""])[0]
-        if method == "GET" and path == "/" and token:
-            if not hmac.compare_digest(token, server.token):
-                self.send_text(HTTPStatus.FORBIDDEN, self._open_from_terminal())
-                return False
-            # The token moves into a cookie, and out of the address bar
-            self.send_response(HTTPStatus.SEE_OTHER)
-            self.send_header("Location", "/")
-            self.send_header("Set-Cookie", f"{server.cookie}={server.token}; Path=/; HttpOnly; "
-                                           "SameSite=Strict")
-            self.send_header("Content-Length", "0")
-            self._security_headers()
-            self.end_headers()
-            return False
-        cookie = self._cookie(server.cookie)
-        if cookie is None or not hmac.compare_digest(cookie, server.token):
+        if method == "GET" and (path.startswith("/static/") or path in PUBLIC):
+            return True
+        # The page sends the token, which it got in the fragment of the
+        # address, with each request: in a header, or in the query where
+        # the browser makes the request itself. Cookies would not do, as
+        # browsers send them to every server on 127.0.0.1, whatever its port.
+        token = self.headers.get(TOKEN_HEADER)
+        if token is None and method == "GET" and path in TOKEN_IN_QUERY:
+            token = query.get("token", [""])[0]
+        if not _same(token or "", server.token):
             self.send_text(HTTPStatus.FORBIDDEN, self._open_from_terminal())
             return False
         return True
-
-    def _cookie(self, name):
-        for header in self.headers.get_all("Cookie") or ():
-            for part in header.split(";"):
-                key, _sep, value = part.strip().partition("=")
-                if key == name:
-                    return value
-        return None
 
     @staticmethod
     def _open_from_terminal():
@@ -204,6 +208,9 @@ class Handler(BaseHTTPRequestHandler):
             raise RequestError(HTTPStatus.NOT_FOUND, "not found")
 
     def _stream_events(self):
+        # Listening before the page hears of it: the page then asks for the
+        # state, and nothing published after that may be lost
+        listener = self.server.events.subscribe()
         self.send_response(HTTPStatus.OK)
         self.send_header("Content-Type", "text/event-stream; charset=utf-8")
         self.send_header("Cache-Control", "no-store")
@@ -216,7 +223,7 @@ class Handler(BaseHTTPRequestHandler):
             self.wfile.write(data)
             self.wfile.flush()
 
-        self.server.events.stream(write)
+        self.server.events.stream(write, listener)
 
     # --- responses ----------------------------------------------------
 
@@ -229,7 +236,9 @@ class Handler(BaseHTTPRequestHandler):
         except ValueError:
             raise RequestError(HTTPStatus.LENGTH_REQUIRED, "length required") from None
         if not 0 <= length <= min(limit, MAX_BODY):
-            raise RequestError(HTTPStatus.REQUEST_ENTITY_TOO_LARGE, "too large")
+            raise RequestError(HTTPStatus.REQUEST_ENTITY_TOO_LARGE,
+                               _("The GPX file is too large to be dropped here. Choose it with "
+                                 "the Track button."))
         body = self.rfile.read(length)
         try:
             return json.loads(body)
@@ -249,7 +258,9 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def send_json(self, data, status=HTTPStatus.OK):
-        body = json.dumps(data, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+        # File names that are not UTF-8 hold lone surrogates, which only
+        # escapes can carry
+        body = json.dumps(data, separators=(",", ":")).encode("ascii")
         self.send_body(body, "application/json", status)
 
     def send_text(self, status, text):
