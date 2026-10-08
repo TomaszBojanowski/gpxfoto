@@ -130,3 +130,24 @@ def test_a_damaged_list_of_recent_folders_is_ignored(home, content):
 def test_settings_on_macos(home, monkeypatch):
     monkeypatch.setattr(files.sys, "platform", "darwin")
     assert files.config_dir() == str(home / "Library" / "Application Support" / "gpxfoto")
+
+
+def test_the_map_style_is_kept_between_runs(home):
+    assert files.preferences() == {"map_style": "light"}
+    files.set_preference("map_style", "dark")
+    assert files.preferences() == {"map_style": "dark"}
+    saved = home / ".config" / "gpxfoto" / "preferences.json"
+    assert json.loads(saved.read_text()) == {"map_style": "dark"}
+    for name, value in [("map_style", "blue"), ("map_style", None), ("colour", "dark")]:
+        with pytest.raises(ValueError):
+            files.set_preference(name, value)
+    assert files.preferences() == {"map_style": "dark"}
+    assert sorted(p.name for p in saved.parent.iterdir()) == ["preferences.json"]
+
+
+@pytest.mark.parametrize("content", ["not json", "[1]", '{"map_style": "blue"}', ""])
+def test_damaged_preferences_are_ignored(home, content):
+    saved = home / ".config" / "gpxfoto" / "preferences.json"
+    saved.parent.mkdir(parents=True)
+    saved.write_text(content)
+    assert files.preferences() == {"map_style": "light"}

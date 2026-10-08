@@ -1,4 +1,5 @@
-"""Compile the translations in po/ into the package while building it.
+"""Compile the translations in po/ into the package while building it,
+and copy the application icon among the files of the browser page.
 
 Everything else is configured in pyproject.toml.
 """
@@ -12,6 +13,8 @@ from setuptools.command.build_py import build_py
 ROOT = os.path.dirname(os.path.abspath(__file__))
 PO_DIR = os.path.join(ROOT, "po")
 DOMAIN = "gpxfoto"
+ICON = os.path.join(ROOT, "data", "icons", "hicolor", "scalable", "apps",
+                    "io.github.tomaszbojanowski.Gpxfoto.svg")
 
 
 def languages():
@@ -31,14 +34,18 @@ def compile_translations(package_dir):
                         os.path.join(PO_DIR, lang + ".po")], check=True)
 
 
+def copy_icon(package_dir):
+    """The application icon, unchanged, as the icon of the browser page."""
+    shutil.copyfile(ICON, os.path.join(package_dir, "web", "favicon.svg"))
+
+
 class BuildPyWithTranslations(build_py):
     def run(self):
         super().run()
         # An editable install runs the code from the source tree
-        if self.editable_mode:
-            compile_translations(os.path.join(ROOT, "gpxfoto"))
-        else:
-            compile_translations(os.path.join(self.build_lib, "gpxfoto"))
+        package_dir = os.path.join(ROOT if self.editable_mode else self.build_lib, "gpxfoto")
+        compile_translations(package_dir)
+        copy_icon(package_dir)
 
 
 setup(cmdclass={"build_py": BuildPyWithTranslations})

@@ -8,5 +8,6 @@ __pycache__/
 # Private photos and tracks used for local testing only
 /tests/prywatne/
 
-# Translations compiled by an editable install
+# Translations compiled and the icon copied by an editable install
 /gpxfoto/locale/
+/gpxfoto/web/favicon.svg

@@ -54,6 +54,7 @@ class Api:
             ("POST", "tracks/drop"): self.post_dropped_tracks,
             ("POST", "correction"): self.post_correction,
             ("POST", "options"): self.post_options,
+            ("POST", "preferences"): self.post_preferences,
         }
 
     def handle(self, handler, method, name, query):
@@ -82,7 +83,7 @@ class Api:
             raise RequestError(HTTPStatus.BAD_REQUEST, str(e)) from None
 
     def get_state(self, handler, query):
-        handler.send_json(self.session.state())
+        handler.send_json({**self.session.state(), "preferences": files.preferences()})
 
     def get_thumbnail(self, handler, query):
         try:
@@ -133,3 +134,17 @@ class Api:
         self.session.set_options(overwrite=_field(data, "overwrite", bool, None),
                                  stops=_field(data, "stops", bool, None))
         handler.send_json({}, HTTPStatus.ACCEPTED)
+
+    def post_preferences(self, handler, query):
+        data = handler.read_json()
+        if not isinstance(data, dict) or not data:
+            raise RequestError(HTTPStatus.BAD_REQUEST, "an object expected")
+        for name, value in data.items():
+            try:
+                files.set_preference(name, value)
+            except ValueError as e:
+                raise RequestError(HTTPStatus.BAD_REQUEST, str(e)) from None
+        chosen = files.preferences()
+        # Other open pages follow
+        self.events.publish("preferences", chosen)
+        handler.send_json(chosen)

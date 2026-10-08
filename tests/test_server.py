@@ -19,6 +19,7 @@ import pytest
 from conftest import ROOT, needs_exiftool, run_cli
 from gpxfoto.server import events
 from gpxfoto.server.api import Api
+from gpxfoto.server import app
 from gpxfoto.server.app import Server
 
 
@@ -29,6 +30,13 @@ class EchoApi(Api):
         super().__init__(events)
         self.routes[("POST", "echo")] = lambda handler, query: handler.send_json(
             {"got": handler.read_json(limit=100)})
+
+
+@pytest.fixture(autouse=True)
+def settings(tmp_path, monkeypatch):
+    """The settings of each test in a folder of its own."""
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
 
 
 @pytest.fixture
@@ -332,3 +340,45 @@ def test_state_of_a_new_page(server):
     state = json.loads(request(server, "GET", "/api/state").body)
     assert state["photos"] == {"generation": 0, "folder": None, "loading": False, "photos": []}
     assert (state["correction"], state["overwrite"], state["stops"]) == (0.0, False, True)
+
+
+def test_the_map_style_is_kept_and_other_pages_follow(server):
+    server.api = Api(server.events)
+    published = []
+    server.events.publish = lambda name, data: published.append((name, data))
+    state = json.loads(request(server, "GET", "/api/state").body)
+    assert state["preferences"] == {"map_style": "light"}
+    response = request(server, "POST", "/api/preferences", body={"map_style": "dark"})
+    assert (response.status, json.loads(response.body)) == (200, {"map_style": "dark"})
+    assert published == [("preferences", {"map_style": "dark"})]
+    state = json.loads(request(server, "GET", "/api/state").body)
+    assert state["preferences"] == {"map_style": "dark"}
+
+
+@pytest.mark.parametrize("body", [{"map_style": "blue"}, {"map_style": 1}, {"colour": "dark"},
+                                  {}, ["dark"], "dark"])
+def test_unknown_preferences_are_refused(server, body):
+    server.api = Api(server.events)
+    assert request(server, "POST", "/api/preferences", body=body).status == 400
+    state = json.loads(request(server, "GET", "/api/state").body)
+    assert state["preferences"] == {"map_style": "light"}
+
+
+def test_the_application_icon_is_the_icon_of_the_page(server):
+    with open(os.path.join(ROOT, "data", "icons", "hicolor", "scalable", "apps",
+                           "io.github.tomaszbojanowski.Gpxfoto.svg"), "rb") as f:
+        icon = f.read()
+    response = request(server, "GET", "/static/favicon.svg")
+    assert (response.status, response.getheader("Content-Type")) == (200, "image/svg+xml")
+    assert response.body == icon
+    page = request(server, "GET", "/").body.decode()
+    assert '<link rel="icon" type="image/svg+xml" href="/static/favicon.svg">' in page
+    assert "<title>gpxfoto</title>" in page
+
+
+def test_the_icon_copied_into_the_package_comes_first(server, tmp_path, monkeypatch):
+    web = tmp_path / "web"
+    web.mkdir()
+    (web / "favicon.svg").write_bytes(b"<svg/>")
+    monkeypatch.setattr(app, "WEB_DIR", str(web))
+    assert request(server, "GET", "/static/favicon.svg").body == b"<svg/>"

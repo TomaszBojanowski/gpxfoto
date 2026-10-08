@@ -22,6 +22,11 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from gpxfoto.server.events import Events
 
 WEB_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), "web")
+# The application icon is the page's icon. Building the package copies it
+# among the page files; run from the source tree, it comes from data/icons.
+FAVICON = "favicon.svg"
+SOURCE_ICON = os.path.join(os.path.dirname(os.path.dirname(WEB_DIR)), "data", "icons",
+                           "hicolor", "scalable", "apps", "io.github.tomaszbojanowski.Gpxfoto.svg")
 # The program ends this long after the last page closed, unless a page
 # connects again in the meantime, as it does when it is reloaded
 CLOSE_GRACE = 10.0           # s
@@ -278,5 +283,7 @@ def _static_path(relative):
     path = os.path.realpath(os.path.join(WEB_DIR, *parts))
     if os.path.commonpath([path, os.path.realpath(WEB_DIR)]) != os.path.realpath(WEB_DIR):
         return None
+    if relative == FAVICON and not os.path.isfile(path) and os.path.isfile(SOURCE_ICON):
+        return SOURCE_ICON
     return path if os.path.isfile(path) else None
 

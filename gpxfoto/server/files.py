@@ -21,6 +21,9 @@ COUNT_LIMIT = 5000
 # This many recently chosen folders are kept of each kind
 RECENT = 8
 RECENT_KINDS = ("photos", "tracks")
+# The choices of the page kept between runs, each with its values, the
+# first of them the default
+PREFERENCES = {"map_style": ("light", "dark")}
 
 
 class FolderError(Exception):
@@ -132,16 +135,39 @@ def config_dir():
     return os.path.join(base, "gpxfoto")
 
 
+def _load(name):
+    """The JSON object stored in the settings file name, or {}."""
+    try:
+        with open(os.path.join(config_dir(), name), encoding="utf-8") as f:
+            stored = json.load(f)
+    except (OSError, ValueError):
+        return {}
+    return stored if isinstance(stored, dict) else {}
+
+
+def _save(name, data):
+    """Replace the settings file name; a failure to save is not an error."""
+    directory = config_dir()
+    temp = None
+    try:
+        os.makedirs(directory, exist_ok=True)
+        with tempfile.NamedTemporaryFile("w", encoding="utf-8", dir=directory,
+                                         prefix=".gpxfoto-", delete=False) as f:
+            temp = f.name
+            json.dump(data, f, ensure_ascii=False, indent=1)
+        os.replace(temp, os.path.join(directory, name))
+    except OSError:
+        if temp is not None:
+            try:
+                os.unlink(temp)
+            except OSError:
+                pass
+
+
 def recent():
     """The folders and files chosen recently, by kind, newest first, of
     those that still exist."""
-    try:
-        with open(os.path.join(config_dir(), "recent.json"), encoding="utf-8") as f:
-            stored = json.load(f)
-    except (OSError, ValueError):
-        stored = {}
-    if not isinstance(stored, dict):
-        stored = {}
+    stored = _load("recent.json")
     result = {}
     for kind in RECENT_KINDS:
         paths = stored.get(kind)
@@ -151,18 +177,23 @@ def recent():
 
 
 def remember(kind, path):
-    """Note path as chosen just now; a failure to save is not an error."""
+    """Note path as chosen just now."""
     lists = recent()
     lists[kind] = ([path] + [p for p in lists[kind] if p != path])[:RECENT]
-    directory = config_dir()
-    try:
-        os.makedirs(directory, exist_ok=True)
-        with tempfile.NamedTemporaryFile("w", encoding="utf-8", dir=directory,
-                                         prefix=".recent-", delete=False) as f:
-            json.dump(lists, f, ensure_ascii=False, indent=1)
-        os.replace(f.name, os.path.join(directory, "recent.json"))
-    except OSError:
-        try:
-            os.unlink(f.name)
-        except (OSError, NameError):
-            pass
+    _save("recent.json", lists)
+
+
+def preferences():
+    """The choices of the page that are kept between runs."""
+    stored = _load("preferences.json")
+    return {name: stored[name] if stored.get(name) in values else values[0]
+            for name, values in PREFERENCES.items()}
+
+
+def set_preference(name, value):
+    """Keep a choice of the page; ValueError for one that is not known."""
+    if value not in PREFERENCES.get(name, ()):
+        raise ValueError(f"{name}: {value!r} is not known")
+    chosen = preferences()
+    chosen[name] = value
+    _save("preferences.json", chosen)
