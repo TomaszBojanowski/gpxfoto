@@ -162,8 +162,9 @@ Każdy etap kończy się działającym programem i przechodzącymi testami. Jedn
 - **Interfejs nigdy się nie zawiesza**: wczytywanie tras, odczyt metadanych, miniatury i zapis to zadania w tle po stronie serwera; strona dostaje wyniki strumieniem zdarzeń. Przewidzieć to w architekturze od początku.
 - **Bezpieczeństwo serwera lokalnego**:
   - nasłuch wyłącznie na `127.0.0.1`;
-  - losowy token w adresie przy starcie, wymagany przy każdym żądaniu;
-  - sprawdzanie nagłówków `Host` i `Origin` (ochrona przed innymi stronami otwartymi w przeglądarce);
+  - losowy token we fragmencie adresu przy starcie (`/#token`, nigdy nie trafia do serwera ani do ciasteczek); strona przechowuje go w karcie i wysyła w nagłówku przy każdym żądaniu o dane; bez tokenu dostępne są tylko strona startowa, jej pliki i tłumaczenia, które nie zawierają żadnych danych;
+  - sprawdzanie nagłówka `Host` przy każdym żądaniu, także o pliki strony (ochrona przed DNS rebinding), oraz `Origin` i `Sec-Fetch-Site` (ochrona przed innymi stronami otwartymi w przeglądarce);
+  - przeglądarka otwierana przez lokalny plik HTML z przekierowaniem, czytelny tylko dla użytkownika (prywatny katalog tymczasowy), usuwany zaraz po otwarciu strony albo przy zakończeniu programu; adresu z tokenem nie ma w wierszu poleceń żadnego procesu;
   - serwer czyta i zapisuje tylko w folderach wskazanych przez użytkownika, z ochroną przed wyjściem poza nie;
   - żadnych zewnętrznych skryptów, czcionek ani statystyk.
 - Teksty strony tłumaczone z tych samych katalogów gettext co terminal (serwer podaje je stronie); polskie tłumaczenie kompletne.
@@ -175,7 +176,7 @@ Każdy etap kończy się działającym programem i przechodzącymi testami. Jedn
 **Stan prac (gałąź `etap-4`)**
 
 Zrobione:
-- serwer lokalny (`gpxfoto/server/`): token we fragmencie adresu, wysyłany przez stronę w nagłówku (bez ciasteczek), sprawdzanie `Host`/`Origin`/`Sec-Fetch-Site`, CSP; przeglądarka otwierana przez prywatny plik przekierowania; koniec programu po zamknięciu karty, Ctrl+C, SIGTERM/SIGHUP;
+- serwer lokalny (`gpxfoto/server/`) zabezpieczony jak wyżej (token we fragmencie adresu i w nagłówku, `Host` przy każdym żądaniu, `Origin`/`Sec-Fetch-Site`, CSP, plik przekierowania usuwany po otwarciu strony); przegląd bezpieczeństwa zrobiony, poprawki wdrożone; koniec programu po zamknięciu karty, Ctrl+C, SIGTERM/SIGHUP;
 - wybór folderu zdjęć i plików/folderu tras w oknie po stronie serwera, ostatnie foldery, przeciąganie plików GPX;
 - wczytywanie zdjęć i tras w tle, dopasowanie na żywo, suwak poprawki czasu (±30 min, ±1 h, w granicach doby), opcje „Nadpisuj istniejące położenie” i „Postoje”;
 - mapa MapLibre z OpenFreeMap: styl jasny i ciemny (ciemny przerobiony z Liberty) z zapamiętanym wyborem, grupowanie zdjęć, wachlarz zdjęć z jednego miejsca, przycisk „Pokaż całą trasę”, widok startowy w części mapy wolnej od paneli;

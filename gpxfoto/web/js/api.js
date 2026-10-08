@@ -13,10 +13,11 @@ function readToken() {
   if (given) {
     try {
       sessionStorage.setItem(KEY, given);
+      // Out of the address bar only once it is kept for a reload
+      history.replaceState(null, "", location.pathname);
     } catch (error) {
-      // Kept for this load only
+      // Kept in the address for reloads
     }
-    history.replaceState(null, "", location.pathname);
     return given;
   }
   try {
@@ -27,6 +28,14 @@ function readToken() {
 }
 
 export const token = readToken();
+
+// The address pasted into this tab differs only in the fragment, which
+// does not load the page again by itself
+addEventListener("hashchange", () => {
+  if (location.hash.length > 1) {
+    location.reload();
+  }
+});
 
 // fetch, with the server's absence told in the user's language
 async function request(url, options = {}) {

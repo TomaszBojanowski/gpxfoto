@@ -124,11 +124,14 @@ def test_the_token_in_the_query_only_where_the_browser_asks_by_itself(server):
 
 @pytest.mark.parametrize("host", ["localhost:{port}", "evil.example", "127.0.0.1",
                                   "127.0.0.1:{other}", "evil.example:{port}"])
-def test_requests_must_name_this_server_in_host(server, host):
+@pytest.mark.parametrize("path", ["/", "/static/app.css", "/static/favicon.svg", "/api/i18n",
+                                  "/api/state"])
+def test_requests_must_name_this_server_in_host(server, host, path):
     # A web page can make the browser send requests here under its own
-    # name (DNS rebinding): Host gives it away
+    # name (DNS rebinding): Host gives it away, also for the files that
+    # need no token
     host = host.format(port=server.port, other=server.port + 1)
-    assert request(server, "GET", "/", host=host).status == 421
+    assert request(server, "GET", path, host=host).status == 421
 
 
 @pytest.mark.parametrize("origin", ["http://evil.example", "null",
@@ -265,13 +268,27 @@ def test_ui_shows_its_address_opens_the_browser_and_ends_with_ctrl_c(tmp_path):
         assert os.stat(page).st_mode & 0o777 == 0o600
         assert os.stat(os.path.dirname(page)).st_mode & 0o777 == 0o700
         with open(page, encoding="utf-8") as f:
-            assert f'<meta http-equiv="refresh" content="0;url={url}">' in f.read()
+            text = f.read()
+        assert f'<meta http-equiv="refresh" content="0;url={url}">' in text
+        assert f'<a href="{url}">gpxfoto</a>' in text
         parts = urllib.parse.urlsplit(url)
         connection = http.client.HTTPConnection(parts.hostname, parts.port, timeout=10)
         connection.request("GET", "/api/state", headers={"Host": parts.netloc,
                                                          "X-Gpxfoto-Token": parts.fragment})
         assert connection.getresponse().status == 200
         connection.close()
+        # Once the page listens, the file is removed
+        assert os.path.exists(page)
+        events = http.client.HTTPConnection(parts.hostname, parts.port, timeout=10)
+        events.request("GET", f"/api/events?token={parts.fragment}",
+                       headers={"Host": parts.netloc})
+        assert events.getresponse().fp.readline() == b": connected\n"
+        for _ in range(100):
+            if not os.path.exists(os.path.dirname(page)):
+                break
+            time.sleep(0.05)
+        assert not os.path.exists(os.path.dirname(page))
+        events.close()
     finally:
         process.send_signal(signal.SIGINT)
         out, err = process.communicate(timeout=10)
@@ -283,9 +300,15 @@ def test_ui_shows_its_address_opens_the_browser_and_ends_with_ctrl_c(tmp_path):
 @needs_exiftool
 def test_ui_ends_when_the_terminal_closes(tmp_path):
     process, first, _second = start_ui(tmp_path)
+    for _ in range(100):
+        if (tmp_path / "opened").exists():
+            break
+        time.sleep(0.05)
+    page = urllib.parse.urlsplit((tmp_path / "opened").read_text().strip()).path
     process.send_signal(signal.SIGHUP)
     out, err = process.communicate(timeout=10)
     assert (process.returncode, out, err) == (0, "", "")
+    assert not os.path.exists(os.path.dirname(page))
 
 
 def test_ui_takes_no_other_arguments(tmp_path):
@@ -409,3 +432,17 @@ def test_the_icon_copied_into_the_package_comes_first(server, tmp_path, monkeypa
     (web / "favicon.svg").write_bytes(b"<svg/>")
     monkeypatch.setattr(app, "WEB_DIR", str(web))
     assert request(server, "GET", "/static/favicon.svg").body == b"<svg/>"
+
+
+@pytest.mark.parametrize("path", ["/api/events", "/api/thumbnail?generation=0&id=0"])
+def test_a_wrong_token_in_the_query_is_refused(server, path):
+    server.api = Api(server.events)
+    separator = "&" if "?" in path else "?"
+    assert request(server, "GET", f"{path}{separator}token=guess", token=False).status == 403
+
+
+def test_a_wrong_header_is_not_saved_by_the_query(server):
+    server.api = Api(server.events)
+    path = f"/api/thumbnail?generation=0&id=0&token={server.token}"
+    response = request(server, "GET", path, token=False, headers={"X-Gpxfoto-Token": "guess"})
+    assert response.status == 403

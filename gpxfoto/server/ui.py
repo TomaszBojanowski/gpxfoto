@@ -34,17 +34,22 @@ def run(open_browser=True):
     # The browser gets a file that leads to the page, never the address
     # itself, which other users could read in the list of processes
     opener = tempfile.mkdtemp(prefix="gpxfoto-")
-    if open_browser:
-        page = os.path.join(opener, "open.html")
-        with open(os.open(page, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), "w",
-                  encoding="utf-8") as f:
-            f.write('<!DOCTYPE html><meta charset="utf-8"><title>gpxfoto</title>'
-                    f'<meta http-equiv="refresh" content="0;url={html.escape(server.url)}">')
-        threading.Thread(target=webbrowser.open, args=(pathlib.Path(page).as_uri(),),
-                         daemon=True).start()
     try:
+        if open_browser:
+            page = os.path.join(opener, "open.html")
+            address = html.escape(server.url)
+            with open(os.open(page, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), "w",
+                      encoding="utf-8") as f:
+                # The link, for a browser that does not follow the refresh
+                f.write('<!DOCTYPE html><meta charset="utf-8"><title>gpxfoto</title>'
+                        f'<meta http-equiv="refresh" content="0;url={address}">'
+                        f'<a href="{address}">gpxfoto</a>')
+            threading.Thread(target=webbrowser.open, args=(pathlib.Path(page).as_uri(),),
+                             daemon=True).start()
         while not server.stopping.wait(0.5):
-            pass
+            # The file is not needed once the page is open
+            if server.events.ever_listened and os.path.isdir(opener):
+                shutil.rmtree(opener, ignore_errors=True)
     except KeyboardInterrupt:
         pass
     finally:
