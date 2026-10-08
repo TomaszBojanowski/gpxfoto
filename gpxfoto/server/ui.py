@@ -54,5 +54,9 @@ def run(open_browser=True):
         pass
     finally:
         shutil.rmtree(opener, ignore_errors=True)
+    if server.api.session.writing is not None:
+        # No photo is left half written: those being written are finished
+        print(_("Finishing the photos being written…"))
+        sys.stdout.flush()
     server.api.close()
     server.close()

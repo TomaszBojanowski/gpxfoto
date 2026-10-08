@@ -5,6 +5,7 @@ Everything that reads files runs in background threads, and the page hears
 of the results through events, as they come. The state is guarded by one
 lock, held only for short moments. Choosing new photos or tracks starts a
 new generation: work for an older one stops and its results are dropped.
+While the photos are written, nothing can be chosen anew.
 """
 import base64
 import binascii
@@ -23,6 +24,7 @@ from gpxfoto.engine.photos import (
 from gpxfoto.engine.track import find_tracks, load_track, quick_span, tracks_needed
 from gpxfoto.server import files
 from gpxfoto.server.geometry import track_lines
+from gpxfoto.server.writing import Job, Writing
 
 # Photos are read in batches of this many, so that the list fills as it goes
 PHOTO_BATCH = 100
@@ -53,6 +55,7 @@ class Session:
         self.photo_folder = None
         self.photos = []                 # Photo
         self.looks = []                  # (EXIF Orientation or None, has a thumbnail) of each photo
+        self.seen = []                   # os.stat() of each photo before it was read, or None
         self.photos_loading = False
         self.track_generation = 0
         self.track_choice = None         # {"files": [...]} or {"folder": ..., "recursive": ...}
@@ -67,6 +70,9 @@ class Session:
         self.overwrite = False
         self.stops = True
         self.match = None                # what was last sent as "matches"
+        self.results = []                # its PhotoResult of each photo
+        self._match_number = 0
+        self.writing = None              # Writing, while the photos are written
         self._thumbnails = OrderedDict()
         self._upload_dir = None
         self._wanted = False
@@ -82,13 +88,14 @@ class Session:
         if not os.path.isdir(folder):
             raise SessionError(_("Not a folder: {path}").format(path=folder))
         with self.lock:
+            self._not_writing()
             self.photo_generation += 1
             generation = self.photo_generation
             self.photo_folder = folder
-            self.photos, self.looks = [], []
+            self.photos, self.looks, self.seen = [], [], []
             self.photos_loading = True
             self._thumbnails.clear()
-            self.match = None
+            self.match, self.results = None, []
         files.remember("photos", folder)
         self.events.publish("photos-reset", {"generation": generation, "folder": folder,
                                              "recursive": recursive})
@@ -120,6 +127,7 @@ class Session:
     def drop_tracks(self, dropped):
         """Use GPX files that were dropped on the page, as [(name, base64 of the file)]."""
         with self.lock:
+            self._not_writing()
             # Copies of the user's tracks are kept no longer than needed
             if self._upload_dir is not None:
                 shutil.rmtree(self._upload_dir, ignore_errors=True)
@@ -148,6 +156,7 @@ class Session:
 
     def _choose_tracks(self, choice):
         with self.lock:
+            self._not_writing()
             self.track_generation += 1
             generation = self.track_generation
             self.track_choice = choice
@@ -158,7 +167,7 @@ class Session:
             stops = self.stops
             # Until the new tracks are read, no photo is placed; a choice
             # that cannot be read leaves them so
-            self.match = None
+            self.match, self.results = None, []
             self._want_match()
         self.events.publish("tracks-reset", {"generation": generation, "choice": choice})
         threading.Thread(target=self._load_tracks, args=(generation, choice, stops),
@@ -170,12 +179,14 @@ class Session:
         if not abs(seconds) <= MAX_CORRECTION:          # also false for NaN
             raise SessionError(_("not a valid number of seconds: {value}").format(value=seconds))
         with self.lock:
+            self._not_writing()
             self.correction = seconds
             self._want_match()
 
     def set_options(self, overwrite=None, stops=None):
         reload = None
         with self.lock:
+            self._not_writing()
             if overwrite is not None:
                 self.overwrite = bool(overwrite)
             if stops is not None and bool(stops) != self.stops:
@@ -185,13 +196,76 @@ class Session:
         if reload is not None:
             self._choose_tracks(reload)
 
+    def write(self, version):
+        """Start writing the locations of the match the page shows, numbered version."""
+        with self.lock:
+            self._not_writing()
+            match = self.match
+            if (self.photos_loading or self.tracks_loading or match is None
+                    or match["version"] != version or match["correction"] != self.correction
+                    or match["overwrite"] != self.overwrite):
+                raise SessionError(_("The locations changed in the meantime. Check them and "
+                                     "write again."))
+            jobs = [Job(i, r.photo.path, r.lat, r.lon, r.ele, r.time_utc, r.photo.has_location,
+                        self.seen[i])
+                    for i, r in enumerate(self.results) if r.reason is None]
+            if not jobs:
+                raise SessionError(_("No photo has a location to write."))
+            self.writing = Writing(jobs, self.events.publish, self._written)
+            writing = self.writing
+        self.events.publish("write-start", writing.progress())
+        writing.start()
+        return len(jobs)
+
+    def cancel_write(self):
+        """Write no more photos; those being written are finished."""
+        with self.lock:
+            writing = self.writing
+        if writing is not None:
+            writing.cancel()
+            self.events.publish("write-progress", writing.progress())
+
+    def _not_writing(self):
+        """Nothing may change while the photos are written; the lock is held."""
+        if self.writing is not None:
+            raise SessionError(_("Wait until the locations are written, or cancel the "
+                                 "writing."))
+
+    def _written(self, writing):
+        """The writing ended: the written photos have a location now."""
+        with self.lock:
+            generation = self.photo_generation
+            changed = []
+            for index, seen in sorted(writing.written, key=lambda item: item[0]):
+                self.photos[index] = self.photos[index]._replace(has_location=True)
+                self.seen[index] = seen
+                # The thumbnail is the same, but the file is a new one
+                self._thumbnails.pop(self.photos[index].path, None)
+                changed.append(self._photo_summary(index, self.photos[index],
+                                                   self.looks[index]))
+            names = {index: os.path.basename(self.photos[index].path)
+                     for index, _message in writing.failed}
+            self.writing = None
+            if not self._closed:
+                self._want_match()
+        summary = writing.summary()
+        for failure in summary["failed"]:
+            failure["name"] = names[failure["id"]]
+        self.events.publish("photos-changed", {"generation": generation, "photos": changed})
+        self.events.publish("write-done", summary)
+
     def close(self):
+        """Stop the work in the background; photos being written are finished first."""
         with self.lock:
             self._closed = True
             self.photo_generation += 1
             self.track_generation += 1
             self._wake.notify_all()
             directory = self._upload_dir
+            writing = self.writing
+        if writing is not None:
+            writing.cancel()
+            writing.wait()
         if directory:
             shutil.rmtree(directory, ignore_errors=True)
 
@@ -210,6 +284,7 @@ class Session:
                            "tracks": [self.summaries[id(t)] for t in self._tracks()]},
                 "correction": self.correction, "overwrite": self.overwrite,
                 "stops": self.stops, "matches": self.match,
+                "writing": None if self.writing is None else self.writing.progress(),
             }
 
     def thumbnail(self, generation, index):
@@ -239,6 +314,14 @@ class Session:
         self.events.publish("photos-found", {"generation": generation, "total": len(found)})
         for start in range(0, len(found), PHOTO_BATCH):
             batch = found[start:start + PHOTO_BATCH]
+            # Taken before exiftool reads the photos: a photo that another
+            # program changes after that is not written
+            seen = []
+            for path in batch:
+                try:
+                    seen.append(os.stat(path))
+                except OSError:
+                    seen.append(None)
             try:
                 metadata = read_metadata(batch)
             except (RuntimeError, OSError) as e:
@@ -254,6 +337,7 @@ class Session:
                 first = len(self.photos)
                 self.photos += new
                 self.looks += looks
+                self.seen += seen
                 self._want_match()
             self.events.publish("photos", {
                 "generation": generation, "done": first + len(new), "total": len(found),
@@ -385,7 +469,7 @@ class Session:
                                label=os.path.basename, unreadable=unreadable)
         summary = summarize(results)
         match = {
-            "generation": photo_generation, "tracks": track_generation,
+            "version": None, "generation": photo_generation, "tracks": track_generation,
             "correction": correction, "overwrite": overwrite,
             "results": [self._result(i, r, overwrite) for i, r in enumerate(results)],
             "matched": summary.matched, "skipped": summary.skipped,
@@ -397,7 +481,10 @@ class Session:
             if (photo_generation != self.photo_generation
                     or track_generation != self.track_generation):
                 return
+            self._match_number += 1
+            match["version"] = self._match_number
             self.match = match
+            self.results = results
         self.events.publish("matches", match)
 
     # --- what the page gets ------------------------------------------------

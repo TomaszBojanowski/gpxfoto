@@ -182,10 +182,10 @@ Zrobione:
 - mapa MapLibre z OpenFreeMap: styl jasny i ciemny (ciemny przerobiony z Liberty) z zapamiętanym wyborem, grupowanie zdjęć, wachlarz zdjęć z jednego miejsca, przycisk „Pokaż całą trasę”, widok startowy w części mapy wolnej od paneli;
 - lista zdjęć (wirtualna) z miniaturami EXIF, filtrami i rozwiniętym wierszem zaznaczonego zdjęcia (pełne współrzędne, wysokość);
 - logo jak w gpxfilm, ikona karty z `data/icons`, tłumaczenie polskie kompletne;
-- poprawki po przeglądzie kodu (zdarzenia przy przeładowaniu strony, podwójny margines mapy, nazwy plików spoza UTF-8, limit czasu exiftoola i inne).
+- poprawki po przeglądzie kodu (zdarzenia przy przeładowaniu strony, podwójny margines mapy, nazwy plików spoza UTF-8, limit czasu exiftoola i inne);
+- zapis z potwierdzeniem, postępem, „Anuluj” i podsumowaniem: kilka plików naraz (4 wątki), zapisywane jest dokładnie dopasowanie widoczne na stronie, plik zmieniony przez inny program po odczycie nie jest zapisywany; w trakcie zapisu zmiany wyboru są zablokowane; zamknięcie karty lub Ctrl+C dokańcza bieżące pliki i nie zaczyna następnych; przeglądarka pyta o potwierdzenie zamknięcia karty.
 
 Do zrobienia:
-- zapis z postępem, „Anuluj” i podsumowaniem; zamknięcie karty lub Ctrl+C w trakcie zapisu dokańcza bieżący plik, nie zaczyna następnych; przeglądarka pyta o potwierdzenie zamknięcia karty w trakcie zapisu;
 - tryb edycji położenia (osobny przycisk, domyślnie wyłączony): przeciąganie miniatury, umieszczanie pominiętego zdjęcia, powrót do położenia z trasy;
 - cofanie zapisu przywracające metadane GPS sprzed zapisu (dziennik zapisu, ta sama weryfikacja sumy obrazu);
 - ostrzeżenia na stronie: przesunięcie o pełne godziny (z przyciskiem zastosowania), zdjęcia w ruchu, skoki, niezgodność z czasem UTC aparatu, strefy czasowe, najbliższa trasa przy folderze tras;

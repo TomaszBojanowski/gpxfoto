@@ -97,7 +97,9 @@ def test_the_page_itself_needs_no_token(server, site):
 
 @pytest.mark.parametrize("method, path", [("GET", "/api/state"), ("GET", "/api/events"),
                                           ("GET", "/api/thumbnail?generation=0&id=0"),
-                                          ("GET", "/api/browse"), ("POST", "/api/echo")])
+                                          ("GET", "/api/browse"), ("POST", "/api/echo"),
+                                          ("POST", "/api/write"),
+                                          ("POST", "/api/write/cancel")])
 # Header values are bytes: "\xc4\x85" is "ą" in UTF-8, "\xb3" no UTF-8 at all
 @pytest.mark.parametrize("token", [None, "wrong", "", "\xc4\x85", "\xb3"])
 def test_every_request_for_data_needs_the_token(server, method, path, token):
@@ -363,6 +365,9 @@ def test_the_page_browses_folders(server, tmp_path):
     ("/api/correction", {"seconds": "60"}, "seconds: wrong type"),
     ("/api/correction", {"seconds": True}, "seconds: wrong type"),
     ("/api/options", {"overwrite": 1}, "overwrite: wrong type"),
+    ("/api/write", {}, "match expected"),
+    ("/api/write", {"match": "1"}, "match: wrong type"),
+    ("/api/write", {"match": None}, "match: wrong type"),
 ])
 def test_requests_of_the_wrong_form_are_refused(server, path, body, message):
     server.api = Api(server.events)
@@ -377,6 +382,15 @@ def test_choices_that_cannot_be_used_are_explained(server, tmp_path):
     assert json.loads(response.body) == {"error": f"Not a folder: {tmp_path / 'x'}"}
     response = request(server, "POST", "/api/correction", body={"seconds": 1e9})
     assert response.status == 400
+
+
+def test_a_write_needs_a_match_and_cancelling_none_is_harmless(server):
+    server.api = Api(server.events)
+    response = request(server, "POST", "/api/write", body={"match": 1})
+    assert response.status == 400
+    assert json.loads(response.body)["error"].startswith("The locations changed in the meantime.")
+    assert request(server, "POST", "/api/write/cancel", body={}).status == 202
+    assert json.loads(request(server, "GET", "/api/state").body)["writing"] is None
 
 
 @pytest.mark.parametrize("query", ["", "?generation=1", "?generation=x&id=0", "?generation=1&id=0"])

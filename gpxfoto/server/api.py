@@ -55,6 +55,8 @@ class Api:
             ("POST", "correction"): self.post_correction,
             ("POST", "options"): self.post_options,
             ("POST", "preferences"): self.post_preferences,
+            ("POST", "write"): self.post_write,
+            ("POST", "write/cancel"): self.post_cancel_write,
         }
 
     def handle(self, handler, method, name, query):
@@ -133,6 +135,15 @@ class Api:
         data = handler.read_json()
         self.session.set_options(overwrite=_field(data, "overwrite", bool, None),
                                  stops=_field(data, "stops", bool, None))
+        handler.send_json({}, HTTPStatus.ACCEPTED)
+
+    def post_write(self, handler, query):
+        total = self.session.write(_field(handler.read_json(), "match", int))
+        handler.send_json({"total": total}, HTTPStatus.ACCEPTED)
+
+    def post_cancel_write(self, handler, query):
+        handler.read_json()
+        self.session.cancel_write()
         handler.send_json({}, HTTPStatus.ACCEPTED)
 
     def post_preferences(self, handler, query):

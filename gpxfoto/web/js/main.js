@@ -20,7 +20,10 @@ const state = {
   folder: null,
   photos: [],             // summaries from the server, by id
   results: [],            // the last match, by id
+  matchVersion: null,     // its number, which a write names
   loading: false,
+  tracksLoading: false,
+  writing: null,          // the progress of the write under way
   found: 0,
   trackGeneration: 0,
   trackChoice: null,
@@ -71,16 +74,35 @@ function notice(message, kind = "error") {
   }
 }
 
+// The progress of reading the photos; a write takes its place
+let reading = { done: 0, total: null };
+
 function progress(done, total) {
+  reading = { done, total };
+  state.loading = total !== null;
+  showProgress();
+}
+
+function showProgress() {
   const box = $("progress");
+  const writing = state.writing;
+  const { done, total } = writing || reading;
+  $("cancel-write").hidden = !writing;
   if (total === null) {
     box.hidden = true;
     return;
   }
   box.hidden = false;
   box.querySelector("span").style.width = (total ? (100 * done) / total : 0) + "%";
-  box.querySelector("p").textContent = format(_("Reading photos: {done} of {total}"),
+  let text = _("Reading photos: {done} of {total}");
+  if (writing && writing.cancelled) {
+    text = _("Cancelling: finishing the photos being written…");
+  } else if (writing) {
+    text = _("Writing locations: {done} of {total}");
+  }
+  box.querySelector("p").textContent = format(text,
     { done: number(done), total: number(total) });
+  $("cancel-write").disabled = Boolean(writing && writing.cancelled);
 }
 
 // --- thumbnails ----------------------------------------------------------
@@ -336,10 +358,17 @@ function showPhotos() {
     button.setAttribute("aria-pressed", String(button.dataset.filter === state.filter));
   }
   list.setIds(visibleIds());
+  showWriteButton();
+}
+
+function showWriteButton() {
+  const matched = state.results.filter(isMatched).length;
   const write = $("write");
-  write.textContent = format(ngettext("Write {count} location", "Write {count} locations",
-    matched), { count: number(matched) });
-  write.disabled = true;
+  write.textContent = state.writing ? _("Writing…") : format(ngettext("Write {count} location",
+    "Write {count} locations", matched), { count: number(matched) });
+  // Only a match of everything chosen, as the page shows it
+  write.disabled = Boolean(state.writing) || !matched || state.loading || state.tracksLoading
+    || state.matchVersion === null;
 }
 
 function showSummary(match) {
@@ -363,6 +392,7 @@ function applyMatch(match) {
     return;
   }
   state.results = match.results;
+  state.matchVersion = match.version;
   showSummary(match);
   photoMap.setPhotos(state.photoGeneration, match.results.filter(isMatched));
   showPhotos();
@@ -507,6 +537,114 @@ for (const button of document.querySelectorAll(".filters button")) {
   });
 }
 
+// --- writing ----------------------------------------------------------------
+
+// A question or a message in a dialog; true when ok was chosen
+function ask(title, content, ok, cancel = true) {
+  const dialog = $("message");
+  if (dialog.open) {
+    dialog.close();             // a question that is no longer asked
+  }
+  $("message-title").textContent = title;
+  $("message-body").replaceChildren(...content);
+  $("message-ok").textContent = ok;
+  $("message-cancel").hidden = !cancel;
+  dialog.returnValue = "";
+  dialog.showModal();
+  return new Promise((resolve) => {
+    dialog.addEventListener("close", () => resolve(dialog.returnValue === "ok"),
+      { once: true });
+  });
+}
+
+function paragraph(text, kind = "") {
+  const element = document.createElement("p");
+  element.textContent = text;
+  element.className = kind;
+  return element;
+}
+
+// While the photos are written, nothing can be chosen anew
+const LOCKED = ["choose-photos", "choose-tracks", "overwrite", "stops", "correction",
+  "minus-hour", "plus-hour", "reset-correction"];
+
+function showWriting() {
+  for (const id of LOCKED) {
+    $(id).disabled = Boolean(state.writing);
+  }
+  showProgress();
+  showWriteButton();
+}
+
+$("write").addEventListener("click", async () => {
+  const version = state.matchVersion;
+  const planned = state.results.filter(isMatched);
+  const overwrites = planned.filter((result) => result.overwrites).length;
+  const content = [paragraph(format(ngettext(
+    "The location will be written into {count} photo.",
+    "The location will be written into {count} photos.", planned.length),
+  { count: number(planned.length) }))];
+  if (overwrites) {
+    content.push(paragraph(format(ngettext(
+      "{count} of them already has a location, which will be overwritten.",
+      "{count} of them already have a location, which will be overwritten.", overwrites),
+    { count: number(overwrites) }), "error"));
+  }
+  content.push(paragraph(_("Only the location is written. The image data of every photo is "
+    + "checked to be unchanged, and a photo is replaced only once it is.")));
+  const ok = format(ngettext("Write {count} location", "Write {count} locations",
+    planned.length), { count: number(planned.length) });
+  if (!await ask(_("Write the locations?"), content, ok)) {
+    return;
+  }
+  try {
+    await post("write", { match: version });
+  } catch (error) {
+    notice(error.message);
+  }
+});
+
+$("cancel-write").addEventListener("click", () => {
+  post("write/cancel", {}).catch((error) => notice(error.message));
+});
+
+function showWritten(summary) {
+  const content = [paragraph(format(_("Written: {written}, errors: {errors}"),
+    { written: number(summary.written), errors: number(summary.failed.length) }))];
+  if (summary.written) {
+    content.push(paragraph(_("The image data of every written file was verified as "
+      + "unchanged.")));
+  }
+  if (summary.not_written) {
+    content.push(paragraph(format(ngettext(
+      "{count} photo was not written, as the writing was cancelled.",
+      "{count} photos were not written, as the writing was cancelled.", summary.not_written),
+    { count: number(summary.not_written) })));
+  }
+  if (summary.failed.length) {
+    const failures = document.createElement("ul");
+    for (const failure of summary.failed) {
+      const item = document.createElement("li");
+      item.className = "error";
+      item.textContent = format(_("Could not write {name}: {error} (file unchanged)"),
+        { name: failure.name, error: failure.message });
+      failures.append(item);
+    }
+    content.push(failures);
+  }
+  const title = summary.cancelled ? _("Writing cancelled") : _("Writing finished");
+  ask(title, content, _("Close"), false);
+}
+
+// Closing the tab does not stop the photos being written, but the
+// browser asks first
+addEventListener("beforeunload", (event) => {
+  if (state.writing) {
+    event.preventDefault();
+    event.returnValue = "";
+  }
+});
+
 // --- dropping GPX files ----------------------------------------------------
 
 const dropZone = $("drop-zone");
@@ -543,6 +681,10 @@ document.addEventListener("drop", async (event) => {
   event.preventDefault();
   dragDepth = 0;
   dropZone.hidden = true;
+  if (state.writing) {
+    notice(_("Wait until the locations are written, or cancel the writing."), "info");
+    return;
+  }
   const dropped = Array.from(event.dataTransfer.files);
   const tracks = dropped.filter((file) => /\.gpx$/i.test(file.name));
   if (!tracks.length) {
@@ -572,6 +714,7 @@ function resetPhotos(generation, folder) {
   state.folder = folder;
   state.photos = [];
   state.results = [];
+  state.matchVersion = null;
   state.selected = null;
   state.autoFit = true;
   list.select(null, false);
@@ -621,11 +764,19 @@ const handlers = {
       state.tracks = new Map();
       // The photos wait for the match on the new tracks
       state.results = [];
+      state.matchVersion = null;
+      state.tracksLoading = true;
       photoMap.setPhotos(state.photoGeneration, []);
       showSummary(null);
       showChoices();
       showTracks();
       showPhotos();
+    }
+  },
+  "tracks-done": (data) => {
+    if (data.generation === state.trackGeneration) {
+      state.tracksLoading = false;
+      showWriteButton();
     }
   },
   "track": (data) => {
@@ -635,6 +786,30 @@ const handlers = {
     }
   },
   "matches": applyMatch,
+  "photos-changed": (data) => {
+    if (data.generation === state.photoGeneration) {
+      for (const photo of data.photos) {
+        state.photos[photo.id] = photo;
+      }
+      showPhotos();
+    }
+  },
+  "write-start": (data) => {
+    state.writing = data;
+    showWriting();
+  },
+  "write-progress": (data) => {
+    // Only of the write under way; one that ended is done with
+    if (state.writing) {
+      state.writing = data;
+      showProgress();
+    }
+  },
+  "write-done": (data) => {
+    state.writing = null;
+    showWriting();
+    showWritten(data);
+  },
   "failure": (data) => notice(data.message),
   "preferences": (data) => setMapStyle(data.map_style),
 };
@@ -679,6 +854,7 @@ async function catchUp() {
   progress(0, data.photos.loading ? 0 : null);
   state.trackGeneration = data.tracks.generation;
   state.trackChoice = data.tracks.choice;
+  state.tracksLoading = data.tracks.loading;
   state.tracks = new Map(data.tracks.tracks.map((track) => [track.id, track]));
   state.overwrite = data.overwrite;
   state.stops = data.stops;
@@ -690,9 +866,11 @@ async function catchUp() {
     state.base = Math.round(data.correction / 3600) * 3600;
     showCorrection();
   }
+  state.writing = data.writing;
   showChoices();
   showTracks();
   showPhotos();
+  showWriting();
   applyMatch(data.matches);
 }
 

@@ -8,8 +8,10 @@ import threading
 
 import pytest
 
-from conftest import make_jpeg, needs_exiftool, set_tags, write_gpx
+from conftest import make_jpeg, needs_exiftool, read_tags, set_tags, write_gpx
+from gpxfoto.engine.writer import image_checksum
 from gpxfoto.server import session as session_module
+from gpxfoto.server import writing as writing_module
 from gpxfoto.server.session import Session, SessionError
 
 TRACK = [("2024-05-01T10:00:00Z", 50.0, 20.0, 200.0),
@@ -268,3 +270,157 @@ def test_turning_stops_off_reads_the_track_again(session, events, tmp_path):
     session.set_options(stops=False)
     assert events.names().count("tracks-reset") == 2
     assert session.state()["stops"] is False
+
+
+# --- writing the locations ---------------------------------------------------
+
+def ready_to_write(session, events, tmp_path, count=1):
+    """Photos matched on the track; returns their paths and the match."""
+    paths = [photo(tmp_path / "photos", f"p{k}.jpg", f"12:00:{10 + k}") for k in range(count)]
+    session.choose_photos(str(tmp_path / "photos"))
+    session.choose_track_files([str(write_gpx(tmp_path / "track.gpx", TRACK))])
+    events.wait("photos-done")
+    events.wait("tracks-done")
+    match = events.wait("matches", lambda d: d["matched"] == count)
+    return paths, match
+
+
+class Gate:
+    """Takes the place of write_location: each call waits until let_through()."""
+
+    def __init__(self, monkeypatch):
+        self.calls = []
+        self.condition = threading.Condition()
+        self.allowed = 0
+        real = writing_module.write_location
+
+        def write(path, *args, **kwargs):
+            with self.condition:
+                self.calls.append(path)
+                self.condition.notify_all()
+                while not self.allowed:
+                    self.condition.wait()
+                self.allowed -= 1
+            real(path, *args, **kwargs)
+
+        monkeypatch.setattr(writing_module, "write_location", write)
+
+    def wait_for(self, count):
+        with self.condition:
+            assert self.condition.wait_for(lambda: len(self.calls) >= count, 20)
+
+    def let_through(self, count=1):
+        with self.condition:
+            self.allowed += count
+            self.condition.notify_all()
+
+
+@needs_exiftool
+def test_the_locations_are_written_and_the_photos_then_have_them(session, events, tmp_path):
+    paths, match = ready_to_write(session, events, tmp_path, 3)
+    checksums = [image_checksum(path) for path in paths]
+    assert session.write(match["version"]) == 3
+    assert events.wait("write-start") == {"total": 3, "done": 0, "written": 0, "failed": 0,
+                                          "cancelled": False}
+    done = events.wait("write-done")
+    assert done == {"total": 3, "written": 3, "failed": [], "cancelled": False,
+                    "not_written": 0}
+    for path, checksum in zip(paths, checksums):
+        assert image_checksum(path) == checksum
+        tags = read_tags(path, "GPSLatitude", "GPSLongitude")
+        assert tags["GPSLatitude"] == pytest.approx(50.0, abs=0.001)
+    changed = events.wait("photos-changed")["photos"]
+    assert [(p["id"], p["has_location"]) for p in changed] == [(0, True), (1, True), (2, True)]
+    after = events.wait("matches", lambda d: d["version"] > match["version"])
+    assert [r["state"] for r in after["results"]] == ["has_location"] * 3
+    assert session.state()["writing"] is None
+
+
+@needs_exiftool
+def test_only_the_match_the_page_shows_is_written(session, events, tmp_path):
+    paths, match = ready_to_write(session, events, tmp_path)
+    session.set_correction(-5)
+    newer = matches_for(events, -5)
+    with pytest.raises(SessionError) as raised:
+        session.write(match["version"])
+    assert str(raised.value).startswith("The locations changed in the meantime.")
+    session.set_correction(-6)
+    with pytest.raises(SessionError):
+        session.write(newer["version"])         # computed with another correction
+    assert "write-start" not in events.names()
+    assert "GPSLatitude" not in read_tags(paths[0], "GPSLatitude")
+
+
+@needs_exiftool
+def test_nothing_to_write(session, events, tmp_path):
+    photo(tmp_path / "photos", "late.jpg", "15:00:00")
+    session.choose_photos(str(tmp_path / "photos"))
+    session.choose_track_files([str(write_gpx(tmp_path / "track.gpx", TRACK))])
+    events.wait("photos-done")
+    match = events.wait("matches", lambda d: d["results"] and d["tracks"] == 1)
+    with pytest.raises(SessionError) as raised:
+        session.write(match["version"])
+    assert str(raised.value) == "No photo has a location to write."
+
+
+@needs_exiftool
+def test_nothing_changes_while_writing_and_cancelling_finishes_the_photos_begun(
+        session, events, tmp_path, monkeypatch):
+    monkeypatch.setattr(writing_module, "PROGRESS_EVERY", 0)
+    gate = Gate(monkeypatch)
+    paths, match = ready_to_write(session, events, tmp_path, 6)
+    writing = session.write(match["version"]) and session.writing
+    threads = len(writing._threads)
+    gate.wait_for(threads)
+    for change in (lambda: session.choose_photos(str(tmp_path / "photos")),
+                   lambda: session.choose_track_files([str(tmp_path / "track.gpx")]),
+                   lambda: session.set_correction(10),
+                   lambda: session.set_options(overwrite=True),
+                   lambda: session.write(match["version"])):
+        with pytest.raises(SessionError) as raised:
+            change()
+        assert str(raised.value) == ("Wait until the locations are written, or cancel the "
+                                     "writing.")
+    assert session.state()["writing"]["done"] == 0
+    session.cancel_write()
+    assert events.wait("write-progress", lambda d: d["cancelled"])["done"] == 0
+    gate.let_through(threads)
+    done = events.wait("write-done")
+    assert done == {"total": 6, "written": threads, "failed": [], "cancelled": True,
+                    "not_written": 6 - threads}
+    written = [path for path in paths if "GPSLatitude" in read_tags(path, "GPSLatitude")]
+    assert written == paths[:threads] and gate.calls == [str(p) for p in paths[:threads]]
+    session.set_correction(10)                  # allowed again
+
+
+@needs_exiftool
+def test_closing_waits_for_the_photos_being_written(session, events, tmp_path, monkeypatch):
+    monkeypatch.setattr(writing_module, "WRITE_THREADS", 1)
+    gate = Gate(monkeypatch)
+    paths, match = ready_to_write(session, events, tmp_path, 2)
+    session.write(match["version"])
+    gate.wait_for(1)
+    closing = threading.Thread(target=session.close)
+    closing.start()
+    closing.join(0.5)
+    assert closing.is_alive()
+    gate.let_through(2)
+    closing.join(20)
+    assert not closing.is_alive()
+    assert "GPSLatitude" in read_tags(paths[0], "GPSLatitude")
+    assert "GPSLatitude" not in read_tags(paths[1], "GPSLatitude")
+    assert events.wait("write-done")["not_written"] == 1
+
+
+@needs_exiftool
+def test_a_photo_changed_after_it_was_read_is_not_written(session, events, tmp_path):
+    paths, match = ready_to_write(session, events, tmp_path, 2)
+    set_tags(paths[1], "-Artist=someone else")
+    session.write(match["version"])
+    done = events.wait("write-done")
+    assert done["written"] == 1
+    assert done["failed"] == [{"id": 1, "name": "p1.jpg",
+                               "message": "another program changed the photo in the meantime"}]
+    assert "GPSLatitude" not in read_tags(paths[1], "GPSLatitude")
+    changed = events.wait("photos-changed")["photos"]
+    assert [p["id"] for p in changed] == [0]
