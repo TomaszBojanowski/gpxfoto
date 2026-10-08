@@ -30,15 +30,23 @@ class Events:
         with self._lock:
             return len(self._queues)
 
-    def stream(self, write):
-        """Send the events to one page with write(bytes) until it goes away
-        or close() is called. write raises OSError for a closed page."""
+    def subscribe(self):
+        """Start keeping the events for a page that is about to listen; the
+        result goes to stream()."""
         q = queue.Queue()
         with self._lock:
             if self._closed:
-                return
-            self._queues.append(q)
-            self.ever_listened = True
+                q.put(None)
+            else:
+                self._queues.append(q)
+                self.ever_listened = True
+        return q
+
+    def stream(self, write, q=None):
+        """Send the events to one page with write(bytes) until it goes away
+        or close() is called. write raises OSError for a closed page."""
+        if q is None:
+            q = self.subscribe()
         try:
             write(b": connected\n\n")
             while True:

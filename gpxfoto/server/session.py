@@ -13,6 +13,7 @@ import re
 import shutil
 import tempfile
 import threading
+import time
 from collections import OrderedDict
 from gettext import gettext as _, ngettext
 
@@ -28,6 +29,8 @@ PHOTO_BATCH = 100
 # Thumbnails kept in memory
 THUMBNAIL_CACHE = 500
 MAX_GAP = 120.0          # s, as the default of --max-gap
+# While photos are read, matches come at most this often, in seconds
+LOADING_MATCHES = 1.0
 # How far the clock correction may go, in seconds: a day either way
 MAX_CORRECTION = 86400.0
 
@@ -117,8 +120,10 @@ class Session:
     def drop_tracks(self, dropped):
         """Use GPX files that were dropped on the page, as [(name, base64 of the file)]."""
         with self.lock:
-            if self._upload_dir is None:
-                self._upload_dir = tempfile.mkdtemp(prefix="gpxfoto-tracks-")
+            # Copies of the user's tracks are kept no longer than needed
+            if self._upload_dir is not None:
+                shutil.rmtree(self._upload_dir, ignore_errors=True)
+            self._upload_dir = tempfile.mkdtemp(prefix="gpxfoto-tracks-")
             directory = self._upload_dir
         paths = []
         for name, encoded in dropped:
@@ -151,6 +156,10 @@ class Session:
             self.summaries = {}
             self.tracks_loading = True
             stops = self.stops
+            # Until the new tracks are read, no photo is placed; a choice
+            # that cannot be read leaves them so
+            self.match = None
+            self._want_match()
         self.events.publish("tracks-reset", {"generation": generation, "choice": choice})
         threading.Thread(target=self._load_tracks, args=(generation, choice, stops),
                          daemon=True).start()
@@ -233,8 +242,9 @@ class Session:
             try:
                 metadata = read_metadata(batch)
             except (RuntimeError, OSError) as e:
-                self._photos_failed(generation, str(e))
-                return
+                # These photos are shown as unreadable; the others are read
+                self.events.publish("failure", {"message": str(e)})
+                metadata = [{"SourceFile": path, "Error": str(e)} for path in batch]
             new = [photo_from_metadata(meta, None) for meta in metadata]
             looks = [(meta.get("Orientation"), bool(meta.get("ThumbnailLength")))
                      for meta in metadata]
@@ -260,7 +270,7 @@ class Session:
             if generation != self.photo_generation:
                 return
             self.photos_loading = False
-        self.events.publish("error", {"message": message})
+        self.events.publish("failure", {"message": message})
         self.events.publish("photos-done", {"generation": generation, "count": None})
 
     def _load_tracks(self, generation, choice, stops):
@@ -307,7 +317,7 @@ class Session:
             if generation != self.track_generation:
                 return
             self.tracks_loading = False
-        self.events.publish("error", {"message": message})
+        self.events.publish("failure", {"message": message})
         self.events.publish("tracks-done", {"generation": generation})
 
     def _want_match(self):
@@ -319,17 +329,24 @@ class Session:
         self._wake.notify_all()
 
     def _match_loop(self):
+        last = 0.0
         while True:
             with self.lock:
                 while not self._wanted and not self._closed:
                     self._wake.wait()
+                # While photos are read, a match of all of them after each
+                # batch would grow with their square: one a second is enough
+                while (self.photos_loading and not self._closed
+                       and time.monotonic() - last < LOADING_MATCHES):
+                    self._wake.wait(LOADING_MATCHES - (time.monotonic() - last))
                 if self._closed:
                     return
                 self._wanted = False
+            last = time.monotonic()
             try:
                 self._match_once()
             except Exception as e:      # the page must hear of it; the loop goes on
-                self.events.publish("error", {"message": str(e)})
+                self.events.publish("failure", {"message": str(e)})
 
     def _match_once(self):
         with self.lock:
@@ -356,7 +373,7 @@ class Session:
                 if failure is not None and spans[path] is not None:
                     self.unreadable.append((path, spans[path]))
             if failure is not None:
-                self.events.publish("error", {"message": failure})
+                self.events.publish("failure", {"message": failure})
             if summary is not None:
                 self.events.publish("track", {"generation": track_generation, "track": summary})
         with self.lock:

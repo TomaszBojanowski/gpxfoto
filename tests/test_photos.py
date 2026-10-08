@@ -671,7 +671,8 @@ def fake_exiftool(monkeypatch):
 
     def run(command, **kwargs):
         calls.append(command)
-        assert kwargs == {"capture_output": True, "text": True, "errors": "replace"}
+        assert kwargs == {"capture_output": True, "text": True, "errors": "replace",
+                          "timeout": photos.EXIFTOOL_TIMEOUT + len(command) - len(PREFIX)}
         files = command[len(PREFIX):]
         stdout = json.dumps([{"SourceFile": f} for f in files])
         return subprocess.CompletedProcess(command, 0, stdout, "")
@@ -907,3 +908,12 @@ def test_thumbnail_length_is_read(tmp_path):
     meta = read_metadata([str(path), str(plain)])
     assert meta[0]["ThumbnailLength"] == len(THUMBNAIL)
     assert "ThumbnailLength" not in meta[1]
+
+
+def test_exiftool_that_hangs_is_given_up(monkeypatch):
+    def run(command, **kwargs):
+        raise subprocess.TimeoutExpired(command, kwargs["timeout"])
+
+    monkeypatch.setattr(photos.subprocess, "run", run)
+    with pytest.raises(RuntimeError, match="did not finish reading the photos in time"):
+        read_metadata(["a.jpg"])

@@ -11,6 +11,9 @@ from gpxfoto.engine.writer import TEMP_PREFIX, is_backup_dir
 
 EXTENSIONS = {".jpg", ".jpeg"}
 
+# exiftool may take this long to read photos, plus a second for each
+EXIFTOOL_TIMEOUT = 60
+
 # Where the time zone of a capture time comes from
 TZ_CAMERA = "camera"     # OffsetTimeOriginal or OffsetTime in EXIF
 TZ_MANUAL = "manual"     # given by the user
@@ -172,7 +175,12 @@ def _run_exiftool(files):
                "-OffsetTimeOriginal", "-OffsetTime", "-SubSecTimeOriginal",
                "-GPSLatitude", "-GPSLongitude", "-Model", "-Panasonic:TimeStamp",
                "-Orientation", "-ThumbnailLength", "-Error", "--"] + files
-    process = subprocess.run(command, capture_output=True, text=True, errors="replace")
+    try:
+        process = subprocess.run(command, capture_output=True, text=True, errors="replace",
+                                 timeout=EXIFTOOL_TIMEOUT + len(files))
+    except subprocess.TimeoutExpired:
+        # A disk or network share that stopped answering
+        raise RuntimeError(_("exiftool did not finish reading the photos in time")) from None
     if not process.stdout.strip():
         return [], process.stderr
     try:

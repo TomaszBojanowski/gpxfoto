@@ -4,7 +4,7 @@ import {
   AttributionControl, LngLatBounds, Map as MapLibreMap, NavigationControl, ScaleControl,
 } from "../vendor/maplibre-gl/maplibre-gl.mjs";
 import { fanOffsets } from "./fan.js";
-import { _ } from "./i18n.js";
+import { _, currentLocale } from "./i18n.js";
 import { darkStyle, loadBaseStyle, plainStyle } from "./styles.js";
 
 const THUMB = 64;                    // px of a thumbnail image, drawn at half size
@@ -107,6 +107,12 @@ export class PhotoMap {
       attributionControl: false,
       dragRotate: false,
       pitchWithRotate: false,
+      locale: {
+        "NavigationControl.ZoomIn": _("Zoom in"),
+        "NavigationControl.ZoomOut": _("Zoom out"),
+        "AttributionControl.ToggleAttribution": _("Show or hide the sources of the map"),
+        "Map.Title": _("Map"),
+      },
     });
     this.map.touchZoomRotate.disableRotation();
     this.map.addControl(new AttributionControl({ compact: true }), "bottom-right");
@@ -197,7 +203,8 @@ export class PhotoMap {
         "circle-stroke-width": 2, "circle-stroke-color": c.casing } });
     if (map.getStyle().glyphs) {
       map.addLayer({ id: "cluster-count", type: "symbol", source: "photos", filter: clustered,
-        layout: { "text-field": ["get", "point_count_abbreviated"], "text-font": FONT,
+        layout: { "text-field": ["number-format", ["get", "point_count"],
+          { locale: currentLocale() }], "text-font": FONT,
           "text-size": 13, "text-allow-overlap": true },
         paint: { "text-color": "#ffffff" } });
     }
@@ -293,7 +300,10 @@ export class PhotoMap {
       }
     }
     const token = ++this.revealToken;
-    if (position && !(this.fan && this.fan.ids.includes(id))) {
+    // A photo of the fan in view is shown already
+    const shown = this.fan && this.fan.ids.includes(id)
+      && this.map.getBounds().contains(this.fan.centre);
+    if (position && !shown) {
       this.closeFan();
       this.reveal(id, [position.lon, position.lat], token);
     }
@@ -319,11 +329,20 @@ export class PhotoMap {
     }
   }
 
+  // The part of the map the panels leave free is the map's padding, so
+  // that the centre and fitting refer to it; it is never given twice
+  usePadding() {
+    this.map.setPadding(this.padding());
+  }
+
   // Resolves when the map has moved there and drawn the photos
   async moveTo(options) {
+    // A movement in progress would end at once and resolve this too early
+    this.map.stop();
+    this.usePadding();
     await new Promise((resolve) => {
       this.map.once("moveend", () => resolve());
-      this.map.easeTo({ ...options, padding: this.padding(), duration: duration(600) });
+      this.map.easeTo({ ...options, duration: duration(600) });
     });
     if (this.map.getSource("photos") && !this.map.isSourceLoaded("photos")) {
       await new Promise((resolve) => this.map.once("idle", () => resolve()));
@@ -353,8 +372,9 @@ export class PhotoMap {
     for (const point of coordinates) {
       bounds.extend(point);
     }
-    this.map.fitBounds(bounds, { padding: this.padding(), maxZoom: 16,
-      duration: duration(800) });
+    this.map.stop();
+    this.usePadding();
+    this.map.fitBounds(bounds, { maxZoom: 16, duration: duration(800) });
   }
 
   // A click on a group: closer, or fanned out when it would not part
@@ -387,7 +407,7 @@ export class PhotoMap {
       features.push({ type: "Feature", properties: { ...leaves[k].properties, centre: false },
         geometry: { type: "Point", coordinates: position } });
     });
-    this.fan = { clusterId, ids: leaves.map((leaf) => leaf.properties.id) };
+    this.fan = { clusterId, centre, ids: leaves.map((leaf) => leaf.properties.id) };
     this.map.getSource("fan").setData({ type: "FeatureCollection", features });
     this.filterGroups();
   }

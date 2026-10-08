@@ -151,3 +151,16 @@ def test_damaged_preferences_are_ignored(home, content):
     saved.parent.mkdir(parents=True)
     saved.write_text(content)
     assert files.preferences() == {"map_style": "light"}
+
+
+def test_a_recent_folder_that_is_missing_for_a_while_is_kept(home, tmp_path):
+    card, other = tmp_path / "card", tmp_path / "other"
+    card.mkdir()
+    other.mkdir()
+    files.remember("photos", str(card))
+    card.rmdir()                     # the card is taken out
+    files.remember("tracks", str(other))
+    files.remember("photos", str(other))
+    assert files.recent()["photos"] == [str(other)]
+    card.mkdir()                     # and put back
+    assert files.recent()["photos"] == [str(other), str(card)]

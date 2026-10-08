@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: gpxfoto 0.1.0\n"
 "Report-Msgid-Bugs-To: https://github.com/tomaszbojanowski/gpxfoto/issues\n"
-"POT-Creation-Date: 2026-10-08 17:09+0000\n"
+"POT-Creation-Date: 2026-10-08 17:53+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -103,7 +103,7 @@ msgstr ""
 msgid "invalid %(type)s value: %(value)r"
 msgstr ""
 
-#: gpxfoto/cli.py:77 gpxfoto/server/session.py:162
+#: gpxfoto/cli.py:77 gpxfoto/server/session.py:171
 #, python-brace-format
 msgid "not a valid number of seconds: {value}"
 msgstr ""
@@ -272,7 +272,7 @@ msgstr ""
 #. Translators: a note on the line of a photo taken during a stop, which
 #. gets the stop's position; {start} and {end} are times such as
 #. “12:31:05”, with the date when the stop lasts over midnight
-#: gpxfoto/cli.py:253 gpxfoto/web/js/main.js:118
+#: gpxfoto/cli.py:253 gpxfoto/web/js/main.js:120
 #, python-brace-format
 msgid "stop {start} – {end}"
 msgstr ""
@@ -293,13 +293,13 @@ msgstr ""
 
 #. Translators: shown after the file name of a photo; {reason} says
 #. why the photo was skipped, e.g. “already has a location”
-#: gpxfoto/cli.py:297 gpxfoto/web/js/main.js:128 gpxfoto/web/js/main.js:130
+#: gpxfoto/cli.py:297 gpxfoto/web/js/main.js:130 gpxfoto/web/js/main.js:132
 #, python-brace-format
 msgid "skipped: {reason}"
 msgstr ""
 
 #. Translators: elevation in metres
-#: gpxfoto/cli.py:302 gpxfoto/web/js/main.js:139
+#: gpxfoto/cli.py:302 gpxfoto/web/js/main.js:141
 #, python-brace-format
 msgid "{elevation} m"
 msgstr ""
@@ -493,7 +493,7 @@ msgstr ""
 msgid "taken during a stop"
 msgstr ""
 
-#: gpxfoto/cli.py:619 gpxfoto/server/session.py:275
+#: gpxfoto/cli.py:619 gpxfoto/server/session.py:285
 msgid "The GPX file contains no track points with timestamps."
 msgid_plural "The GPX files contain no track points with timestamps."
 msgstr[0] ""
@@ -511,7 +511,7 @@ msgstr ""
 msgid "{option} cannot be used together with {other}"
 msgstr ""
 
-#: gpxfoto/cli.py:642 gpxfoto/server/ui.py:14
+#: gpxfoto/cli.py:642 gpxfoto/server/ui.py:19
 #, python-brace-format
 msgid "exiftool is not installed. On Fedora, install it with: {command}"
 msgstr ""
@@ -520,8 +520,8 @@ msgstr ""
 msgid "The time zone must be in the form +HH:MM, for example +02:00 or -05:00."
 msgstr ""
 
-#: gpxfoto/cli.py:668 gpxfoto/server/session.py:100
-#: gpxfoto/server/session.py:290
+#: gpxfoto/cli.py:668 gpxfoto/server/session.py:103
+#: gpxfoto/server/session.py:300
 msgid "No GPX files found."
 msgstr ""
 
@@ -538,7 +538,7 @@ msgid_plural "Tracks covering the photos: {used} of {total} GPX files"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gpxfoto/cli.py:767 gpxfoto/web/js/main.js:332
+#: gpxfoto/cli.py:767 gpxfoto/web/js/main.js:350
 #, python-brace-format
 msgid "Matched: {matched}, skipped: {skipped}"
 msgstr ""
@@ -552,7 +552,7 @@ msgstr ""
 
 #. Translators: how many of the matched photos were taken during stops;
 #. a wrong camera clock puts fewer of them there
-#: gpxfoto/cli.py:778 gpxfoto/web/js/main.js:335
+#: gpxfoto/cli.py:778 gpxfoto/web/js/main.js:353
 #, python-brace-format
 msgid "During stops: {count} of {matched} matched photo"
 msgid_plural "During stops: {count} of {matched} matched photos"
@@ -653,12 +653,12 @@ msgstr ""
 msgid "the corrected capture time is out of range"
 msgstr ""
 
-#: gpxfoto/engine/photos.py:74 gpxfoto/server/session.py:103
+#: gpxfoto/engine/photos.py:77 gpxfoto/server/session.py:106
 #, python-brace-format
 msgid "No such file or directory: {path}"
 msgstr ""
 
-#: gpxfoto/engine/photos.py:150
+#: gpxfoto/engine/photos.py:153
 #, python-brace-format
 msgid ""
 "exiftool does not work:\n"
@@ -666,26 +666,30 @@ msgid ""
 msgstr ""
 
 #: gpxfoto/engine/photos.py:183
+msgid "exiftool did not finish reading the photos in time"
+msgstr ""
+
+#: gpxfoto/engine/photos.py:191
 msgid "exiftool returned data that cannot be read"
 msgstr ""
 
-#: gpxfoto/engine/photos.py:201
+#: gpxfoto/engine/photos.py:209
 msgid "exiftool could not read the file"
 msgstr ""
 
 #. Translators: reason why a photo was skipped; {error} comes from exiftool
-#: gpxfoto/engine/photos.py:337
+#: gpxfoto/engine/photos.py:345
 #, python-brace-format
 msgid "cannot be read: {error}"
 msgstr ""
 
 #. Translators: reason why a photo was skipped
-#: gpxfoto/engine/photos.py:339
+#: gpxfoto/engine/photos.py:347
 msgid "no capture time in EXIF"
 msgstr ""
 
 #. Translators: reason why a photo was skipped; {value} is the text found
-#: gpxfoto/engine/photos.py:351
+#: gpxfoto/engine/photos.py:359
 #, python-brace-format
 msgid "invalid capture time in EXIF: {value}"
 msgstr ""
@@ -709,7 +713,7 @@ msgid "no track covers this time"
 msgstr ""
 
 #. Translators: {error} describes the problem, e.g. “No such file or directory”
-#: gpxfoto/engine/track.py:438 gpxfoto/server/session.py:128
+#: gpxfoto/engine/track.py:438 gpxfoto/server/session.py:133
 #, python-brace-format
 msgid "Cannot read the GPX file {path}: {error}"
 msgstr ""
@@ -875,8 +879,14 @@ msgstr ""
 msgid "{minutes} min {seconds} s"
 msgstr ""
 
-#: gpxfoto/server/app.py:186
+#: gpxfoto/server/app.py:190 gpxfoto/web/js/main.js:707
 msgid "Open the address that gpxfoto showed in the terminal when it started."
+msgstr ""
+
+#: gpxfoto/server/app.py:240 gpxfoto/web/js/main.js:554
+msgid ""
+"The GPX file is too large to be dropped here. Choose it with the Track "
+"button."
 msgstr ""
 
 #: gpxfoto/server/files.py:45
@@ -884,8 +894,8 @@ msgstr ""
 msgid "No such folder: {path}"
 msgstr ""
 
-#: gpxfoto/server/files.py:47 gpxfoto/server/session.py:80
-#: gpxfoto/server/session.py:113
+#: gpxfoto/server/files.py:47 gpxfoto/server/session.py:83
+#: gpxfoto/server/session.py:116
 #, python-brace-format
 msgid "Not a folder: {path}"
 msgstr ""
@@ -899,14 +909,26 @@ msgstr ""
 msgid "Home folder"
 msgstr ""
 
+#: gpxfoto/server/files.py:101
+msgid "Pictures"
+msgstr ""
+
+#: gpxfoto/server/files.py:102
+msgid "Desktop"
+msgstr ""
+
 #. Translators: {url} is the address of the page of the browser interface
-#: gpxfoto/server/ui.py:22
+#: gpxfoto/server/ui.py:31
 #, python-brace-format
 msgid "gpxfoto runs at {url}"
 msgstr ""
 
-#: gpxfoto/server/ui.py:23
+#: gpxfoto/server/ui.py:32
 msgid "If no browser opens, open that address. Press Ctrl+C to quit."
+msgstr ""
+
+#: gpxfoto/web/js/api.js:37
+msgid "gpxfoto is not running any more. Start it again with “gpxfoto --ui”."
 msgstr ""
 
 #: gpxfoto/web/js/chooser.js:49
@@ -929,79 +951,99 @@ msgid_plural "{count} tracks"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gpxfoto/web/js/chooser.js:108
+#: gpxfoto/web/js/chooser.js:114
 msgid "Choose this folder"
 msgstr ""
 
-#: gpxfoto/web/js/chooser.js:111
+#: gpxfoto/web/js/chooser.js:117
 msgid "Use {count} track file"
 msgid_plural "Use {count} track files"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gpxfoto/web/js/chooser.js:115
+#: gpxfoto/web/js/chooser.js:121
 msgid "Use every track in this folder"
 msgstr ""
 
-#: gpxfoto/web/js/chooser.js:187
+#: gpxfoto/web/js/chooser.js:202
 msgid "No subfolders; {count} photo here"
 msgid_plural "No subfolders; {count} photos here"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gpxfoto/web/js/chooser.js:189
+#: gpxfoto/web/js/chooser.js:204
 msgid "No subfolders or GPX files here"
 msgstr ""
 
-#: gpxfoto/web/js/chooser.js:234
+#: gpxfoto/web/js/chooser.js:249
 msgid "Choose the folder with photos"
 msgstr ""
 
-#: gpxfoto/web/js/chooser.js:235
+#: gpxfoto/web/js/chooser.js:250
 msgid "Choose the track: GPX files or a folder of them"
 msgstr ""
 
-#: gpxfoto/web/js/main.js:63 gpxfoto/web/js/texts.js:25
+#: gpxfoto/web/js/main.js:65 gpxfoto/web/js/texts.js:25
 msgid "Close"
 msgstr ""
 
-#: gpxfoto/web/js/main.js:80
+#: gpxfoto/web/js/main.js:82
 msgid "Reading photos: {done} of {total}"
 msgstr ""
 
-#: gpxfoto/web/js/main.js:115
+#: gpxfoto/web/js/main.js:117
 msgid "will overwrite the existing location"
 msgstr ""
 
-#: gpxfoto/web/js/main.js:312
+#: gpxfoto/web/js/main.js:265
+msgid "The map cannot be shown: this browser does not allow WebGL."
+msgstr ""
+
+#: gpxfoto/web/js/main.js:329
 msgid "All ({count})"
 msgstr ""
 
-#: gpxfoto/web/js/main.js:313
+#: gpxfoto/web/js/main.js:330
 msgid "Matched ({count})"
 msgstr ""
 
-#: gpxfoto/web/js/main.js:314
+#: gpxfoto/web/js/main.js:331
 msgid "Skipped ({count})"
 msgstr ""
 
-#: gpxfoto/web/js/main.js:322
+#: gpxfoto/web/js/main.js:340
 msgid "Write {count} location"
 msgid_plural "Write {count} locations"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gpxfoto/web/js/main.js:514
+#: gpxfoto/web/js/main.js:549
 msgid ""
 "Only GPX files can be dropped here. Choose the folder with photos with the "
 "Photos button."
 msgstr ""
 
-#: gpxfoto/web/js/map.js:167
+#: gpxfoto/web/js/map.js:111
+msgid "Zoom in"
+msgstr ""
+
+#: gpxfoto/web/js/map.js:112
+msgid "Zoom out"
+msgstr ""
+
+#: gpxfoto/web/js/map.js:113
+msgid "Show or hide the sources of the map"
+msgstr ""
+
+#: gpxfoto/web/js/map.js:114
+msgid "Map"
+msgstr ""
+
+#: gpxfoto/web/js/map.js:149
 msgid "Show the whole track"
 msgstr ""
 
-#: gpxfoto/web/js/map.js:170
+#: gpxfoto/web/js/map.js:152
 msgid "Dark map"
 msgstr ""
 

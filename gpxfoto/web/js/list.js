@@ -104,9 +104,11 @@ export class PhotoList {
       this.render(row, id, selected);
       this.element.appendChild(row);
       this.rows.set(index, row);
-      if (selected) {
-        this.measure(row);
-      }
+    }
+    // Also when the width of the list changed, the selected row's height did
+    const selectedRow = this.rows.get(this.selectedIndex);
+    if (selectedRow) {
+      this.measure(selectedRow);
     }
   }
 

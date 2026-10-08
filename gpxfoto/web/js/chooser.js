@@ -2,7 +2,7 @@
 // server lists the folders: the browser itself never gives a page paths.
 
 import { get } from "./api.js";
-import { _, format, ngettext } from "./i18n.js";
+import { _, format, ngettext, number } from "./i18n.js";
 
 const dialog = document.getElementById("chooser");
 const title = document.getElementById("chooser-title");
@@ -77,11 +77,11 @@ function counts(folder) {
   const parts = [];
   if (folder.photos) {
     parts.push(format(ngettext("{count} photo", "{count} photos", folder.photos),
-      { count: folder.photos }));
+      { count: number(folder.photos) }));
   }
   if (folder.tracks) {
     parts.push(format(ngettext("{count} track", "{count} tracks", folder.tracks),
-      { count: folder.tracks }));
+      { count: number(folder.tracks) }));
   }
   return parts.join(", ");
 }
@@ -99,7 +99,13 @@ function entry(icon, name, detail, onClick) {
   detailElement.className = "counts";
   detailElement.textContent = detail;
   item.append(iconElement, nameElement, detailElement);
-  item.addEventListener("click", onClick);
+  item.addEventListener("click", (event) => {
+    // A double click, as in a file manager, would act again on the entry
+    // that the first click put under the pointer
+    if (event.detail <= 1) {
+      onClick(event);
+    }
+  });
   return item;
 }
 
@@ -109,7 +115,7 @@ function updateAccept() {
     accept.disabled = !current;
   } else if (checked.size) {
     accept.textContent = format(ngettext("Use {count} track file", "Use {count} track files",
-      checked.size), { count: checked.size });
+      checked.size), { count: number(checked.size) });
     accept.disabled = false;
   } else {
     accept.textContent = _("Use every track in this folder");
@@ -133,12 +139,21 @@ function showCrumbs(path) {
   }
 }
 
+let opening = 0;
+
 async function open(path) {
   errorText.hidden = true;
+  const request = ++opening;
   let listing;
   try {
     listing = await get("browse", { path });
+    if (request !== opening) {
+      return;                   // another folder was asked for meanwhile
+    }
   } catch (error) {
+    if (request !== opening) {
+      return;
+    }
     if (kind === "tracks" && /\.gpx$/i.test(path)) {
       // A track file typed or pasted in the field
       done({ files: [path] });
@@ -185,7 +200,7 @@ async function open(path) {
     empty.className = "counts";
     empty.textContent = kind === "photos"
       ? format(ngettext("No subfolders; {count} photo here", "No subfolders; {count} photos here",
-        listing.photos), { count: listing.photos })
+        listing.photos), { count: number(listing.photos) })
       : _("No subfolders or GPX files here");
     entries.append(empty);
   }

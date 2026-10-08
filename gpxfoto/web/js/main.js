@@ -2,7 +2,7 @@
 // holds and sends the user's choices back. All the work happens on the
 // server; this thread only draws and handles input.
 
-import { base64, get, listen, post } from "./api.js";
+import { address, base64, get, listen, post, token } from "./api.js";
 import { choose } from "./chooser.js";
 import { clockTime, clockTimeOfUnix, coordinates, exactDuration } from "./format.js";
 import { _, format, loadCatalog, ngettext, number } from "./i18n.js";
@@ -12,6 +12,8 @@ import { loadBaseStyle } from "./styles.js";
 
 // The map's style is fetched while the page starts
 loadBaseStyle().catch(() => {});
+// The texts first: the map takes its labels when it is made
+await loadCatalog();
 
 const state = {
   photoGeneration: 0,
@@ -78,13 +80,13 @@ function progress(done, total) {
   box.hidden = false;
   box.querySelector("span").style.width = (total ? (100 * done) / total : 0) + "%";
   box.querySelector("p").textContent = format(_("Reading photos: {done} of {total}"),
-    { done, total });
+    { done: number(done), total: number(total) });
 }
 
 // --- thumbnails ----------------------------------------------------------
 
 function thumbnailUrl(generation, id) {
-  return "/api/thumbnail?" + new URLSearchParams({ generation, id });
+  return address("thumbnail", { generation, id });
 }
 
 async function mapThumbnail(generation, id) {
@@ -189,6 +191,9 @@ function isMatched(result) {
 function visibleIds() {
   const ids = [];
   for (const photo of state.photos) {
+    if (!photo) {
+      continue;                 // a batch that has not come yet
+    }
     const result = state.results[photo.id];
     if (state.filter === "all"
         || (state.filter === "matched" && isMatched(result))
@@ -244,13 +249,25 @@ for (const id of ["toolbar", "sidebar", "timebar"]) {
 }
 window.addEventListener("resize", () => placeMapControls());
 
-const photoMap = new PhotoMap($("map"), {
-  thumbnail: mapThumbnail,
-  onSelect: (id) => select(id),
-  padding: mapPadding,
-  onFit: () => showWhole(),
-  onStyle: (name) => setMapStyle(name, true),
-});
+// Without WebGL there is no map, but the list and the rest still work
+const nothing = new Proxy(function () {}, { get: () => nothing, apply: () => nothing });
+
+function makeMap() {
+  try {
+    return new PhotoMap($("map"), {
+      thumbnail: mapThumbnail,
+      onSelect: (id) => select(id),
+      padding: mapPadding,
+      onFit: () => showWhole(),
+      onStyle: (name) => setMapStyle(name, true),
+    });
+  } catch (error) {
+    notice(_("The map cannot be shown: this browser does not allow WebGL."));
+    return nothing;
+  }
+}
+
+const photoMap = makeMap();
 
 // Moved by hand, the map stays where the user put it
 photoMap.map.on("movestart", (event) => {
@@ -309,9 +326,10 @@ function showPhotos() {
   const skipped = state.results.length - matched;
   const buttons = document.querySelectorAll(".filters button");
   const labels = {
-    all: format(_("All ({count})"), { count }),
-    matched: format(_("Matched ({count})"), { count: matched }),
-    skipped: format(_("Skipped ({count})"), { count: state.results.length ? skipped : 0 }),
+    all: format(_("All ({count})"), { count: number(count) }),
+    matched: format(_("Matched ({count})"), { count: number(matched) }),
+    skipped: format(_("Skipped ({count})"),
+      { count: number(state.results.length ? skipped : 0) }),
   };
   for (const button of buttons) {
     button.textContent = labels[button.dataset.filter];
@@ -320,7 +338,7 @@ function showPhotos() {
   list.setIds(visibleIds());
   const write = $("write");
   write.textContent = format(ngettext("Write {count} location", "Write {count} locations",
-    matched), { count: matched });
+    matched), { count: number(matched) });
   write.disabled = true;
 }
 
@@ -330,17 +348,18 @@ function showSummary(match) {
     return;
   }
   let text = format(_("Matched: {matched}, skipped: {skipped}"),
-    { matched: match.matched, skipped: match.skipped });
+    { matched: number(match.matched), skipped: number(match.skipped) });
   if (match.matched && state.stops) {
     text += " · " + format(ngettext("During stops: {count} of {matched} matched photo",
       "During stops: {count} of {matched} matched photos", match.matched),
-    { count: match.at_stops, matched: match.matched });
+    { count: number(match.at_stops), matched: number(match.matched) });
   }
   $("summary").textContent = text;
 }
 
 function applyMatch(match) {
-  if (!match || match.generation !== state.photoGeneration) {
+  if (!match || match.generation !== state.photoGeneration
+      || match.tracks !== state.trackGeneration) {
     return;
   }
   state.results = match.results;
@@ -404,14 +423,24 @@ async function sendCorrection(seconds) {
       await post("correction", { seconds: value });
     } catch (error) {
       notice(error.message);
+      pending = null;
+      sending = false;
+      // The page shows again what is in effect
+      refreshState();
+      return;
     }
   }
   sending = false;
 }
 
+// As far as the server goes: a day either way
+const MAX_CORRECTION = 86400;
+
 function setCorrection(seconds, base = Math.round(seconds / 3600) * 3600) {
-  state.correction = seconds;
-  state.base = base;
+  const limit = (value) => Math.max(-MAX_CORRECTION, Math.min(MAX_CORRECTION, value));
+  state.correction = limit(seconds);
+  state.base = limit(base);
+  seconds = state.correction;
   showCorrection();
   sendCorrection(seconds);
 }
@@ -504,7 +533,13 @@ document.addEventListener("dragover", (event) => {
     event.preventDefault();
   }
 });
+// Larger files would not fit into one request once encoded
+const MAX_DROP = 40 * 1024 * 1024;
+
 document.addEventListener("drop", async (event) => {
+  if (!carriesFiles(event)) {
+    return;                     // text dropped into a field
+  }
   event.preventDefault();
   dragDepth = 0;
   dropZone.hidden = true;
@@ -513,6 +548,10 @@ document.addEventListener("drop", async (event) => {
   if (!tracks.length) {
     notice(_("Only GPX files can be dropped here. Choose the folder with photos with the "
       + "Photos button."), "info");
+    return;
+  }
+  if (tracks.reduce((sum, file) => sum + file.size, 0) > MAX_DROP) {
+    notice(_("The GPX file is too large to be dropped here. Choose it with the Track button."));
     return;
   }
   try {
@@ -535,6 +574,8 @@ function resetPhotos(generation, folder) {
   state.results = [];
   state.selected = null;
   state.autoFit = true;
+  list.select(null, false);
+  photoMap.select(null);
   photoMap.setPhotos(generation, []);
   showSummary(null);
   showChoices();
@@ -570,12 +611,21 @@ const handlers = {
   },
   "tracks-reset": (data) => {
     if (data.generation > state.trackGeneration) {
+      // The same choice is read again when the stops are switched: the
+      // map stays where it is
+      if (JSON.stringify(data.choice) !== JSON.stringify(state.trackChoice)) {
+        state.autoFit = true;
+      }
       state.trackGeneration = data.generation;
       state.trackChoice = data.choice;
       state.tracks = new Map();
-      state.autoFit = true;
+      // The photos wait for the match on the new tracks
+      state.results = [];
+      photoMap.setPhotos(state.photoGeneration, []);
+      showSummary(null);
       showChoices();
       showTracks();
+      showPhotos();
     }
   },
   "track": (data) => {
@@ -585,12 +635,34 @@ const handlers = {
     }
   },
   "matches": applyMatch,
-  "error": (data) => notice(data.message),
+  "failure": (data) => notice(data.message),
   "preferences": (data) => setMapStyle(data.map_style),
 };
 
+// Events that come while the page catches up with the state wait for it:
+// they may be newer than the state it gets
+let waiting = null;
+
+function held(all) {
+  return Object.fromEntries(Object.entries(all).map(([name, handler]) =>
+    [name, (data) => (waiting ? waiting.push(() => handler(data)) : handler(data))]));
+}
+
 // The whole state, when the page (re)connects or a choice changed
 async function refreshState() {
+  waiting = waiting || [];
+  try {
+    await catchUp();
+  } finally {
+    const late = waiting || [];
+    waiting = null;
+    for (const handle of late) {
+      handle();
+    }
+  }
+}
+
+async function catchUp() {
   let data;
   try {
     data = await get("state");
@@ -626,8 +698,11 @@ async function refreshState() {
 
 // --- start -----------------------------------------------------------------
 
-await loadCatalog();
 translatePage();
 showCorrection();
 showPhotos();
-listen(handlers, refreshState);
+if (token) {
+  listen(held(handlers), refreshState);
+} else {
+  notice(_("Open the address that gpxfoto showed in the terminal when it started."));
+}

@@ -52,6 +52,11 @@ export function number(value, decimals = 0) {
   }
 }
 
+// The locale for formatting numbers, one the browser knows
 export function currentLocale() {
-  return locale;
+  try {
+    return Intl.NumberFormat.supportedLocalesOf([locale]).length ? locale : "en";
+  } catch (error) {
+    return "en";
+  }
 }

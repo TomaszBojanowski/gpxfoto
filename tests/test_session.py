@@ -178,7 +178,7 @@ def test_a_folder_of_tracks_reads_only_the_files_needed(session, events, tmp_pat
     assert result["files"] == ["day1.gpx"]
     loaded = [data["track"]["files"] for name, data in events.published if name == "track"]
     assert loaded == [["day1.gpx"]]
-    errors = [data["message"] for name, data in events.published if name == "error"]
+    errors = [data["message"] for name, data in events.published if name == "failure"]
     assert len(errors) == 1 and errors[0].startswith("Cannot read the GPX file ")
     session.set_correction(86400)
     matches_for(events, 86400)
@@ -216,7 +216,7 @@ def test_track_files_that_do_not_exist(session, tmp_path):
 def test_a_track_file_that_cannot_be_read(session, events, tmp_path):
     (tmp_path / "broken.gpx").write_text("<gpx>")
     session.choose_track_files([str(tmp_path / "broken.gpx")])
-    assert events.wait("error")["message"].startswith("Cannot read the GPX file ")
+    assert events.wait("failure")["message"].startswith("Cannot read the GPX file ")
     assert events.wait("tracks-done")
     assert session.state()["tracks"]["loading"] is False
 

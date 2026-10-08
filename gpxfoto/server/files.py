@@ -96,10 +96,17 @@ def places():
     removable media, as {"name", "path"}, without those that do not exist."""
     home = os.path.expanduser("~")
     found = [{"name": _("Home folder"), "path": home}]
-    for key, fallback in (("PICTURES", "Pictures"), ("DESKTOP", "Desktop")):
-        path = _user_dir(key) or os.path.join(home, fallback)
+    # Without user-dirs.dirs, as on macOS, the folders have English names
+    # on disk, which the system shows translated
+    for key, fallback, name in (("PICTURES", "Pictures", _("Pictures")),
+                                ("DESKTOP", "Desktop", _("Desktop"))):
+        path = _user_dir(key)
+        if path is None:
+            path = os.path.join(home, fallback)
+        else:
+            name = os.path.basename(path)
         if os.path.isdir(path) and path != home:
-            found.append({"name": os.path.basename(path), "path": path})
+            found.append({"name": name, "path": path})
     user = os.path.basename(home)
     for media in ("/Volumes", f"/run/media/{user}", f"/media/{user}"):
         try:
@@ -177,8 +184,13 @@ def recent():
 
 
 def remember(kind, path):
-    """Note path as chosen just now."""
-    lists = recent()
+    """Note path as chosen just now. Folders that are missing now, such as
+    those on a card that is out, are kept for when they are back."""
+    stored = _load("recent.json")
+    lists = {}
+    for name in RECENT_KINDS:
+        paths = stored.get(name)
+        lists[name] = [p for p in paths if isinstance(p, str)] if isinstance(paths, list) else []
     lists[kind] = ([path] + [p for p in lists[kind] if p != path])[:RECENT]
     _save("recent.json", lists)
 

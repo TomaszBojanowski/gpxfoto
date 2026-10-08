@@ -95,6 +95,8 @@ button.small { padding: 3px 8px; font-size: 13px; }
 
 /* Toolbar */
 #toolbar {
+  /* Its options menu hangs over the list */
+  z-index: 3;
   top: 12px;
   left: 12px;
   right: 12px;
