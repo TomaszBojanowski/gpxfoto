@@ -172,6 +172,25 @@ Każdy etap kończy się działającym programem i przechodzącymi testami. Jedn
 - Testy: API serwera testowane bez przeglądarki; testy bezpieczeństwa (brak tokenu, zły `Host`, ścieżka poza wskazanym folderem).
 - Kryterium: działa na Fedorze (Firefox) i macOS (Safari); przy 1000 zdjęć strona pozostaje płynna podczas wczytywania i zapisu; cofnięcie przywraca metadane GPS do stanu sprzed zapisu.
 
+**Stan prac (gałąź `etap-4`)**
+
+Zrobione:
+- serwer lokalny (`gpxfoto/server/`): token we fragmencie adresu, wysyłany przez stronę w nagłówku (bez ciasteczek), sprawdzanie `Host`/`Origin`/`Sec-Fetch-Site`, CSP; przeglądarka otwierana przez prywatny plik przekierowania; koniec programu po zamknięciu karty, Ctrl+C, SIGTERM/SIGHUP;
+- wybór folderu zdjęć i plików/folderu tras w oknie po stronie serwera, ostatnie foldery, przeciąganie plików GPX;
+- wczytywanie zdjęć i tras w tle, dopasowanie na żywo, suwak poprawki czasu (±30 min, ±1 h, w granicach doby), opcje „Nadpisuj istniejące położenie” i „Postoje”;
+- mapa MapLibre z OpenFreeMap: styl jasny i ciemny (ciemny przerobiony z Liberty) z zapamiętanym wyborem, grupowanie zdjęć, wachlarz zdjęć z jednego miejsca, przycisk „Pokaż całą trasę”, widok startowy w części mapy wolnej od paneli;
+- lista zdjęć (wirtualna) z miniaturami EXIF, filtrami i rozwiniętym wierszem zaznaczonego zdjęcia (pełne współrzędne, wysokość);
+- logo jak w gpxfilm, ikona karty z `data/icons`, tłumaczenie polskie kompletne;
+- poprawki po przeglądzie kodu (zdarzenia przy przeładowaniu strony, podwójny margines mapy, nazwy plików spoza UTF-8, limit czasu exiftoola i inne).
+
+Do zrobienia:
+- zapis z postępem, „Anuluj” i podsumowaniem; zamknięcie karty lub Ctrl+C w trakcie zapisu dokańcza bieżący plik, nie zaczyna następnych; przeglądarka pyta o potwierdzenie zamknięcia karty w trakcie zapisu;
+- tryb edycji położenia (osobny przycisk, domyślnie wyłączony): przeciąganie miniatury, umieszczanie pominiętego zdjęcia, powrót do położenia z trasy;
+- cofanie zapisu przywracające metadane GPS sprzed zapisu (dziennik zapisu, ta sama weryfikacja sumy obrazu);
+- ostrzeżenia na stronie: przesunięcie o pełne godziny (z przyciskiem zastosowania), zdjęcia w ruchu, skoki, niezgodność z czasem UTC aparatu, strefy czasowe, najbliższa trasa przy folderze tras;
+- skrót `.desktop` z ikoną; propozycja uruchamiania na macOS;
+- pomiar celów wydajności przy 1000 zdjęć; na końcu etapu jeden niezależny przegląd.
+
 ### Etap 5 — wygląd i dopracowanie interfejsu
 
 Program ma być ładny i przyjemny w użyciu, z własnym charakterem. Mapa jest głównym elementem strony, reszta to panele nad nią.
