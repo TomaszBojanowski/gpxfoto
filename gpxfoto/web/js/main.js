@@ -825,6 +825,8 @@ function resetPhotos(generation, folder) {
   state.matchVersion = null;
   state.selected = null;
   state.autoFit = true;
+  // First the rows of the old photos go: selecting draws the list again
+  list.setIds([]);
   list.select(null, false);
   photoMap.select(null);
   photoMap.setPhotos(generation, []);
