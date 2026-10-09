@@ -23,7 +23,8 @@ TEMPLATE = os.path.join(PO_DIR, "gpxfoto.pot")
 POLISH = os.path.join(PO_DIR, "pl.po")
 POLISH_PLURAL_FORMS = ("nplurals=3; plural=(n==1 ? 0 : n%10>=2 && n%10<=4 && "
                        "(n%100<10 || n%100>=20) ? 1 : 2);")
-XGETTEXT = ["xgettext", "--files-from=po/POTFILES.in", "--from-code=UTF-8", "--language=Python",
+# The language of each file comes from its extension: Python or JavaScript
+XGETTEXT = ["xgettext", "--files-from=po/POTFILES.in", "--from-code=UTF-8",
             "--keyword=N_", "--add-comments=Translators:", "--package-name=gpxfoto",
             "--package-version=0.1.0",
             "--msgid-bugs-address=https://github.com/tomaszbojanowski/gpxfoto/issues"]
@@ -189,10 +190,11 @@ def test_linguas_lists_exactly_the_po_files():
 def test_potfiles_lists_every_module_with_messages():
     marked = re.compile(r"\b(?:_|N_|ngettext)\(\s*[\"']")
     with_messages = set()
-    for directory, _subdirs, files in os.walk(os.path.join(ROOT, "gpxfoto")):
+    for directory, subdirs, files in os.walk(os.path.join(ROOT, "gpxfoto")):
+        subdirs[:] = [d for d in subdirs if d != "vendor"]
         for name in files:
             path = os.path.join(directory, name)
-            if name.endswith(".py"):
+            if name.endswith((".py", ".js")):
                 with open(path, encoding="utf-8") as f:
                     if marked.search(f.read()):
                         with_messages.add(os.path.relpath(path, ROOT).replace(os.sep, "/"))
@@ -257,7 +259,7 @@ def test_every_message_is_translated(language):
 SAME_IN_POLISH = {"%(heading)s:", "argument %(argument_name)s: %(message)s", "{elevation} m",
                   "{seconds} s", "{minutes} min", "{hours} h {minutes} min", "{hours} h",
                   "{minutes} min {seconds} s", "{hours} h {minutes} min {seconds} s",
-                  "UTC{offset}", "{metres} m", "{kilometres} km"}
+                  "UTC{offset}", "{metres} m", "{kilometres} km", "−1 h", "+1 h"}
 
 
 def test_polish_messages_are_not_copies_of_the_english_ones():
@@ -344,7 +346,7 @@ def test_polish_plural_forms(polish_mo, n, word):
 USAGE = ("użycie: gpxfoto [-h] -g TRASA [--write] [--offset SEKUNDY] [--timezone +GG:MM] "
          "[--clock-photo PLIK] [--clock-time CZAS] "
          "[--max-gap SEKUNDY] [--no-stops] [--overwrite] [--travel-direction] [--backup] [-r] "
-         "ZDJĘCIE [ZDJĘCIE ...]")
+         "[--ui] ZDJĘCIE [ZDJĘCIE ...]")
 HELP = {
     "ZDJĘCIE": "pliki JPEG lub katalogi ze zdjęciami",
     "--help": "wyświetla ten komunikat pomocy i kończy działanie",
@@ -370,6 +372,8 @@ HELP = {
     "--backup": "zachowuje kopie oryginalnych plików w podkatalogu „originals” obok każdego "
                 "zdjęcia; istniejąca kopia nigdy nie jest zastępowana",
     "--recursive": "wyszukuje zdjęcia i trasy także w podkatalogach",
+    "--ui": "otwiera zamiast tego interfejs w przeglądarce, w którym wybiera się zdjęcia i trasy; "
+            "nie podaje się wtedy innych argumentów",
 }
 
 
@@ -405,7 +409,9 @@ def test_help_is_polish(polish_cli, capsys):
     assert help_texts == HELP
     english = [e["msgid"] for e in read_po(POLISH)[1]
                if e["msgstr"][0] != e["msgid"] and placeholders(e["msgid"]) == ([], [], [])]
-    assert [message for message in english if message in output] == []
+    # As whole words: "Track" is a message of its own, but also part of GPSTrack
+    assert [message for message in english
+            if re.search(r"(?<!\w)" + re.escape(message) + r"(?!\w)", output)] == []
 
 
 @pytest.mark.parametrize("args, message", [
@@ -809,3 +815,28 @@ def test_direction_of_travel_is_polish(polish_cli, tmp_path, capsys):
     assert lines[3].endswith("    200 m  [brak kierunku ruchu: zbyt blisko początku lub końca "
                              "trasy]")
     assert lines[5] == "Z kierunkiem ruchu: 1, bez kierunku: 2"
+
+
+def test_catalog_for_the_page_is_polish(polish_mo, monkeypatch):
+    monkeypatch.setenv("LANGUAGE", "pl")
+    monkeypatch.setattr(i18n, "LOCALE_DIR", str(polish_mo))
+    catalog = i18n.catalog()
+    assert catalog["language"] == "pl"
+    assert catalog["messages"]["Matched: {matched}, skipped: {skipped}"] == (
+        "Dopasowano: {matched}, pominięto: {skipped}")
+    assert catalog["messages"]["During stops: {count} of {matched} matched photo"] == [
+        "Na postojach: {count} z {matched} dopasowanego zdjęcia",
+        "Na postojach: {count} z {matched} dopasowanych zdjęć",
+        "Na postojach: {count} z {matched} dopasowanych zdjęć"]
+    assert "" not in catalog["messages"]
+    assert [catalog["plural"][n] for n in (0, 1, 2, 5, 12, 22, 101, 112, 122)] == [
+        2, 0, 1, 2, 2, 1, 2, 2, 1]
+    assert len(catalog["plural"]) == 200
+
+
+def test_catalog_for_the_page_without_a_translation(monkeypatch, tmp_path):
+    monkeypatch.setenv("LANGUAGE", "pl")
+    monkeypatch.setattr(i18n, "LOCALE_DIR", str(tmp_path))
+    catalog = i18n.catalog()
+    assert (catalog["language"], catalog["messages"]) == ("en", {})
+    assert catalog["plural"][:3] == [1, 0, 1]

@@ -244,7 +244,7 @@ gettext; polskie tłumaczenie znajduje się w `po/pl.po`. Po zmianie
 komunikatów należy zaktualizować szablon i tłumaczenia:
 
 ```
-xgettext --files-from=po/POTFILES.in --from-code=UTF-8 --language=Python \
+xgettext --files-from=po/POTFILES.in --from-code=UTF-8 \
     --keyword=N_ --add-comments=Translators: --package-name=gpxfoto \
     --package-version=0.1.0 \
     --msgid-bugs-address=https://github.com/tomaszbojanowski/gpxfoto/issues \
@@ -266,3 +266,8 @@ gpxfoto jest wolnym oprogramowaniem: można je rozpowszechniać i modyfikować
 na warunkach Powszechnej Licencji Publicznej GNU (GNU GPL), opublikowanej
 przez Free Software Foundation, w wersji 3 lub (według uznania) dowolnej
 późniejszej. Pełny tekst licencji znajduje się w pliku [LICENSE](LICENSE).
+
+Mapa w interfejsie w przeglądarce korzysta z biblioteki
+[MapLibre GL JS](https://maplibre.org/), dołączonej w katalogu
+`gpxfoto/web/vendor/` na licencji BSD-3-Clause; zob.
+[jej licencję](gpxfoto/web/vendor/maplibre-gl/LICENSE.txt).

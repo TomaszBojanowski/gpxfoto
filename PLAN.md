@@ -162,8 +162,9 @@ Każdy etap kończy się działającym programem i przechodzącymi testami. Jedn
 - **Interfejs nigdy się nie zawiesza**: wczytywanie tras, odczyt metadanych, miniatury i zapis to zadania w tle po stronie serwera; strona dostaje wyniki strumieniem zdarzeń. Przewidzieć to w architekturze od początku.
 - **Bezpieczeństwo serwera lokalnego**:
   - nasłuch wyłącznie na `127.0.0.1`;
-  - losowy token w adresie przy starcie, wymagany przy każdym żądaniu;
-  - sprawdzanie nagłówków `Host` i `Origin` (ochrona przed innymi stronami otwartymi w przeglądarce);
+  - losowy token we fragmencie adresu przy starcie (`/#token`, nigdy nie trafia do serwera ani do ciasteczek); strona przechowuje go w karcie i wysyła w nagłówku przy każdym żądaniu o dane; bez tokenu dostępne są tylko strona startowa, jej pliki i tłumaczenia, które nie zawierają żadnych danych;
+  - sprawdzanie nagłówka `Host` przy każdym żądaniu, także o pliki strony (ochrona przed DNS rebinding), oraz `Origin` i `Sec-Fetch-Site` (ochrona przed innymi stronami otwartymi w przeglądarce);
+  - przeglądarka otwierana przez lokalny plik HTML z przekierowaniem, czytelny tylko dla użytkownika (prywatny katalog tymczasowy), usuwany zaraz po otwarciu strony albo przy zakończeniu programu; adresu z tokenem nie ma w wierszu poleceń żadnego procesu;
   - serwer czyta i zapisuje tylko w folderach wskazanych przez użytkownika, z ochroną przed wyjściem poza nie;
   - żadnych zewnętrznych skryptów, czcionek ani statystyk.
 - Teksty strony tłumaczone z tych samych katalogów gettext co terminal (serwer podaje je stronie); polskie tłumaczenie kompletne.
@@ -171,6 +172,25 @@ Każdy etap kończy się działającym programem i przechodzącymi testami. Jedn
 - Skrót do uruchamiania: plik `.desktop` z ikoną na Linuksie; na macOS sposób uruchamiania bez Terminala do zaproponowania autorowi.
 - Testy: API serwera testowane bez przeglądarki; testy bezpieczeństwa (brak tokenu, zły `Host`, ścieżka poza wskazanym folderem).
 - Kryterium: działa na Fedorze (Firefox) i macOS (Safari); przy 1000 zdjęć strona pozostaje płynna podczas wczytywania i zapisu; cofnięcie przywraca metadane GPS do stanu sprzed zapisu.
+
+**Stan prac (gałąź `etap-4`)**
+
+Zrobione:
+- serwer lokalny (`gpxfoto/server/`) zabezpieczony jak wyżej (token we fragmencie adresu i w nagłówku, `Host` przy każdym żądaniu, `Origin`/`Sec-Fetch-Site`, CSP, plik przekierowania usuwany po otwarciu strony); przegląd bezpieczeństwa zrobiony, poprawki wdrożone; koniec programu po zamknięciu karty, Ctrl+C, SIGTERM/SIGHUP;
+- wybór folderu zdjęć i plików/folderu tras w oknie po stronie serwera, ostatnie foldery, przeciąganie plików GPX;
+- wczytywanie zdjęć i tras w tle, dopasowanie na żywo, suwak poprawki czasu (±30 min, ±1 h, w granicach doby), opcje „Nadpisuj istniejące położenie” i „Postoje”;
+- mapa MapLibre z OpenFreeMap: styl jasny i ciemny (ciemny przerobiony z Liberty) z zapamiętanym wyborem, grupowanie zdjęć, wachlarz zdjęć z jednego miejsca, przycisk „Pokaż całą trasę”, widok startowy w części mapy wolnej od paneli;
+- lista zdjęć (wirtualna) z miniaturami EXIF, filtrami i rozwiniętym wierszem zaznaczonego zdjęcia (pełne współrzędne, wysokość);
+- logo jak w gpxfilm, ikona karty z `data/icons`, tłumaczenie polskie kompletne;
+- poprawki po przeglądzie kodu (zdarzenia przy przeładowaniu strony, podwójny margines mapy, nazwy plików spoza UTF-8, limit czasu exiftoola i inne);
+- zapis z potwierdzeniem, postępem, „Anuluj” i podsumowaniem: kilka plików naraz (4 wątki), zapisywane jest dokładnie dopasowanie widoczne na stronie, plik zmieniony przez inny program po odczycie nie jest zapisywany; w trakcie zapisu zmiany wyboru są zablokowane; zamknięcie karty lub Ctrl+C dokańcza bieżące pliki i nie zaczyna następnych; przeglądarka pyta o potwierdzenie zamknięcia karty;
+- tryb edycji położenia (przycisk „Edytuj położenie”, domyślnie wyłączony): przeciąganie miniatury na mapie, umieszczanie zaznaczonego zdjęcia bez położenia kliknięciem w mapę, powrót do położenia z trasy; zdjęcie umieszczone ręcznie nie ma wysokości, a bez czasu wykonania także czasu GPS (stary czas GPS, również z XMP, jest wtedy usuwany);
+- cofanie zapisu („Cofnij ostatni zapis”, z postępem i „Anuluj”): przed zapisem dziennik (`~/.local/state/gpxfoto/journal/`, na macOS w `Application Support`) zapamiętuje początek pliku do danych obrazu i SHA-256 całego zdjęcia; cofnięcie składa ten początek z danymi obrazu i sprawdza sumę, więc zdjęcie wraca do stanu identycznego co do bajta; zdjęcie zmienione po zapisie przez inny program nie jest cofane.
+
+Do zrobienia:
+- ostrzeżenia na stronie: przesunięcie o pełne godziny (z przyciskiem zastosowania), zdjęcia w ruchu, skoki, niezgodność z czasem UTC aparatu, strefy czasowe, najbliższa trasa przy folderze tras;
+- skrót `.desktop` z ikoną; propozycja uruchamiania na macOS;
+- pomiar celów wydajności przy 1000 zdjęć; na końcu etapu jeden niezależny przegląd.
 
 ### Etap 5 — wygląd i dopracowanie interfejsu
 

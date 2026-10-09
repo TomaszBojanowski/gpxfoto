@@ -5,3 +5,14 @@ gpxfoto/engine/photos.py
 gpxfoto/engine/track.py
 gpxfoto/engine/writer.py
 gpxfoto/i18n.py
+gpxfoto/server/app.py
+gpxfoto/server/files.py
+gpxfoto/server/session.py
+gpxfoto/server/ui.py
+gpxfoto/server/writing.py
+gpxfoto/web/js/api.js
+gpxfoto/web/js/chooser.js
+gpxfoto/web/js/format.js
+gpxfoto/web/js/main.js
+gpxfoto/web/js/map.js
+gpxfoto/web/js/texts.js

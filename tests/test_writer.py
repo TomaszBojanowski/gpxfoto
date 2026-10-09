@@ -15,7 +15,8 @@ from conftest import (
     latin2_name, make_jpeg, needs_exiftool, read_tags, set_panasonic_time_stamp, set_tags)
 from gpxfoto.engine import writer
 from gpxfoto.engine.writer import (
-    BACKUP_DIR, BACKUP_MARKER, TRAVEL_TAGS, image_checksum, write_location)
+    BACKUP_DIR, BACKUP_MARKER, TRAVEL_TAGS, image_checksum, metadata_head, restore_head,
+    write_location)
 
 TIME = datetime(2026, 6, 1, 8, 30, 15, tzinfo=timezone.utc)
 MTIME_NS = 1_700_000_000_123_456_789
@@ -1088,6 +1089,48 @@ def test_date_stamp_has_a_four_digit_year(photo):
 
 
 @needs_exiftool
+@pytest.mark.parametrize("replace", [False, True])
+def test_without_a_time_the_old_time_stamps_are_removed(tmp_path, photo, replace):
+    """A location placed by hand on a photo without a capture time has no
+    time; the old location's time must not stay with the new location."""
+    os.chmod(photo, 0o604)
+    set_tags(photo, "-GPSLatitude=1", "-GPSLatitudeRef=S", "-GPSLongitude=2",
+             "-GPSLongitudeRef=W", "-GPSAltitude=812", "-GPSAltitudeRef=0",
+             "-GPSDateStamp=2020:01:02", "-GPSTimeStamp=03:04:05")
+    os.utime(photo, ns=(MTIME_NS, MTIME_NS))
+    checksum = image_checksum(photo)
+    write_location(photo, 50.0614, -19.9366, None, None, backup=False, replace=replace)
+    assert gps_tags(photo) == {
+        "GPSLatitudeRef": "N", "GPSLatitude": 50.0614, "GPSLongitudeRef": "W",
+        "GPSLongitude": 19.9366, "GPSMapDatum": "WGS-84"}
+    assert image_checksum(photo) == checksum
+    assert state(photo)[1:] == (MTIME_NS, 0o604)
+    assert os.listdir(tmp_path) == ["photo.jpg"]
+
+
+def test_without_a_time_no_time_stamp_is_given_to_exiftool(photo, fake_exiftool):
+    fake = fake_exiftool()
+    write_location(photo, 50.0, 19.0, None, None, backup=False)
+    given = [arg for arg in fake.commands[0] if "Stamp" in arg or "DateTime" in arg]
+    assert given == ["-GPS:GPSDateStamp=", "-GPS:GPSTimeStamp=", "-XMP-exif:GPSDateTime="]
+
+
+@needs_exiftool
+def test_without_a_time_an_old_gps_time_in_xmp_is_removed(photo):
+    """It would be read as the time of the new location."""
+    set_tags(photo, "-XMP-exif:GPSDateTime=2015:05:05 10:00:00Z",
+             "-XMP-exif:DateTimeOriginal=2015:05:05 12:00:00")
+    checksum = image_checksum(photo)
+    write_location(photo, 50.0, 19.0, None, None, backup=False)
+    assert "GPSDateTime" not in read_tags(photo, "GPSDateTime")
+    assert read_tags(photo, "XMP-exif:all") == {"DateTimeOriginal": "2015:05:05 12:00:00"}
+    assert image_checksum(photo) == checksum
+    # With a time, the new time stamps are the GPS time, and XMP is left alone
+    write_location(photo, 50.0, 19.0, None, TIME, backup=False)
+    assert read_tags(photo, "GPSDateTime") == {"GPSDateTime": "2026:06:01 08:30:15Z"}
+
+
+@needs_exiftool
 @pytest.mark.parametrize("mode", [0o640, 0o600, 0o444])
 def test_image_mode_and_mtime_are_preserved(tmp_path, photo, mode):
     os.chmod(photo, mode)
@@ -1283,3 +1326,94 @@ def test_old_direction_of_travel(photo, options, track):
     xmp = read_tags(photo, "XMP-exif:all")
     assert xmp == ({"GPSTrack": 200, "GPSTrackRef": "M"} if not options else {})
     assert image_checksum(photo) == checksum
+
+
+# Undoing a write: restore_head() with what metadata_head() gave before it
+
+OLD_GPS = ("-GPSLatitude=1.5", "-GPSLatitudeRef=S", "-GPSLongitude=2.25", "-GPSLongitudeRef=W",
+           "-GPSAltitude=812", "-GPSAltitudeRef=0", "-GPSImgDirection=90",
+           "-GPSProcessingMethod=GPS", "-GPSDateStamp=2020:01:02", "-GPSTimeStamp=03:04:05.5",
+           "-XMP-exif:GPSLatitude=1.5", "-XMP-exif:GPSDateTime=2020:01:02 03:04:05Z")
+
+
+@needs_exiftool
+@pytest.mark.parametrize("old, replace", [(OLD_GPS, True), ((), False),
+                                          (("-GPSImgDirection=123.4",), False)],
+                         ids=["location", "no GPS", "only a direction"])
+def test_restoring_brings_back_the_photo_from_before_the_write(tmp_path, photo, old, replace):
+    set_tags(photo, "-Make=Panasonic", *old)
+    os.chmod(photo, 0o604)
+    os.utime(photo, ns=(MTIME_NS, MTIME_NS))
+    original = photo.read_bytes()
+    head, digest = metadata_head(photo)
+    assert original.startswith(head) and original[len(head):len(head) + 2] == b"\xff\xda"
+    write_location(photo, 50.0614, 19.9366, 219.4, TIME, backup=False, replace=replace)
+    assert photo.read_bytes() != original
+    written = os.stat(photo)
+    restore_head(photo, head, digest, seen=written)
+    assert os.stat(photo).st_atime_ns == written.st_atime_ns
+    assert photo.read_bytes() == original
+    assert state(photo)[1:] == (MTIME_NS, 0o604)
+    assert os.listdir(tmp_path) == ["photo.jpg"]
+
+
+@needs_exiftool
+def test_a_photo_with_a_preview_after_the_image_is_restored_to_the_byte(tmp_path, photo):
+    """Offsets into the data after the image, as of an MPF preview, come back too."""
+    original = photo.read_bytes() + make_jpeg(16, 12)
+    photo.write_bytes(original)
+    head, digest = metadata_head(photo)
+    write_location(photo, 50.0, 19.0, None, TIME, backup=False)
+    restore_head(photo, head, digest, seen=os.stat(photo))
+    assert photo.read_bytes() == original
+
+
+@needs_exiftool
+def test_a_photo_changed_after_the_write_is_not_restored(photo):
+    head, digest = metadata_head(photo)
+    write_location(photo, 50.0, 19.0, None, TIME, backup=False)
+    written = os.stat(photo)
+    set_tags(photo, "-Artist=someone else")
+    changed = state(photo)
+    with pytest.raises(RuntimeError) as raised:
+        restore_head(photo, head, digest, seen=written)
+    assert str(raised.value) == "another program changed the photo in the meantime"
+    assert state(photo) == changed
+
+
+def test_a_restore_that_would_not_give_the_original_changes_nothing(tmp_path, photo):
+    head, digest = metadata_head(photo)
+    other = add_comment(photo.read_bytes())
+    photo.write_bytes(other)
+    before = state(photo)
+    for wrong_head, wrong_digest in ((head, "0" * 64), (head[:-1], digest)):
+        with pytest.raises((RuntimeError, ValueError)):
+            restore_head(photo, wrong_head, wrong_digest)
+        assert state(photo) == before
+        assert os.listdir(tmp_path) == ["photo.jpg"]
+    restore_head(photo, head, digest)
+    assert photo.read_bytes() != other and metadata_head(photo) == (head, digest)
+
+
+def test_a_restore_with_another_image_is_rejected(tmp_path, photo):
+    head, digest = metadata_head(photo)
+    photo.write_bytes(make_jpeg(32, 24))
+    before = state(photo)
+    with pytest.raises(RuntimeError):
+        restore_head(photo, head, digest)
+    assert state(photo) == before
+    assert os.listdir(tmp_path) == ["photo.jpg"]
+
+
+def test_the_state_of_the_written_photo_is_returned(photo, fake_exiftool, monkeypatch):
+    fake_exiftool()
+    written = write_location(photo, 50.0, 19.0, None, TIME, backup=False)
+    assert (written.st_ino, written.st_mtime_ns) == (os.stat(photo).st_ino, MTIME_NS)
+    real = os.replace
+
+    def replace_and_touch(source, target):
+        real(source, target)
+        os.utime(target, ns=(MTIME_NS, MTIME_NS + 1))     # another program, right after
+
+    monkeypatch.setattr(writer.os, "replace", replace_and_touch)
+    assert write_location(photo, 50.0, 19.0, None, TIME, backup=False) is None
