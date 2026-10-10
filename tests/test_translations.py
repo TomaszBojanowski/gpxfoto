@@ -261,7 +261,8 @@ def test_every_message_is_translated(language):
 SAME_IN_POLISH = {"%(heading)s:", "argument %(argument_name)s: %(message)s", "{elevation} m",
                   "{seconds} s", "{minutes} min", "{hours} h {minutes} min", "{hours} h",
                   "{minutes} min {seconds} s", "{hours} h {minutes} min {seconds} s",
-                  "UTC{offset}", "{metres} m", "{kilometres} km", "−1 h", "+1 h"}
+                  "UTC{offset}", "{metres} m", "{kilometres} km", "−1 h", "+1 h", "−1 s",
+                  "+1 s"}
 
 
 def test_polish_messages_are_not_copies_of_the_english_ones():

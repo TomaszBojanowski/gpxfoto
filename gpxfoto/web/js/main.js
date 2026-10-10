@@ -4,7 +4,8 @@
 
 import { address, base64, get, listen, post, token } from "./api.js";
 import { choose } from "./chooser.js";
-import { clockTime, clockTimeOfUnix, coordinates, exactDuration } from "./format.js";
+import { clockTime, clockTimeOfUnix, coordinates, exactDuration, parseDuration }
+  from "./format.js";
 import { _, format, loadCatalog, ngettext, number } from "./i18n.js";
 import { PhotoList } from "./list.js";
 import { PhotoMap, roundThumbnail } from "./map.js";
@@ -749,6 +750,59 @@ $("minus-hour").addEventListener("click", () =>
 $("plus-hour").addEventListener("click", () =>
   setCorrection(state.correction + 3600, state.base + 3600));
 $("reset-correction").addEventListener("click", () => setCorrection(0, 0));
+// To the second, which the knob of the slider cannot be set to
+$("minus-second").addEventListener("click", () => setCorrection(state.correction - 1));
+$("plus-second").addEventListener("click", () => setCorrection(state.correction + 1));
+
+// The value can be typed: a click on it turns it into a field
+const correctionValue = $("correction-value");
+const correctionInput = $("correction-input");
+correctionValue.title = _("Click to type the time correction");
+
+correctionValue.addEventListener("click", () => {
+  correctionInput.value = String(state.correction);
+  correctionValue.hidden = true;
+  correctionInput.hidden = false;
+  correctionInput.focus();
+  correctionInput.select();
+});
+
+// Back to the value; what was typed is used when apply is set. False
+// when it cannot be read, and the field then stays.
+function endTyping(apply) {
+  if (correctionInput.hidden) {
+    return true;
+  }
+  if (apply) {
+    const seconds = parseDuration(correctionInput.value);
+    if (seconds === null) {
+      return false;
+    }
+    if (seconds !== state.correction) {
+      setCorrection(seconds);
+    }
+  }
+  correctionInput.hidden = true;
+  correctionValue.hidden = false;
+  return true;
+}
+
+correctionInput.addEventListener("keydown", (event) => {
+  if (event.key === "Enter") {
+    if (endTyping(true)) {
+      correctionValue.focus();
+    } else {
+      notice(_("Type the correction in seconds, or as minutes:seconds, for example −90 or "
+        + "−1:30."));
+      correctionInput.select();
+    }
+  } else if (event.key === "Escape") {
+    endTyping(false);
+    correctionValue.focus();
+  }
+});
+// Leaving the field uses what can be read, and drops what cannot
+correctionInput.addEventListener("blur", () => endTyping(true) || endTyping(false));
 
 // --- choices ---------------------------------------------------------------
 
@@ -832,7 +886,8 @@ function paragraph(text, kind = "") {
 
 // While the photos are written, nothing can be chosen anew
 const LOCKED = ["choose-photos", "choose-tracks", "overwrite", "stops", "correction",
-  "minus-hour", "plus-hour", "reset-correction", "edit", "undo"];
+  "minus-hour", "plus-hour", "minus-second", "plus-second", "correction-value",
+  "reset-correction", "edit", "undo"];
 
 function showWriting() {
   for (const id of LOCKED) {
@@ -840,6 +895,9 @@ function showWriting() {
   }
   if (state.writing && state.editing) {
     setEditing(false);
+  }
+  if (state.writing) {
+    endTyping(false);
   }
   for (const button of document.querySelectorAll(".warning-action")) {
     button.disabled = Boolean(state.writing);

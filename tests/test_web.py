@@ -89,6 +89,17 @@ def test_exact_duration_matches_the_terminal():
 
 
 @needs_node
+def test_a_typed_time_correction_is_read_in_seconds():
+    out = run_module("format.js", """
+        return ["0", "12", "+12", "-90", "−90", " -1:30 ", "1:02:03", "-0:05", "12,5", "12.25 s",
+                "+ 7", "", "abc", "1:60", "1:60:00", "1:2:3:4", "--5", "1e3", "5 min"].map(
+            m.parseDuration);
+    """)
+    assert out == [0, 12, 12, -90, -90, -90, 3723, -5, 12.5, 12.25, 7,
+                   None, None, None, None, None, None, None, None]
+
+
+@needs_node
 def test_clock_times_keep_the_photo_s_time_zone():
     out = run_module("format.js", """
         return [m.clockTime("2024-05-01T12:00:50.000+02:00"), m.clockTime(null),

@@ -335,12 +335,19 @@ button.small { padding: 3px 8px; font-size: 13px; }
 
 #timebar label { white-space: nowrap; }
 #correction { flex: 1; min-width: 80px; accent-color: var(--accent); }
-#correction-value {
-  min-width: 9em;
-  text-align: right;
+#correction-value, #correction-input {
+  min-width: 8em;
+  text-align: center;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+  padding: 3px 8px;
+  border-radius: 8px;
 }
+
+/* The value looks like text until the pointer is on it; a click types it */
+#correction-value { border-color: transparent; cursor: text; }
+#correction-value:hover:not(:disabled) { border-color: var(--line); }
+#correction-input { width: 8em; border: 1px solid var(--accent); background: var(--bg-solid); }
 
 /* Questions and the summary of a write */
 #message {

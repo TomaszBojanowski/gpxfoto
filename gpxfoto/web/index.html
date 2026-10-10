@@ -77,7 +77,11 @@
   <button id="minus-hour" type="button" class="small" data-text="−1 h"></button>
   <input type="range" id="correction" min="-1800" max="1800" step="1" value="0">
   <button id="plus-hour" type="button" class="small" data-text="+1 h"></button>
-  <output id="correction-value" for="correction"></output>
+  <button id="minus-second" type="button" class="small" data-text="−1 s"></button>
+  <button id="correction-value" type="button"></button>
+  <input id="correction-input" type="text" spellcheck="false" autocomplete="off" hidden
+         data-label="Time correction in seconds, or as minutes:seconds">
+  <button id="plus-second" type="button" class="small" data-text="+1 s"></button>
   <button id="reset-correction" type="button" class="small" data-text="Reset"></button>
 </footer>
 

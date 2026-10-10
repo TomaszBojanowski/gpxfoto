@@ -48,6 +48,26 @@ export function exactDuration(seconds, sign = false) {
   return text;
 }
 
+// A time span as typed by the user, in seconds: a number of seconds, or
+// minutes:seconds or hours:minutes:seconds, with an optional sign and a
+// comma or a point before the fraction; null for anything else
+export function parseDuration(text) {
+  const match = /^\s*([+\-−]?)\s*(?:(?:(\d+):)?(\d+):)?(\d+(?:[.,]\d+)?)\s*s?\s*$/.exec(text);
+  if (!match) {
+    return null;
+  }
+  const [, sign, hours, minutes] = match;
+  const seconds = Number(match[4].replace(",", "."));
+  if ((minutes !== undefined && seconds >= 60) || (hours !== undefined && Number(minutes) >= 60)) {
+    return null;
+  }
+  const value = Number(hours || 0) * 3600 + Number(minutes || 0) * 60 + seconds;
+  if (!Number.isFinite(value)) {
+    return null;
+  }
+  return (sign === "+" || sign === "" ? 1 : -1) * Math.round(value * 1000) / 1000;
+}
+
 // Latitude and longitude, separated by a semicolon where the decimal
 // separator is a comma, as gpxfoto.i18n.coordinates()
 export function coordinates(lat, lon) {

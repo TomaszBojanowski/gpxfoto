@@ -24,6 +24,11 @@ export const PAGE_TEXTS = [
   N_("−1 h"),
   // Translators: a button that moves the time correction on by an hour
   N_("+1 h"),
+  // Translators: a button that moves the time correction back by a second
+  N_("−1 s"),
+  // Translators: a button that moves the time correction on by a second
+  N_("+1 s"),
+  N_("Time correction in seconds, or as minutes:seconds"),
   N_("Reset"),
   N_("Close"),
   N_("Folder or file"),
