@@ -42,6 +42,8 @@ def warnings_of(results, tracks, max_gap, stops=True, placed=(), correction=0.0,
         # Of the photos with a capture time, those no track covers
         outside = sum(not checked[index].covered for index in indices)
         cards.append(_shift(found.shift, len(shots), outside, correction, limit))
+    if found.motion is not None:
+        cards.append(_motion(found.motion))
     if found.jumps:
         cards.append(_jumps(found.jumps, shots, ids, results))
     return cards
@@ -117,6 +119,28 @@ def _shift(hint, total, outside, correction, limit):
         "title": _("Shift the photo times by {shift}?").format(shift=shift),
         "text": _shift_text(hint, total, outside),
         "items": [], "more": None, "advice": advice, "notes": {}, "action": action,
+    }
+
+
+def _motion(motion):
+    """The card about photos taken while the track moves at full pace."""
+    values = dict(fast=i18n.number(motion.fast), matched=i18n.number(motion.matched))
+    return {
+        "kind": "motion",
+        # Translators: the title of a warning, which must stay short; {fast}
+        # and {matched} are numbers of photos
+        "title": _("Photos in motion ({fast} of {matched})").format(**values),
+        # Translators: {fast} and {matched} are numbers of photos
+        "text": ngettext("{fast} of {matched} matched photo was taken while the track shows "
+                         "movement at full pace, so the camera clock may be off.",
+                         "{fast} of {matched} matched photos were taken while the track shows "
+                         "movement at full pace, so the camera clock may be off.",
+                         motion.matched).format(**values),
+        "items": [], "more": None,
+        "advice": _("Photos are usually taken at stops or while slowing down. Move the time "
+                    "correction until the photos fall at the stops, or hide this warning if "
+                    "they really were taken on the move."),
+        "notes": {}, "action": None,
     }
 
 

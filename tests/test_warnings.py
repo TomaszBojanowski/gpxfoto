@@ -8,7 +8,7 @@ from gpxfoto.engine.photos import TZ_CAMERA, Photo
 from gpxfoto.engine.track import Track, find_stops
 from gpxfoto.engine.checks import ShiftHint
 from gpxfoto.server.warnings import JUMP_EXAMPLES, _shift_text, warnings_of
-from test_checks import STOP_MINUTES, stops_hike
+from test_checks import STOP_MINUTES, in_pauses, pauses_hike, stops_hike
 from test_stops import T0 as HIKE_T0
 
 T0 = datetime(2024, 5, 1, 10, 0, 0, tzinfo=timezone.utc).timestamp()
@@ -163,3 +163,43 @@ def test_no_shift_is_looked_for_without_stops(hike):
 ])
 def test_the_text_of_a_shift_tells_of_now_and_then(hint, total, outside, expected):
     assert _shift_text(hint, total, outside) == expected
+
+
+# --- photos in motion -----------------------------------------------------
+
+@pytest.fixture(scope="module")
+def walk():
+    points = pauses_hike()
+    return Track(["walk.gpx"], True, points, find_stops(points))
+
+
+def in_the_pauses(count, error):
+    """Photos taken in the pauses of the walk by a clock error s ahead."""
+    zone = timezone(timedelta(hours=2))
+    return [Photo(f"{n}.jpg", datetime.fromtimestamp(t, zone), TZ_CAMERA, None, False)
+            for n, t in enumerate(in_pauses(count, error))]
+
+
+def test_photos_at_full_pace_get_a_card(walk):
+    # The clock is 90 s ahead: every photo lands while walking
+    results = match_photos(in_the_pauses(20, 90), [walk], 0, 120)
+    [card] = warnings_of(results, [walk], 120)
+    assert (card["kind"], card["title"]) == ("motion", "Photos in motion (20 of 20)")
+    assert card["text"] == ("20 of 20 matched photos were taken while the track shows movement "
+                            "at full pace, so the camera clock may be off.")
+    assert "hide this warning" in card["advice"]
+    assert (card["items"], card["more"], card["notes"], card["action"]) == ([], None, {}, None)
+
+
+def test_photos_where_the_walker_paused_get_no_card(walk):
+    results = match_photos(in_the_pauses(20, 0), [walk], 0, 120)
+    assert warnings_of(results, [walk], 120) == []
+    # With the clock corrected, the photos of the wrong clock are there too
+    results = match_photos(in_the_pauses(20, 90), [walk], -90, 120)
+    assert warnings_of(results, [walk], 120, correction=-90) == []
+
+
+def test_the_card_of_a_shift_comes_first_and_that_of_motion_not_with_it(hike):
+    photos = at_the_stops(-3600)
+    results = match_photos(photos, [hike], 0, 120)
+    assert [card["kind"] for card in warnings_of(results, [hike], 120)] == ["shift"]

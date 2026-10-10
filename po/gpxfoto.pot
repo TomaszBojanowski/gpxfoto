@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: gpxfoto 0.1.0\n"
 "Report-Msgid-Bugs-To: https://github.com/tomaszbojanowski/gpxfoto/issues\n"
-"POT-Creation-Date: 2026-10-10 21:08+0200\n"
+"POT-Creation-Date: 2026-10-10 21:11+0200\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -315,7 +315,7 @@ msgstr ""
 #. Translators: a UTC offset as shown to the user; {offset} is, for
 #. example, “+02:00”
 #: gpxfoto/cli.py:321 gpxfoto/cli.py:495 gpxfoto/cli.py:496
-#: gpxfoto/server/warnings.py:149
+#: gpxfoto/server/warnings.py:173
 #, python-brace-format
 msgid "UTC{offset}"
 msgstr ""
@@ -373,13 +373,13 @@ msgid ""
 "during stops: {pinned} of {matched} instead of {now}."
 msgstr ""
 
-#: gpxfoto/cli.py:406 gpxfoto/server/warnings.py:99
+#: gpxfoto/cli.py:406 gpxfoto/server/warnings.py:101
 msgid ""
 "A difference of exactly one hour usually means that the camera was not "
 "switched to or from summer time, or that its time zone is set wrong."
 msgstr ""
 
-#: gpxfoto/cli.py:410 gpxfoto/server/warnings.py:103
+#: gpxfoto/cli.py:410 gpxfoto/server/warnings.py:105
 msgid ""
 "A difference of whole hours or of half an hour usually means that the time "
 "zone set in the camera is wrong, for example still the home one while "
@@ -448,14 +448,14 @@ msgstr ""
 
 #. Translators: {first} and {second} are file names; {interval} is
 #. a time span such as “4 s”; {distance} is a distance such as “1.3 km”
-#: gpxfoto/cli.py:488 gpxfoto/server/warnings.py:146
+#: gpxfoto/cli.py:488 gpxfoto/server/warnings.py:170
 #, python-brace-format
 msgid "{first} and {second}: taken {interval} apart, placed {distance} apart"
 msgstr ""
 
 #. Translators: {first_zone} and {second_zone} are UTC offsets as
 #. shown to the user, such as “UTC+02:00”
-#: gpxfoto/cli.py:493 gpxfoto/server/warnings.py:151
+#: gpxfoto/cli.py:493 gpxfoto/server/warnings.py:175
 #, python-brace-format
 msgid ""
 "{first} and {second}: taken {interval} apart, placed {distance} apart, time "
@@ -469,7 +469,7 @@ msgid_plural "and {count} more pairs"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gpxfoto/cli.py:503 gpxfoto/server/warnings.py:167
+#: gpxfoto/cli.py:503 gpxfoto/server/warnings.py:191
 msgid ""
 "Check the time zones of these photos, and whether the GPX files record "
 "different trips at the same time."
@@ -965,7 +965,7 @@ msgstr ""
 
 #. Translators: the start of a sentence, about the photos as they are
 #. placed now; {count} is a number of photos
-#: gpxfoto/server/warnings.py:59
+#: gpxfoto/server/warnings.py:61
 #, python-brace-format
 msgid "Now {count} photo falls during a stop"
 msgid_plural "Now {count} photos fall during stops"
@@ -974,14 +974,14 @@ msgstr[1] ""
 
 #. Translators: the start of a sentence, about the photos as they are
 #. placed now
-#: gpxfoto/server/warnings.py:65
+#: gpxfoto/server/warnings.py:67
 msgid "Now no photo falls during a stop"
 msgstr ""
 
 #. Translators: the end of a sentence that starts with “Now no photo
 #. falls during a stop” or “Now {count} photos fall during stops”;
 #. {count} and {total} are numbers of photos
-#: gpxfoto/server/warnings.py:70
+#: gpxfoto/server/warnings.py:72
 #, python-brace-format
 msgid "{now}, and {count} of {total} is outside the time of the track."
 msgid_plural "{now}, and {count} of {total} are outside the time of the track."
@@ -991,7 +991,7 @@ msgstr[1] ""
 #. Translators: {shift} is a whole number of hours or half an hour with
 #. a sign, such as “+1 h” or “-30 min”; {count} is the number of all
 #. the photos
-#: gpxfoto/server/warnings.py:81
+#: gpxfoto/server/warnings.py:83
 #, python-brace-format
 msgid "Shifted by {shift}, the {count} photo falls during a stop."
 msgid_plural "Shifted by {shift}, all {count} fall during stops."
@@ -1001,7 +1001,7 @@ msgstr[1] ""
 #. Translators: {shift} is a whole number of hours or half an hour with
 #. a sign, such as “+1 h” or “-30 min”; {pinned} of the {matched}
 #. photos on the track then fall during stops
-#: gpxfoto/server/warnings.py:88
+#: gpxfoto/server/warnings.py:90
 #, python-brace-format
 msgid "Shifted by {shift}, {pinned} of {matched} falls during a stop."
 msgid_plural "Shifted by {shift}, {pinned} of {matched} fall during stops."
@@ -1010,7 +1010,7 @@ msgstr[1] ""
 
 #. Translators: a button; {shift} is a whole number of hours or half
 #. an hour with a sign, such as “+1 h” or “-30 min”
-#: gpxfoto/server/warnings.py:110
+#: gpxfoto/server/warnings.py:112
 #, python-brace-format
 msgid "Apply {shift}"
 msgstr ""
@@ -1018,29 +1018,55 @@ msgstr ""
 #. Translators: the title of a warning, which must stay short; {shift}
 #. is a whole number of hours or half an hour with a sign, such as
 #. “+1 h” or “-30 min”
-#: gpxfoto/server/warnings.py:117
+#: gpxfoto/server/warnings.py:119
 #, python-brace-format
 msgid "Shift the photo times by {shift}?"
+msgstr ""
+
+#. Translators: the title of a warning, which must stay short; {fast}
+#. and {matched} are numbers of photos
+#: gpxfoto/server/warnings.py:132
+#, python-brace-format
+msgid "Photos in motion ({fast} of {matched})"
+msgstr ""
+
+#. Translators: {fast} and {matched} are numbers of photos
+#: gpxfoto/server/warnings.py:134
+#, python-brace-format
+msgid ""
+"{fast} of {matched} matched photo was taken while the track shows movement "
+"at full pace, so the camera clock may be off."
+msgid_plural ""
+"{fast} of {matched} matched photos were taken while the track shows movement "
+"at full pace, so the camera clock may be off."
+msgstr[0] ""
+msgstr[1] ""
+
+#: gpxfoto/server/warnings.py:140
+msgid ""
+"Photos are usually taken at stops or while slowing down. Move the time "
+"correction until the photos fall at the stops, or hide this warning if they "
+"really were taken on the move."
 msgstr ""
 
 #. Translators: a note on a photo in the list, which must stay
 #. short; {name} is the other photo, {distance} a distance such
 #. as “1.3 km” and {interval} a time span such as “4 s”
-#: gpxfoto/server/warnings.py:140
+#: gpxfoto/server/warnings.py:164
 #, python-brace-format
 msgid "jump: {distance} from {name} in {interval}"
 msgstr ""
 
 #. Translators: the title of a warning, which must stay short; {count}
 #. is the number of pairs of photos placed implausibly far apart
-#: gpxfoto/server/warnings.py:160
+#: gpxfoto/server/warnings.py:184
 #, python-brace-format
 msgid "Position jumps ({count} pair)"
 msgid_plural "Position jumps ({count} pairs)"
 msgstr[0] ""
 msgstr[1] ""
 
-#: gpxfoto/server/warnings.py:162
+#: gpxfoto/server/warnings.py:186
 msgid ""
 "These photos were taken less than a minute apart, but are placed far from "
 "each other:"
