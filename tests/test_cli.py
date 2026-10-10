@@ -1605,6 +1605,26 @@ def test_help(tmp_path):
     assert "[--overwrite] [--travel-direction] [--backup]" in " ".join(result.stdout.split())
 
 
+@pytest.mark.parametrize("args", [["--version"], ["--ui", "--version"],
+                                  ["--version", "nothing.jpg"]])
+def test_version_is_that_of_the_installed_program(tmp_path, args):
+    from importlib.metadata import version
+
+    result = run_cli(*args, cwd=tmp_path)
+
+    assert result.returncode == 0
+    assert result.stdout == f"gpxfoto {version('gpxfoto')}\n"
+    assert result.stderr == ""
+
+
+def test_version_is_the_one_in_pyproject():
+    import tomllib
+    from importlib.metadata import version
+
+    with open(os.path.join(ROOT, "pyproject.toml"), "rb") as f:
+        assert version("gpxfoto") == tomllib.load(f)["project"]["version"]
+
+
 # Regional settings
 
 # Locales with a decimal comma come first

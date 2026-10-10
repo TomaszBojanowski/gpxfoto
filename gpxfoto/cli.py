@@ -131,6 +131,24 @@ def join_negative_time_zone(argv):
     return result
 
 
+class ShowVersion(argparse.Action):
+    """--version: print the version of the installed program and exit."""
+
+    def __init__(self, option_strings, dest, help=None):
+        super().__init__(option_strings, dest, nargs=0, default=argparse.SUPPRESS, help=help)
+
+    def __call__(self, parser, namespace, values, option_string=None):
+        # Looked up only when asked for: it takes a while
+        from importlib.metadata import PackageNotFoundError, version
+        try:
+            number = version("gpxfoto")
+        except PackageNotFoundError:        # run from the sources, never installed
+            # Translators: shown in place of the version number
+            number = _("unknown version")
+        print(f"{parser.prog} {number}")
+        parser.exit()
+
+
 def build_parser():
     # Options must be given in full: an abbreviation such as --over would
     # change files, and new options would change what abbreviations mean
@@ -190,6 +208,8 @@ def build_parser():
     parser.add_argument("--ui", action="store_true",
                         help=_("open the interface in the browser instead, where the photos "
                                "and tracks are chosen; no other arguments are given then"))
+    parser.add_argument("--version", action=ShowVersion,
+                        help=_("show the version of gpxfoto and exit"))
     return parser
 
 
@@ -198,6 +218,7 @@ def ui_main(argv):
     parser = argparse.ArgumentParser(prog="gpxfoto", allow_abbrev=False,
                                      usage="%(prog)s --ui")
     parser.add_argument("--ui", action="store_true", required=True)
+    parser.add_argument("--version", action=ShowVersion)
     parser.parse_args(argv)
     from gpxfoto.server.ui import run
     run()

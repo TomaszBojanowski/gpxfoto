@@ -350,7 +350,7 @@ def test_polish_plural_forms(polish_mo, n, word):
 USAGE = ("użycie: gpxfoto [-h] -g TRASA [--write] [--offset SEKUNDY] [--timezone +GG:MM] "
          "[--clock-photo PLIK] [--clock-time CZAS] "
          "[--max-gap SEKUNDY] [--no-stops] [--overwrite] [--travel-direction] [--backup] [-r] "
-         "[--ui] ZDJĘCIE [ZDJĘCIE ...]")
+         "[--ui] [--version] ZDJĘCIE [ZDJĘCIE ...]")
 HELP = {
     "ZDJĘCIE": "pliki JPEG lub katalogi ze zdjęciami",
     "--help": "wyświetla ten komunikat pomocy i kończy działanie",
@@ -378,6 +378,7 @@ HELP = {
     "--recursive": "wyszukuje zdjęcia i trasy także w podkatalogach",
     "--ui": "otwiera zamiast tego interfejs w przeglądarce, w którym wybiera się zdjęcia i trasy; "
             "nie podaje się wtedy innych argumentów",
+    "--version": "wyświetla wersję programu gpxfoto i kończy działanie",
 }
 
 
