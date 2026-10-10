@@ -85,9 +85,11 @@ const WARNING_SIGN = "\u26a0\ufe0e ";
 
 // Signs of a suspicious match, as cards. They only inform: nothing is
 // changed for them, and writing the locations never depends on them. A
-// card can be folded, or hidden until gpxfoto is closed, by its kind.
+// card can be folded, or hidden until gpxfoto is closed, by its kind. Of
+// several cards only the first is open, unless the user chose otherwise,
+// so that they leave room for the list of photos.
 const WARNING_CHOICES = "gpxfoto-warnings";
-const warningChoices = { folded: new Set(), hidden: new Set() };
+const warningChoices = { folded: new Set(), open: new Set(), hidden: new Set() };
 try {
   const stored = JSON.parse(sessionStorage.getItem(WARNING_CHOICES) || "{}");
   for (const name of Object.keys(warningChoices)) {
@@ -100,16 +102,22 @@ try {
 function chooseWarning(name, kind, chosen) {
   warningChoices[name][chosen ? "add" : "delete"](kind);
   try {
-    sessionStorage.setItem(WARNING_CHOICES, JSON.stringify({
-      folded: [...warningChoices.folded], hidden: [...warningChoices.hidden] }));
+    sessionStorage.setItem(WARNING_CHOICES, JSON.stringify(Object.fromEntries(
+      Object.entries(warningChoices).map(([key, kinds]) => [key, [...kinds]]))));
   } catch (error) {
     // As above
   }
   showWarnings();
 }
 
-function warningCard(card) {
-  const folded = warningChoices.folded.has(card.kind);
+function foldWarning(kind, folded) {
+  warningChoices[folded ? "open" : "folded"].delete(kind);
+  chooseWarning(folded ? "folded" : "open", kind, true);
+}
+
+function warningCard(card, index) {
+  const folded = warningChoices.folded.has(card.kind)
+    || (index > 0 && !warningChoices.open.has(card.kind));
   const element = document.createElement("section");
   element.className = "warning";
   const head = document.createElement("div");
@@ -118,8 +126,9 @@ function warningCard(card) {
   title.type = "button";
   title.className = "warning-title";
   title.textContent = card.title;
+  title.title = card.title;
   title.setAttribute("aria-expanded", String(!folded));
-  title.addEventListener("click", () => chooseWarning("folded", card.kind, !folded));
+  title.addEventListener("click", () => foldWarning(card.kind, !folded));
   const hide = document.createElement("button");
   hide.type = "button";
   hide.className = "warning-hide";
@@ -143,6 +152,7 @@ function warningCard(card) {
       show.type = "button";
       show.className = "warning-item";
       show.textContent = item.text;
+      show.title = item.detail || "";
       // Its photos in turn, with each click
       show.addEventListener("click", () => {
         const at = item.photos.indexOf(state.selected);
@@ -152,9 +162,6 @@ function warningCard(card) {
       items.append(line);
     }
     body.append(items);
-  }
-  if (card.more) {
-    body.append(paragraph(card.more));
   }
   if (card.advice) {
     body.append(paragraph(card.advice, "advice"));

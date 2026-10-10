@@ -1,11 +1,12 @@
 """The signs of a suspicious match, as the page shows them.
 
-Each is a card: {"kind", "title", "text", "items", "more", "advice", "note",
-"photos"}. items are {"text", "photos"}, the examples the card lists, each
-with the ids of its photos; more tells how many were left out, or is None.
-photos are the ids of all the photos the card is about, and note is what
-the row of each of them says. The cards only inform: they change nothing
-and never stop the locations from being written.
+Each is a card: {"kind", "title", "text", "items", "advice", "note",
+"photos"}. items are {"text", "detail", "photos"}, the examples the card
+lists: a short line, the same in full, and the ids of its photos. The
+title tells how many there are in all. photos are the ids of all the
+photos the card is about, and note is what the row of each of them says.
+The cards only inform: they change nothing and never stop the locations
+from being written.
 """
 import os
 from datetime import timedelta
@@ -46,27 +47,29 @@ def _jumps(jumps, shots, ids, results):
         values = dict(first=first, second=second,
                       interval=i18n.exact_duration(jump.clock_gap),
                       distance=i18n.distance(jump.distance))
+        # The short line names the photos without their extensions
+        short = [" → ".join(os.path.splitext(name)[0] for name in (first, second)),
+                 values["interval"], values["distance"]]
         if zones[0] == zones[1]:
-            text = _("{first} and {second}: taken {interval} apart, placed {distance} "
-                     "apart").format(**values)
+            detail = _("{first} and {second}: taken {interval} apart, placed {distance} "
+                       "apart").format(**values)
         else:
-            text = _("{first} and {second}: taken {interval} apart, placed {distance} apart, "
-                     "time zones {first_zone} and {second_zone}").format(
-                         first_zone=_("UTC{offset}").format(offset=format_utc_offset(zones[0])),
-                         second_zone=_("UTC{offset}").format(offset=format_utc_offset(zones[1])),
-                         **values)
-        items.append({"text": text, "photos": [ids[i] for i in pair]})
-    more = len(jumps) - JUMP_EXAMPLES
+            shown = [_("UTC{offset}").format(offset=format_utc_offset(zone)) for zone in zones]
+            short.append(" → ".join(shown))
+            detail = _("{first} and {second}: taken {interval} apart, placed {distance} apart, "
+                       "time zones {first_zone} and {second_zone}").format(
+                           first_zone=shown[0], second_zone=shown[1], **values)
+        items.append({"text": " · ".join(short), "detail": detail,
+                      "photos": [ids[i] for i in pair]})
     return {
         "kind": "jumps",
-        # Translators: the title of a warning
-        "title": _("Photos placed implausibly far apart"),
+        # Translators: the title of a warning, which must stay short; {count}
+        # is the number of pairs of photos placed implausibly far apart
+        "title": ngettext("Position jumps ({count} pair)", "Position jumps ({count} pairs)",
+                          len(jumps)).format(count=i18n.number(len(jumps))),
         "text": _("These photos were taken less than a minute apart, but are placed far "
                   "from each other:"),
         "items": items,
-        "more": None if more <= 0 else ngettext(
-            "and {count} more pair", "and {count} more pairs", more).format(
-                count=i18n.number(more)),
         "advice": _("Check the time zones of these photos, and whether the GPX files "
                     "record different trips at the same time."),
         # Translators: a note on a photo in the list

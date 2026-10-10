@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: gpxfoto\n"
 "Report-Msgid-Bugs-To: https://github.com/tomaszbojanowski/gpxfoto/issues\n"
-"POT-Creation-Date: 2026-10-10 20:30+0200\n"
+"POT-Creation-Date: 2026-10-10 20:46+0200\n"
 "PO-Revision-Date: 2026-10-06 23:45+0200\n"
 "Last-Translator: Tomasz <t.bojanowski@protonmail.com>\n"
 "Language-Team: Polish\n"
@@ -309,7 +309,7 @@ msgstr "Oba czasy byłyby zgodne przy opcji {option}."
 #. Translators: a note on the line of a photo taken during a stop, which
 #. gets the stop's position; {start} and {end} are times such as
 #. “12:31:05”, with the date when the stop lasts over midnight
-#: gpxfoto/cli.py:253 gpxfoto/web/js/main.js:279
+#: gpxfoto/cli.py:253 gpxfoto/web/js/main.js:289
 #, python-brace-format
 msgid "stop {start} – {end}"
 msgstr "postój {start} – {end}"
@@ -330,13 +330,13 @@ msgstr "kierunek ruchu {degrees}°"
 
 #. Translators: shown after the file name of a photo; {reason} says
 #. why the photo was skipped, e.g. “already has a location”
-#: gpxfoto/cli.py:297 gpxfoto/web/js/main.js:289 gpxfoto/web/js/main.js:291
+#: gpxfoto/cli.py:297 gpxfoto/web/js/main.js:299 gpxfoto/web/js/main.js:301
 #, python-brace-format
 msgid "skipped: {reason}"
 msgstr "pominięte: {reason}"
 
 #. Translators: elevation in metres
-#: gpxfoto/cli.py:302 gpxfoto/web/js/main.js:303
+#: gpxfoto/cli.py:302 gpxfoto/web/js/main.js:313
 #, python-brace-format
 msgid "{elevation} m"
 msgstr "{elevation} m"
@@ -352,7 +352,7 @@ msgstr "Poprawka zegara: {correction} (odpowiada opcji {option})"
 #. Translators: a UTC offset as shown to the user; {offset} is, for
 #. example, “+02:00”
 #: gpxfoto/cli.py:321 gpxfoto/cli.py:495 gpxfoto/cli.py:496
-#: gpxfoto/server/warnings.py:55 gpxfoto/server/warnings.py:56
+#: gpxfoto/server/warnings.py:57
 #, python-brace-format
 msgid "UTC{offset}"
 msgstr "UTC{offset}"
@@ -520,7 +520,7 @@ msgstr ""
 
 #. Translators: {first} and {second} are file names; {interval} is
 #. a time span such as “4 s”; {distance} is a distance such as “1.3 km”
-#: gpxfoto/cli.py:488 gpxfoto/server/warnings.py:50
+#: gpxfoto/cli.py:488 gpxfoto/server/warnings.py:54
 #, python-brace-format
 msgid "{first} and {second}: taken {interval} apart, placed {distance} apart"
 msgstr ""
@@ -529,7 +529,7 @@ msgstr ""
 
 #. Translators: {first_zone} and {second_zone} are UTC offsets as
 #. shown to the user, such as “UTC+02:00”
-#: gpxfoto/cli.py:493 gpxfoto/server/warnings.py:53
+#: gpxfoto/cli.py:493 gpxfoto/server/warnings.py:59
 #, python-brace-format
 msgid ""
 "{first} and {second}: taken {interval} apart, placed {distance} apart, time "
@@ -538,7 +538,7 @@ msgstr ""
 "{first} i {second}: zrobione w odstępie {interval}, umieszczone {distance} "
 "od siebie, strefy czasowe {first_zone} i {second_zone}"
 
-#: gpxfoto/cli.py:501 gpxfoto/server/warnings.py:68
+#: gpxfoto/cli.py:501
 #, python-brace-format
 msgid "and {count} more pair"
 msgid_plural "and {count} more pairs"
@@ -546,7 +546,7 @@ msgstr[0] "i jeszcze {count} para"
 msgstr[1] "i jeszcze {count} pary"
 msgstr[2] "i jeszcze {count} par"
 
-#: gpxfoto/cli.py:503 gpxfoto/server/warnings.py:70
+#: gpxfoto/cli.py:503 gpxfoto/server/warnings.py:73
 msgid ""
 "Check the time zones of these photos, and whether the GPX files record "
 "different trips at the same time."
@@ -609,7 +609,7 @@ msgstr[0] "Trasy obejmujące czas zdjęć: {used} z {total} pliku GPX"
 msgstr[1] "Trasy obejmujące czas zdjęć: {used} z {total} plików GPX"
 msgstr[2] "Trasy obejmujące czas zdjęć: {used} z {total} plików GPX"
 
-#: gpxfoto/cli.py:689 gpxfoto/web/js/main.js:614
+#: gpxfoto/cli.py:689 gpxfoto/web/js/main.js:624
 #, python-brace-format
 msgid "Matched: {matched}, skipped: {skipped}"
 msgstr "Dopasowano: {matched}, pominięto: {skipped}"
@@ -623,7 +623,7 @@ msgstr "Z kierunkiem ruchu: {known}, bez kierunku: {unknown}"
 
 #. Translators: how many of the matched photos were taken during stops;
 #. a wrong camera clock puts fewer of them there
-#: gpxfoto/cli.py:700 gpxfoto/web/js/main.js:617
+#: gpxfoto/cli.py:700 gpxfoto/web/js/main.js:627
 #, python-brace-format
 msgid "During stops: {count} of {matched} matched photo"
 msgid_plural "During stops: {count} of {matched} matched photos"
@@ -641,17 +641,17 @@ msgstr ""
 "To był podgląd, nie zmieniono żadnych plików. Aby zapisać położenie, należy "
 "użyć opcji {option}."
 
-#: gpxfoto/cli.py:733 gpxfoto/web/js/main.js:887
+#: gpxfoto/cli.py:733 gpxfoto/web/js/main.js:897
 #, python-brace-format
 msgid "Could not write {name}: {error} (file unchanged)"
 msgstr "Nie można zapisać pliku {name}: {error} (plik bez zmian)"
 
-#: gpxfoto/cli.py:735 gpxfoto/web/js/main.js:868
+#: gpxfoto/cli.py:735 gpxfoto/web/js/main.js:878
 #, python-brace-format
 msgid "Written: {written}, errors: {errors}"
 msgstr "Zapisano: {written}, błędy: {errors}"
 
-#: gpxfoto/cli.py:738 gpxfoto/web/js/main.js:874
+#: gpxfoto/cli.py:738 gpxfoto/web/js/main.js:884
 msgid "The image data of every written file was verified as unchanged."
 msgstr ""
 "Sprawdzono, że dane obrazu w każdym zapisanym pliku pozostały bez zmian."
@@ -999,13 +999,13 @@ msgstr "{hours} h"
 msgid "{minutes} min {seconds} s"
 msgstr "{minutes} min {seconds} s"
 
-#: gpxfoto/server/app.py:190 gpxfoto/web/js/main.js:1165
+#: gpxfoto/server/app.py:190 gpxfoto/web/js/main.js:1175
 msgid "Open the address that gpxfoto showed in the terminal when it started."
 msgstr ""
 "Należy otworzyć adres, który gpxfoto wyświetlił w terminalu przy "
 "uruchomieniu."
 
-#: gpxfoto/server/app.py:240 gpxfoto/web/js/main.js:960
+#: gpxfoto/server/app.py:240 gpxfoto/web/js/main.js:970
 msgid ""
 "The GPX file is too large to be dropped here. Choose it with the Track "
 "button."
@@ -1060,7 +1060,7 @@ msgstr "Nie można utworzyć dziennika potrzebnego do cofnięcia zapisu: {error}
 msgid "There is no write to undo."
 msgstr "Brak zapisu do cofnięcia."
 
-#: gpxfoto/server/session.py:263 gpxfoto/web/js/main.js:949
+#: gpxfoto/server/session.py:263 gpxfoto/web/js/main.js:959
 msgid "Wait until the locations are written, or cancel the writing."
 msgstr "Należy poczekać na zakończenie zapisu położenia albo go anulować."
 
@@ -1084,12 +1084,17 @@ msgstr ""
 msgid "Finishing the photos being written…"
 msgstr "Kończenie zapisu rozpoczętych zdjęć…"
 
-#. Translators: the title of a warning
-#: gpxfoto/server/warnings.py:63
-msgid "Photos placed implausibly far apart"
-msgstr "Zdjęcia umieszczone nieprawdopodobnie daleko od siebie"
+#. Translators: the title of a warning, which must stay short; {count}
+#. is the number of pairs of photos placed implausibly far apart
+#: gpxfoto/server/warnings.py:68
+#, python-brace-format
+msgid "Position jumps ({count} pair)"
+msgid_plural "Position jumps ({count} pairs)"
+msgstr[0] "Skoki położenia ({count} para)"
+msgstr[1] "Skoki położenia ({count} pary)"
+msgstr[2] "Skoki położenia ({count} par)"
 
-#: gpxfoto/server/warnings.py:64
+#: gpxfoto/server/warnings.py:70
 msgid ""
 "These photos were taken less than a minute apart, but are placed far from "
 "each other:"
@@ -1098,7 +1103,7 @@ msgstr ""
 "od siebie:"
 
 #. Translators: a note on a photo in the list
-#: gpxfoto/server/warnings.py:73
+#: gpxfoto/server/warnings.py:76
 msgid "placed implausibly far from a photo taken less than a minute apart"
 msgstr ""
 "umieszczone nieprawdopodobnie daleko od zdjęcia zrobionego w odstępie "
@@ -1171,101 +1176,101 @@ msgstr "Wybór folderu ze zdjęciami"
 msgid "Choose the track: GPX files or a folder of them"
 msgstr "Wybór trasy: pliki GPX lub folder z nimi"
 
-#: gpxfoto/web/js/main.js:72 gpxfoto/web/js/main.js:900
+#: gpxfoto/web/js/main.js:72 gpxfoto/web/js/main.js:910
 #: gpxfoto/web/js/texts.js:28
 msgid "Close"
 msgstr "Zamknij"
 
-#: gpxfoto/web/js/main.js:124
+#: gpxfoto/web/js/main.js:136
 msgid "Hide this warning until gpxfoto is closed"
 msgstr "Ukryj to ostrzeżenie do zamknięcia programu gpxfoto"
 
-#: gpxfoto/web/js/main.js:174
+#: gpxfoto/web/js/main.js:184
 msgid "{count} warning is hidden."
 msgid_plural "{count} warnings are hidden."
 msgstr[0] "Ukryto {count} ostrzeżenie."
 msgstr[1] "Ukryto {count} ostrzeżenia."
 msgstr[2] "Ukryto {count} ostrzeżeń."
 
-#: gpxfoto/web/js/main.js:179
+#: gpxfoto/web/js/main.js:189
 msgid "Show"
 msgstr "Pokaż"
 
-#: gpxfoto/web/js/main.js:229
+#: gpxfoto/web/js/main.js:239
 msgid "Reading photos: {done} of {total}"
 msgstr "Wczytywanie zdjęć: {done} z {total}"
 
-#: gpxfoto/web/js/main.js:231
+#: gpxfoto/web/js/main.js:241
 msgid "Cancelling: finishing the photos being written…"
 msgstr "Anulowanie: kończenie zapisu rozpoczętych zdjęć…"
 
-#: gpxfoto/web/js/main.js:233
+#: gpxfoto/web/js/main.js:243
 msgid "Undoing the write: {done} of {total}"
 msgstr "Cofanie zapisu: {done} z {total}"
 
-#: gpxfoto/web/js/main.js:235
+#: gpxfoto/web/js/main.js:245
 msgid "Writing locations: {done} of {total}"
 msgstr "Zapisywanie położenia: {done} z {total}"
 
-#: gpxfoto/web/js/main.js:273
+#: gpxfoto/web/js/main.js:283
 msgid "will overwrite the existing location"
 msgstr "nadpisze istniejące położenie"
 
-#: gpxfoto/web/js/main.js:276
+#: gpxfoto/web/js/main.js:286
 msgid "placed by hand"
 msgstr "umieszczone ręcznie"
 
-#: gpxfoto/web/js/main.js:397 gpxfoto/web/js/main.js:405
+#: gpxfoto/web/js/main.js:407 gpxfoto/web/js/main.js:415
 msgid "Drag the photo on the map to move it."
 msgstr "Zdjęcie można przesunąć, przeciągając je na mapie."
 
-#: gpxfoto/web/js/main.js:402
+#: gpxfoto/web/js/main.js:412
 msgid "Use the position from the track"
 msgstr "Użyj położenia z trasy"
 
-#: gpxfoto/web/js/main.js:408
+#: gpxfoto/web/js/main.js:418
 msgid "Click on the map where this photo was taken."
 msgstr "Należy kliknąć na mapie miejsce, w którym zrobiono to zdjęcie."
 
-#: gpxfoto/web/js/main.js:505
+#: gpxfoto/web/js/main.js:515
 msgid "The map cannot be shown: this browser does not allow WebGL."
 msgstr "Nie można wyświetlić mapy: ta przeglądarka nie zezwala na WebGL."
 
-#: gpxfoto/web/js/main.js:581
+#: gpxfoto/web/js/main.js:591
 msgid "All ({count})"
 msgstr "Wszystkie ({count})"
 
-#: gpxfoto/web/js/main.js:582
+#: gpxfoto/web/js/main.js:592
 msgid "Matched ({count})"
 msgstr "Dopasowane ({count})"
 
-#: gpxfoto/web/js/main.js:583
+#: gpxfoto/web/js/main.js:593
 msgid "Skipped ({count})"
 msgstr "Pominięte ({count})"
 
-#: gpxfoto/web/js/main.js:597 gpxfoto/web/js/main.js:833
+#: gpxfoto/web/js/main.js:607 gpxfoto/web/js/main.js:843
 msgid "Write {count} location"
 msgid_plural "Write {count} locations"
 msgstr[0] "Zapisz {count} położenie"
 msgstr[1] "Zapisz {count} położenia"
 msgstr[2] "Zapisz {count} położeń"
 
-#: gpxfoto/web/js/main.js:600
+#: gpxfoto/web/js/main.js:610
 msgid "Undoing…"
 msgstr "Cofanie…"
 
-#: gpxfoto/web/js/main.js:600
+#: gpxfoto/web/js/main.js:610
 msgid "Writing…"
 msgstr "Zapisywanie…"
 
-#: gpxfoto/web/js/main.js:822
+#: gpxfoto/web/js/main.js:832
 msgid "The location will be written into {count} photo."
 msgid_plural "The location will be written into {count} photos."
 msgstr[0] "Położenie zostanie zapisane w {count} zdjęciu."
 msgstr[1] "Położenie zostanie zapisane w {count} zdjęciach."
 msgstr[2] "Położenie zostanie zapisane w {count} zdjęciach."
 
-#: gpxfoto/web/js/main.js:827
+#: gpxfoto/web/js/main.js:837
 msgid "{count} of them already has a location, which will be overwritten."
 msgid_plural ""
 "{count} of them already have a location, which will be overwritten."
@@ -1273,7 +1278,7 @@ msgstr[0] "{count} z nich ma już położenie, które zostanie nadpisane."
 msgstr[1] "{count} z nich mają już położenie, które zostanie nadpisane."
 msgstr[2] "{count} z nich ma już położenie, które zostanie nadpisane."
 
-#: gpxfoto/web/js/main.js:831
+#: gpxfoto/web/js/main.js:841
 msgid ""
 "Only the location is written. The image data of every photo is checked to be "
 "unchanged, and a photo is replaced only once it is."
@@ -1282,11 +1287,11 @@ msgstr ""
 "sprawdzane, a zdjęcie zostaje zastąpione dopiero po potwierdzeniu, że się "
 "nie zmieniły."
 
-#: gpxfoto/web/js/main.js:835
+#: gpxfoto/web/js/main.js:845
 msgid "Write the locations?"
 msgstr "Zapisać położenie?"
 
-#: gpxfoto/web/js/main.js:847
+#: gpxfoto/web/js/main.js:857
 msgid ""
 "The GPS data of {count} photo will be restored as it was before the last "
 "write."
@@ -1301,29 +1306,29 @@ msgstr[1] ""
 msgstr[2] ""
 "Dane GPS {count} zdjęć zostaną przywrócone do stanu sprzed ostatniego zapisu."
 
-#: gpxfoto/web/js/main.js:850
+#: gpxfoto/web/js/main.js:860
 msgid "A photo changed by another program since then is left as it is."
 msgstr ""
 "Zdjęcie zmienione od tego czasu przez inny program pozostaje bez zmian."
 
-#: gpxfoto/web/js/main.js:851
+#: gpxfoto/web/js/main.js:861
 msgid "Undo the last write?"
 msgstr "Cofnąć ostatni zapis?"
 
-#: gpxfoto/web/js/main.js:851
+#: gpxfoto/web/js/main.js:861
 msgid "Undo"
 msgstr "Cofnij"
 
-#: gpxfoto/web/js/main.js:867
+#: gpxfoto/web/js/main.js:877
 msgid "Restored: {written}, errors: {errors}"
 msgstr "Przywrócono: {written}, błędy: {errors}"
 
-#: gpxfoto/web/js/main.js:873
+#: gpxfoto/web/js/main.js:883
 msgid "Every restored photo is the same, to the byte, as before the write."
 msgstr ""
 "Każde przywrócone zdjęcie jest identyczne co do bajta jak przed zapisem."
 
-#: gpxfoto/web/js/main.js:878
+#: gpxfoto/web/js/main.js:888
 msgid "{count} photo was not restored, as the undoing was cancelled."
 msgid_plural "{count} photos were not restored, as the undoing was cancelled."
 msgstr[0] ""
@@ -1333,34 +1338,34 @@ msgstr[1] ""
 msgstr[2] ""
 "{count} zdjęć nie zostało przywróconych, ponieważ anulowano cofanie."
 
-#: gpxfoto/web/js/main.js:880
+#: gpxfoto/web/js/main.js:890
 msgid "{count} photo was not written, as the writing was cancelled."
 msgid_plural "{count} photos were not written, as the writing was cancelled."
 msgstr[0] "{count} zdjęcie nie zostało zapisane, ponieważ anulowano zapis."
 msgstr[1] "{count} zdjęcia nie zostały zapisane, ponieważ anulowano zapis."
 msgstr[2] "{count} zdjęć nie zostało zapisanych, ponieważ anulowano zapis."
 
-#: gpxfoto/web/js/main.js:886
+#: gpxfoto/web/js/main.js:896
 msgid "Could not restore {name}: {error} (file unchanged)"
 msgstr "Nie można przywrócić pliku {name}: {error} (plik bez zmian)"
 
-#: gpxfoto/web/js/main.js:896
+#: gpxfoto/web/js/main.js:906
 msgid "Writing cancelled"
 msgstr "Anulowano zapis"
 
-#: gpxfoto/web/js/main.js:896
+#: gpxfoto/web/js/main.js:906
 msgid "Writing finished"
 msgstr "Ukończono zapis"
 
-#: gpxfoto/web/js/main.js:898
+#: gpxfoto/web/js/main.js:908
 msgid "Undoing cancelled"
 msgstr "Anulowano cofanie"
 
-#: gpxfoto/web/js/main.js:898
+#: gpxfoto/web/js/main.js:908
 msgid "Undoing finished"
 msgstr "Ukończono cofanie"
 
-#: gpxfoto/web/js/main.js:955
+#: gpxfoto/web/js/main.js:965
 msgid ""
 "Only GPX files can be dropped here. Choose the folder with photos with the "
 "Photos button."

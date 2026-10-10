@@ -38,18 +38,21 @@ def test_a_match_without_signs_has_no_cards(track):
 def test_a_pair_across_a_leap_is_named(track):
     photos = [photo("x.jpg", 10), photo("/photos/a.jpg", 590), photo("/photos/b.jpg", 600)]
     [card] = warnings_of(match_photos(photos, [track], 0, 120), [track], 120)
-    assert card["kind"] == "jumps" and card["title"] and card["text"] and card["advice"]
-    assert card["items"] == [{"photos": [1, 2], "text": "a.jpg and b.jpg: taken 10 s apart, "
-                                                        "placed 111.2 km apart"}]
-    assert (card["photos"], card["more"], bool(card["note"])) == ([1, 2], None, True)
+    assert card["kind"] == "jumps" and card["text"] and card["advice"]
+    assert card["title"] == "Position jumps (1 pair)"
+    assert card["items"] == [{"photos": [1, 2], "text": "a → b · 10 s · 111.2 km",
+                              "detail": "a.jpg and b.jpg: taken 10 s apart, placed 111.2 km "
+                                        "apart"}]
+    assert (card["photos"], bool(card["note"])) == ([1, 2], True)
 
 
-def test_only_some_pairs_are_named_and_the_rest_counted(track):
+def test_only_some_pairs_are_named_and_all_are_counted(track):
     photos = [photo(f"{leap}{side}.jpg", 600 * leap + second)
               for leap in range(1, 6) for side, second in (("a", -10), ("b", 0))]
     [card] = warnings_of(match_photos(photos, [track], 0, 120), [track], 120)
     assert [item["photos"] for item in card["items"]] == [[0, 1], [2, 3], [4, 5]]
-    assert len(card["items"]) == JUMP_EXAMPLES and card["more"] == "and 2 more pairs"
+    assert len(card["items"]) == JUMP_EXAMPLES
+    assert card["title"] == "Position jumps (5 pairs)"
     assert card["photos"] == list(range(10))
 
 
@@ -60,8 +63,9 @@ def test_different_time_zones_are_told(track):
     assert warnings_of(results, [track], 120) == []
     late = [photo("a.jpg", 590), photo("b.jpg", 4200, hours=1)]
     [card] = warnings_of(match_photos(late, [track], 0, 120), [track], 120)
-    assert card["items"][0]["text"] == ("a.jpg and b.jpg: taken 10 s apart, placed 778.4 km "
-                                        "apart, time zones UTC+02:00 and UTC+01:00")
+    assert card["items"][0]["text"] == "a → b · 10 s · 778.4 km · UTC+02:00 → UTC+01:00"
+    assert card["items"][0]["detail"] == ("a.jpg and b.jpg: taken 10 s apart, placed 778.4 km "
+                                          "apart, time zones UTC+02:00 and UTC+01:00")
 
 
 def test_photos_placed_by_hand_are_left_out(track):
