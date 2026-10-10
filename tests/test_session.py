@@ -2,17 +2,20 @@
 (gpxfoto.server.session), with the page's requests (gpxfoto.server.api)."""
 import base64
 import json
+from datetime import datetime, timedelta, timezone
 import math
 import os
 import threading
 
 import pytest
 
-from conftest import make_jpeg, needs_exiftool, read_tags, set_tags, write_gpx
+from conftest import hike_gpx, make_jpeg, needs_exiftool, read_tags, set_tags, write_gpx
 from gpxfoto.engine.writer import image_checksum
 from gpxfoto.server import session as session_module
 from gpxfoto.server import writing as writing_module
 from gpxfoto.server.session import Session, SessionError
+from test_checks import STOP_MINUTES, stops_hike
+from test_stops import T0 as HIKE_T0
 
 TRACK = [("2024-05-01T10:00:00Z", 50.0, 20.0, 200.0),
          ("2024-05-01T10:01:40Z", 50.001, 20.002, 210.0)]
@@ -619,3 +622,29 @@ def test_warnings_do_not_stop_the_locations_from_being_written(session, events, 
     assert (done["written"], done["failed"]) == (2, [])
     assert [read_tags(path, "GPSLatitude")["GPSLatitude"] for path in paths] == [
         pytest.approx(50.0), pytest.approx(51.0)]
+
+
+@needs_exiftool
+def test_a_clock_an_hour_behind_is_warned_of_and_the_shift_can_be_applied(session, events,
+                                                                          tmp_path, monkeypatch):
+    monkeypatch.setenv("LANGUAGE", "C")
+    gpx = hike_gpx(tmp_path / "hike.gpx", stops_hike())
+    for n, (minute, second) in enumerate((m, s) for m in STOP_MINUTES for s in (40, 80)):
+        # The camera shows 11:20 when the watch shows 12:20
+        taken = datetime.fromtimestamp(HIKE_T0 + minute * 60 + second - 3600,
+                                       timezone(timedelta(hours=2)))
+        photo(tmp_path / "photos", f"{n:02}.jpg", f"{taken:%H:%M:%S}", "+02:00",
+              f"-DateTimeOriginal={taken:%Y:%m:%d %H:%M:%S}")
+    session.choose_photos(str(tmp_path / "photos"))
+    session.choose_track_files([str(gpx)])
+    events.wait("photos-done")
+    warnings = events.wait("warnings", lambda d: d["warnings"])
+    [card] = warnings["warnings"]
+    assert (card["kind"], card["title"]) == ("shift", "Shift the photo times by +1 h?")
+    assert card["action"] == {"label": "Apply +1 h", "correction": 3600}
+    # The button of the card sets the correction, as the slider does
+    session.set_correction(card["action"]["correction"])
+    match = matches_for(events, 3600)
+    assert (match["matched"], match["at_stops"]) == (12, 12)
+    calm = events.wait("warnings", lambda d: d["version"] == match["version"])
+    assert calm["warnings"] == []

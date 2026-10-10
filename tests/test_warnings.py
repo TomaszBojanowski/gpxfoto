@@ -5,8 +5,10 @@ import pytest
 
 from gpxfoto.engine.matching import match_photos, placed_by_hand
 from gpxfoto.engine.photos import TZ_CAMERA, Photo
-from gpxfoto.engine.track import Track
+from gpxfoto.engine.track import Track, find_stops
 from gpxfoto.server.warnings import JUMP_EXAMPLES, warnings_of
+from test_checks import STOP_MINUTES, stops_hike
+from test_stops import T0 as HIKE_T0
 
 T0 = datetime(2024, 5, 1, 10, 0, 0, tzinfo=timezone.utc).timestamp()
 # A point every ten seconds; every ten minutes, at once 111 km further north
@@ -90,3 +92,54 @@ def test_a_photo_between_two_leaps_has_a_note_of_each(track):
     photos = [photo("a.jpg", 15), photo("b.jpg", 25), photo("c.jpg", 45)]
     [card] = warnings_of(match_photos(photos, [quick], 0, 120), [quick], 120)
     assert card["notes"][1] == ["jump: 111.2 km from a in 10 s", "jump: 111.2 km from c in 20 s"]
+
+
+# --- a whole-hour shift ---------------------------------------------------
+
+@pytest.fixture(scope="module")
+def hike():
+    points = stops_hike()
+    return Track(["hike.gpx"], True, points, find_stops(points))
+
+
+def at_the_stops(error):
+    """Photos taken during the stops of the hike by a clock error s ahead."""
+    zone = timezone(timedelta(hours=2))
+    return [Photo(f"{n}.jpg", datetime.fromtimestamp(HIKE_T0 + minute * 60 + second + error, zone),
+                  TZ_CAMERA, None, False)
+            for n, (minute, second) in enumerate((m, s) for m in STOP_MINUTES for s in (40, 80))]
+
+
+def test_a_clock_an_hour_behind_gets_a_card_that_applies_the_shift(hike):
+    results = match_photos(at_the_stops(-3600), [hike], 0, 120)
+    [card] = warnings_of(results, [hike], 120, limit=86400)
+    assert (card["kind"], card["title"]) == ("shift", "Shift the photo times by +1 h?")
+    assert card["text"] == ("With the photo times shifted by +1 h, clearly more photos fall "
+                            "during stops: 12 of 12 instead of 0.")
+    assert "summer time" in card["advice"]
+    assert card["action"] == {"label": "Apply +1 h", "correction": 3600}
+    assert (card["items"], card["more"], card["notes"]) == ([], None, {})
+    # Applied, the photos are at the stops and nothing is left to warn of
+    applied = match_photos(at_the_stops(-3600), [hike], 3600, 120)
+    assert sum(result.stop is not None for result in applied) == 12
+    assert warnings_of(applied, [hike], 120, correction=3600) == []
+
+
+def test_the_shift_is_added_to_the_correction_in_effect(hike):
+    # Two hours and ten minutes ahead, of which the correction takes the minutes
+    results = match_photos(at_the_stops(7800), [hike], -600, 120)
+    [card] = warnings_of(results, [hike], 120, correction=-600, limit=86400)
+    assert card["title"] == "Shift the photo times by -2 h?" and "time zone" in card["advice"]
+    assert "summer time" not in card["advice"]
+    assert card["action"] == {"label": "Apply -2 h", "correction": -7800}
+
+
+def test_a_shift_beyond_the_limit_of_corrections_has_no_button(hike):
+    results = match_photos(at_the_stops(-3600), [hike], 0, 120)
+    [card] = warnings_of(results, [hike], 120, limit=3000)
+    assert card["kind"] == "shift" and card["action"] is None
+
+
+def test_no_shift_is_looked_for_without_stops(hike):
+    results = match_photos(at_the_stops(-3600), [hike], 0, 120)
+    assert warnings_of(results, [hike], 120, stops=False) == []

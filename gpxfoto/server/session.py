@@ -586,7 +586,8 @@ class Session:
         """Tell the page of the signs of a suspicious match; they change nothing."""
         warnings = {"version": match["version"], "generation": match["generation"],
                     "tracks": match["tracks"],
-                    "warnings": warnings_of(results, tracks, MAX_GAP, stops, placed)}
+                    "warnings": warnings_of(results, tracks, MAX_GAP, stops, placed,
+                                            match["correction"], MAX_CORRECTION)}
         with self.lock:
             if self.match is not match:
                 return

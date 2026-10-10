@@ -169,6 +169,16 @@ function warningCard(card, index) {
   if (card.advice) {
     body.append(paragraph(card.advice, "advice"));
   }
+  if (card.action) {
+    // As with the slider: the correction changes, nothing is written
+    const apply = document.createElement("button");
+    apply.type = "button";
+    apply.className = "small warning-action";
+    apply.textContent = card.action.label;
+    apply.disabled = Boolean(state.writing);
+    apply.addEventListener("click", () => setCorrection(card.action.correction));
+    body.append(apply);
+  }
   element.append(body);
   return element;
 }
@@ -822,6 +832,9 @@ function showWriting() {
   }
   if (state.writing && state.editing) {
     setEditing(false);
+  }
+  for (const button of document.querySelectorAll(".warning-action")) {
+    button.disabled = Boolean(state.writing);
   }
   showProgress();
   showWriteButton();
