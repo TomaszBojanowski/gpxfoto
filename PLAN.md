@@ -173,7 +173,7 @@ Każdy etap kończy się działającym programem i przechodzącymi testami. Jedn
 - Testy: API serwera testowane bez przeglądarki; testy bezpieczeństwa (brak tokenu, zły `Host`, ścieżka poza wskazanym folderem).
 - Kryterium: działa na Fedorze (Firefox) i macOS (Safari); przy 1000 zdjęć strona pozostaje płynna podczas wczytywania i zapisu; cofnięcie przywraca metadane GPS do stanu sprzed zapisu.
 
-**Stan prac (gałąź `etap-4-warnings`)**
+**Stan prac (gałąź `main`; pierwsze wydanie wstępne: 0.1.0a1)**
 
 Zrobione:
 - serwer lokalny (`gpxfoto/server/`) zabezpieczony jak wyżej (token we fragmencie adresu i w nagłówku, `Host` przy każdym żądaniu, `Origin`/`Sec-Fetch-Site`, CSP, plik przekierowania usuwany po otwarciu strony); przegląd bezpieczeństwa zrobiony, poprawki wdrożone; koniec programu po zamknięciu karty, Ctrl+C, SIGTERM/SIGHUP;
@@ -210,6 +210,7 @@ Program ma być ładny i przyjemny w użyciu, z własnym charakterem. Mapa jest 
 - **Animacja zapisu**: znaczniki po kolei zmieniają kolor na zielony; na końcu powiadomienie z przyciskiem „Cofnij”.
 - **Karta podsumowania** po zapisie: liczba zdjęć, długość trasy, przewyższenie, odwiedzone miejscowości.
 - **Ekran powitalny** z zachętą do przeciągnięcia plików i wyraźnym podświetleniem strefy upuszczania.
+- **Przełącznik kopii zapasowej** w opcjach strony, odpowiednik `--backup`: przed zapisem kopia każdego zdjęcia trafia do podkatalogu `originals`, na tych samych zasadach co w terminalu (istniejąca kopia nie jest zastępowana). Dziś strona ma tylko „Cofnij ostatni zapis”, dostępne do zamknięcia programu.
 - Animacje w CSS i przez API mapy; respektować systemowe ustawienie ograniczenia animacji (`prefers-reduced-motion`).
 - Kryterium: animacje płynne przy 1000 zdjęć; żaden efekt nie blokuje interfejsu ani nie spowalnia zapisu.
 
