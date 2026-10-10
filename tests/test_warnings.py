@@ -187,16 +187,18 @@ def test_photos_at_full_pace_get_a_card(walk):
     assert (card["kind"], card["title"]) == ("motion", "Photos in motion (20 of 20)")
     assert card["text"] == ("20 of 20 matched photos were taken while the track shows movement "
                             "at full pace, so the camera clock may be off.")
-    assert "hide this warning" in card["advice"]
+    assert "until this warning goes, or hide it" in card["advice"]
     assert (card["items"], card["more"], card["notes"], card["action"]) == ([], None, {}, None)
 
 
 def test_photos_where_the_walker_paused_get_no_card(walk):
     results = match_photos(in_the_pauses(20, 0), [walk], 0, 120)
     assert warnings_of(results, [walk], 120) == []
-    # With the clock corrected, the photos of the wrong clock are there too
+    # With the clock corrected, the photos of the wrong clock are there too;
+    # the pauses of 20 s are too short to be stops, so none is at a stop
     results = match_photos(in_the_pauses(20, 90), [walk], -90, 120)
     assert warnings_of(results, [walk], 120, correction=-90) == []
+    assert walk.stops == [] and not any(result.stop for result in results)
 
 
 def test_the_card_of_a_shift_comes_first_and_that_of_motion_not_with_it(hike):

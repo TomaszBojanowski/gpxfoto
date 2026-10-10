@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: gpxfoto\n"
 "Report-Msgid-Bugs-To: https://github.com/tomaszbojanowski/gpxfoto/issues\n"
-"POT-Creation-Date: 2026-10-10 21:11+0200\n"
+"POT-Creation-Date: 2026-10-10 21:19+0200\n"
 "PO-Revision-Date: 2026-10-06 23:45+0200\n"
 "Last-Translator: Tomasz <t.bojanowski@protonmail.com>\n"
 "Language-Team: Polish\n"
@@ -352,7 +352,7 @@ msgstr "Poprawka zegara: {correction} (odpowiada opcji {option})"
 #. Translators: a UTC offset as shown to the user; {offset} is, for
 #. example, “+02:00”
 #: gpxfoto/cli.py:321 gpxfoto/cli.py:495 gpxfoto/cli.py:496
-#: gpxfoto/server/warnings.py:173
+#: gpxfoto/server/warnings.py:175
 #, python-brace-format
 msgid "UTC{offset}"
 msgstr "UTC{offset}"
@@ -520,7 +520,7 @@ msgstr ""
 
 #. Translators: {first} and {second} are file names; {interval} is
 #. a time span such as “4 s”; {distance} is a distance such as “1.3 km”
-#: gpxfoto/cli.py:488 gpxfoto/server/warnings.py:170
+#: gpxfoto/cli.py:488 gpxfoto/server/warnings.py:172
 #, python-brace-format
 msgid "{first} and {second}: taken {interval} apart, placed {distance} apart"
 msgstr ""
@@ -529,7 +529,7 @@ msgstr ""
 
 #. Translators: {first_zone} and {second_zone} are UTC offsets as
 #. shown to the user, such as “UTC+02:00”
-#: gpxfoto/cli.py:493 gpxfoto/server/warnings.py:175
+#: gpxfoto/cli.py:493 gpxfoto/server/warnings.py:177
 #, python-brace-format
 msgid ""
 "{first} and {second}: taken {interval} apart, placed {distance} apart, time "
@@ -546,7 +546,7 @@ msgstr[0] "i jeszcze {count} para"
 msgstr[1] "i jeszcze {count} pary"
 msgstr[2] "i jeszcze {count} par"
 
-#: gpxfoto/cli.py:503 gpxfoto/server/warnings.py:191
+#: gpxfoto/cli.py:503 gpxfoto/server/warnings.py:193
 msgid ""
 "Check the time zones of these photos, and whether the GPX files record "
 "different trips at the same time."
@@ -1174,27 +1174,27 @@ msgstr[2] ""
 "{fast} z {matched} dopasowanych zdjęć zrobiono, gdy według trasy poruszano "
 "się pełnym tempem, więc zegar aparatu może być przesunięty."
 
-#: gpxfoto/server/warnings.py:140
+#: gpxfoto/server/warnings.py:142
 msgid ""
 "Photos are usually taken at stops or while slowing down. Move the time "
-"correction until the photos fall at the stops, or hide this warning if they "
-"really were taken on the move."
+"correction until this warning goes, or hide it if the photos really were "
+"taken on the move."
 msgstr ""
 "Zdjęcia robi się zwykle na postojach albo przy zwalnianiu. Należy przesuwać "
-"poprawkę czasu, aż zdjęcia trafią na postoje, albo ukryć to ostrzeżenie, "
-"jeśli naprawdę zrobiono je w ruchu."
+"poprawkę czasu, aż to ostrzeżenie zniknie, albo je ukryć, jeśli zdjęcia "
+"naprawdę zrobiono w ruchu."
 
 #. Translators: a note on a photo in the list, which must stay
 #. short; {name} is the other photo, {distance} a distance such
 #. as “1.3 km” and {interval} a time span such as “4 s”
-#: gpxfoto/server/warnings.py:164
+#: gpxfoto/server/warnings.py:166
 #, python-brace-format
 msgid "jump: {distance} from {name} in {interval}"
 msgstr "skok: {distance} od {name} w {interval}"
 
 #. Translators: the title of a warning, which must stay short; {count}
 #. is the number of pairs of photos placed implausibly far apart
-#: gpxfoto/server/warnings.py:184
+#: gpxfoto/server/warnings.py:186
 #, python-brace-format
 msgid "Position jumps ({count} pair)"
 msgid_plural "Position jumps ({count} pairs)"
@@ -1202,7 +1202,7 @@ msgstr[0] "Skoki położenia ({count} para)"
 msgstr[1] "Skoki położenia ({count} pary)"
 msgstr[2] "Skoki położenia ({count} par)"
 
-#: gpxfoto/server/warnings.py:186
+#: gpxfoto/server/warnings.py:188
 msgid ""
 "These photos were taken less than a minute apart, but are placed far from "
 "each other:"

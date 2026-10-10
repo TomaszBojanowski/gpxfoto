@@ -137,9 +137,11 @@ def _motion(motion):
                          "movement at full pace, so the camera clock may be off.",
                          motion.matched).format(**values),
         "items": [], "more": None,
+        # The warning goes where the track slows down, also for pauses too
+        # short to be stops, so the advice does not send the user to the stops
         "advice": _("Photos are usually taken at stops or while slowing down. Move the time "
-                    "correction until the photos fall at the stops, or hide this warning if "
-                    "they really were taken on the move."),
+                    "correction until this warning goes, or hide it if the photos really "
+                    "were taken on the move."),
         "notes": {}, "action": None,
     }
 
