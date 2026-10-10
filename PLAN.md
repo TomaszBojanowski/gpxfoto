@@ -173,7 +173,7 @@ Każdy etap kończy się działającym programem i przechodzącymi testami. Jedn
 - Testy: API serwera testowane bez przeglądarki; testy bezpieczeństwa (brak tokenu, zły `Host`, ścieżka poza wskazanym folderem).
 - Kryterium: działa na Fedorze (Firefox) i macOS (Safari); przy 1000 zdjęć strona pozostaje płynna podczas wczytywania i zapisu; cofnięcie przywraca metadane GPS do stanu sprzed zapisu.
 
-**Stan prac (gałąź `etap-4`)**
+**Stan prac (gałąź `etap-4-warnings`)**
 
 Zrobione:
 - serwer lokalny (`gpxfoto/server/`) zabezpieczony jak wyżej (token we fragmencie adresu i w nagłówku, `Host` przy każdym żądaniu, `Origin`/`Sec-Fetch-Site`, CSP, plik przekierowania usuwany po otwarciu strony); przegląd bezpieczeństwa zrobiony, poprawki wdrożone; koniec programu po zamknięciu karty, Ctrl+C, SIGTERM/SIGHUP;
@@ -185,10 +185,13 @@ Zrobione:
 - poprawki po przeglądzie kodu (zdarzenia przy przeładowaniu strony, podwójny margines mapy, nazwy plików spoza UTF-8, limit czasu exiftoola i inne);
 - zapis z potwierdzeniem, postępem, „Anuluj” i podsumowaniem: kilka plików naraz (4 wątki), zapisywane jest dokładnie dopasowanie widoczne na stronie, plik zmieniony przez inny program po odczycie nie jest zapisywany; w trakcie zapisu zmiany wyboru są zablokowane; zamknięcie karty lub Ctrl+C dokańcza bieżące pliki i nie zaczyna następnych; przeglądarka pyta o potwierdzenie zamknięcia karty;
 - tryb edycji położenia (przycisk „Edytuj położenie”, domyślnie wyłączony): przeciąganie miniatury na mapie, umieszczanie zaznaczonego zdjęcia bez położenia kliknięciem w mapę, powrót do położenia z trasy; zdjęcie umieszczone ręcznie nie ma wysokości, a bez czasu wykonania także czasu GPS (stary czas GPS, również z XMP, jest wtedy usuwany);
-- cofanie zapisu („Cofnij ostatni zapis”, z postępem i „Anuluj”): przed zapisem dziennik (`~/.local/state/gpxfoto/journal/`, na macOS w `Application Support`) zapamiętuje początek pliku do danych obrazu i SHA-256 całego zdjęcia; cofnięcie składa ten początek z danymi obrazu i sprawdza sumę, więc zdjęcie wraca do stanu identycznego co do bajta; zdjęcie zmienione po zapisie przez inny program nie jest cofane.
+- cofanie zapisu („Cofnij ostatni zapis”, z postępem i „Anuluj”): przed zapisem dziennik (`~/.local/state/gpxfoto/journal/`, na macOS w `Application Support`) zapamiętuje początek pliku do danych obrazu i SHA-256 całego zdjęcia; cofnięcie składa ten początek z danymi obrazu i sprawdza sumę, więc zdjęcie wraca do stanu identycznego co do bajta; zdjęcie zmienione po zapisie przez inny program nie jest cofane;
+- ostrzeżenia na stronie jako karty w panelu bocznym, liczone w tle po każdym dopasowaniu, które zostaje na ekranie: niezgodność z czasem UTC aparatu, przesunięcie o pełne godziny, zdjęcia w ruchu, skoki położenia; karty z podpowiedzią poprawki mają przycisk „Zastosuj”, który ustawia poprawkę czasu tak jak suwak; kartę można zwinąć albo ukryć do zamknięcia programu; ostrzeżenia nigdy nie blokują zapisu; zdjęcia umieszczone ręcznie nie są brane do sprawdzeń;
+- przy zdjęciach na liście: znak ostrzeżenia z krótkim dopiskiem, dopisek o strefie czasowej komputera (gdy brak jej w EXIF), a przy folderze tras nazwa pliku trasy i powód „… po zakończeniu / przed początkiem najbliższej trasy”;
+- strona nie ma osobnego ustawienia strefy czasowej: podpowiedź strefy stosuje się jako poprawkę czasu, co daje to samo położenie i ten sam czas GPS w pliku;
+- poprawka czasu co do sekundy: przyciski „−1 s” i „+1 s” oraz wpisanie wartości po kliknięciu w liczbę; po wybraniu innego folderu zdjęć informacja, że poprawka z poprzedniego zestawu jest nadal aktywna, z przyciskiem wyzerowania.
 
 Do zrobienia:
-- ostrzeżenia na stronie: przesunięcie o pełne godziny (z przyciskiem zastosowania), zdjęcia w ruchu, skoki, niezgodność z czasem UTC aparatu, strefy czasowe, najbliższa trasa przy folderze tras;
 - skrót `.desktop` z ikoną; propozycja uruchamiania na macOS;
 - pomiar celów wydajności przy 1000 zdjęć; na końcu etapu jeden niezależny przegląd.
 
