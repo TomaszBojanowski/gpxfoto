@@ -6,10 +6,12 @@ from datetime import datetime, timedelta, timezone
 import math
 import os
 import threading
+import time
 
 import pytest
 
-from conftest import hike_gpx, make_jpeg, needs_exiftool, read_tags, set_tags, write_gpx
+from conftest import (
+    hike_gpx, make_jpeg, needs_exiftool, read_tags, set_panasonic_time_stamp, set_tags, write_gpx)
 from gpxfoto.engine.writer import image_checksum
 from gpxfoto.server import session as session_module
 from gpxfoto.server import writing as writing_module
@@ -646,5 +648,39 @@ def test_a_clock_an_hour_behind_is_warned_of_and_the_shift_can_be_applied(sessio
     session.set_correction(card["action"]["correction"])
     match = matches_for(events, 3600)
     assert (match["matched"], match["at_stops"]) == (12, 12)
+    calm = events.wait("warnings", lambda d: d["version"] == match["version"])
+    assert calm["warnings"] == []
+
+
+@pytest.fixture
+def warsaw(monkeypatch):
+    """The computer is in Europe/Warsaw, at UTC+02:00 in May."""
+    monkeypatch.setenv("TZ", "Europe/Warsaw")
+    time.tzset()
+    yield
+    monkeypatch.undo()
+    time.tzset()
+
+
+@needs_exiftool
+def test_a_time_that_differs_from_the_camera_s_utc_time_is_warned_of(session, events, tmp_path,
+                                                                     monkeypatch, warsaw):
+    monkeypatch.setenv("LANGUAGE", "C")
+    # No time zone in EXIF; the camera, at UTC+03:00, recorded 10:00:50 UTC
+    path = photo(tmp_path / "photos", "a.jpg", "13:00:50", None)
+    set_panasonic_time_stamp(path, "2024:05:01 10:00:50")
+    session.choose_photos(str(tmp_path / "photos"))
+    session.choose_track_files([str(write_gpx(tmp_path / "track.gpx", TRACK))])
+    events.wait("photos-done")
+    warnings = events.wait("warnings", lambda d: d["warnings"])
+    [card] = warnings["warnings"]
+    assert (card["kind"], card["title"]) == ("utc-system", "Camera’s UTC time differs (1)")
+    assert card["notes"] == {"0": ["camera’s UTC time suggests +03:00"]}
+    assert card["action"] == {"label": "Apply -1 h", "correction": -3600}
+    match = events.wait("matches", lambda d: d["version"] == warnings["version"])
+    assert match["results"][0]["state"] == "skipped"
+    session.set_correction(card["action"]["correction"])
+    match = matches_for(events, -3600)
+    assert (match["results"][0]["state"], match["results"][0]["lat"]) == ("matched", 50.0005)
     calm = events.wait("warnings", lambda d: d["version"] == match["version"])
     assert calm["warnings"] == []

@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, timezone
 import pytest
 
 from gpxfoto.engine.matching import match_photos, placed_by_hand
-from gpxfoto.engine.photos import TZ_CAMERA, Photo
+from gpxfoto.engine.photos import TZ_CAMERA, TZ_SYSTEM, Photo
 from gpxfoto.engine.track import Track, find_stops
 from gpxfoto.engine.checks import ShiftHint
 from gpxfoto.server.warnings import JUMP_EXAMPLES, _shift_text, warnings_of
@@ -205,3 +205,80 @@ def test_the_card_of_a_shift_comes_first_and_that_of_motion_not_with_it(hike):
     photos = at_the_stops(-3600)
     results = match_photos(photos, [hike], 0, 120)
     assert [card["kind"] for card in warnings_of(results, [hike], 120)] == ["shift"]
+
+
+# --- the UTC time the camera recorded ------------------------------------------
+
+def with_utc(name, seconds, late, source=TZ_SYSTEM):
+    """A photo taken seconds after T0 by the camera's UTC time, whose
+    capture time, with its time zone from source, is late s later."""
+    utc = datetime.fromtimestamp(T0 + seconds, timezone.utc)
+    taken = (utc + timedelta(seconds=late)).astimezone(timezone(timedelta(hours=2)))
+    return Photo(name, taken, source, None, False, utc)
+
+
+def test_times_that_differ_from_the_camera_s_utc_time_get_a_card(track):
+    # The computer is at UTC+02:00, the camera was at UTC+03:00
+    photos = [with_utc("a.jpg", 100, 3600), with_utc("b.jpg", 200, 3600),
+              photo("c.jpg", 300)._replace(tz_source=TZ_SYSTEM)]
+    [card] = warnings_of(match_photos(photos, [track], 0, 120), [track], 120, limit=86400)
+    assert (card["kind"], card["title"]) == ("utc-system", "Camera’s UTC time differs (2)")
+    assert card["text"] == ("2 photos have capture times that do not match the UTC time recorded "
+                            "by the camera. Both times would match in the time zone UTC+03:00.")
+    assert card["advice"].startswith("EXIF has no time zone")
+    assert card["notes"] == {0: ["camera’s UTC time suggests +03:00"],
+                             1: ["camera’s UTC time suggests +03:00"]}
+    assert card["action"] == {"label": "Apply -1 h", "correction": -3600}
+    assert (card["items"], card["more"]) == ([], None)
+    # Applied, the times match and the photos are where the camera's UTC time puts them
+    applied = match_photos(photos, [track], -3600, 120)
+    assert warnings_of(applied, [track], 120, correction=-3600, limit=86400) == []
+    assert applied[0].time_utc == photos[0].camera_utc and applied[0].reason is None
+
+
+def test_a_fine_correction_stays_when_the_time_zone_is_applied(track):
+    photos = [with_utc("a.jpg", 100, 3600)]
+    [card] = warnings_of(match_photos(photos, [track], 20, 120), [track], 120, correction=20,
+                         limit=86400)
+    assert card["action"] == {"label": "Apply -1 h", "correction": -3580}
+    # A correction by another hour is replaced
+    [card] = warnings_of(match_photos(photos, [track], 3620, 120), [track], 120, correction=3620,
+                         limit=86400)
+    assert card["action"] == {"label": "Apply -2 h", "correction": -3580}
+    [card] = warnings_of(match_photos(photos, [track], 0, 120), [track], 120, limit=3000)
+    assert card["action"] is None
+
+
+def test_no_time_zone_is_advised_for_times_with_a_zone_in_exif(track):
+    photos = [with_utc("a.jpg", 100, 600, TZ_CAMERA), with_utc("b.jpg", 200, 0, TZ_CAMERA)]
+    [card] = warnings_of(match_photos(photos, [track], 0, 120), [track], 120, limit=86400)
+    assert (card["kind"], card["title"]) == ("utc-camera", "Camera’s UTC time differs (1)")
+    assert card["text"] == ("1 photo has a capture time that does not match the UTC time "
+                            "recorded by the camera.")
+    assert card["advice"].startswith("Another program may have changed")
+    assert card["notes"] == {0: ["differs by 10 min from the camera’s UTC time"]}
+    assert card["action"] is None
+
+
+def test_the_computer_s_time_zone_is_not_advised_next_to_zones_in_exif(track):
+    photos = [with_utc("a.jpg", 100, 3600), with_utc("b.jpg", 200, 0, TZ_CAMERA)]
+    [card] = warnings_of(match_photos(photos, [track], 0, 120), [track], 120, limit=86400)
+    assert card["kind"] == "utc-system" and card["action"] is None
+    assert "would match" not in card["text"]
+    # The photo itself still says what its camera's UTC time suggests
+    assert card["notes"] == {0: ["camera’s UTC time suggests +03:00"]}
+
+
+def test_differences_that_are_no_time_zone_get_no_button(track):
+    photos = [with_utc("a.jpg", 100, 420), with_utc("b.jpg", 200, 3600)]
+    [card] = warnings_of(match_photos(photos, [track], 0, 120), [track], 120, limit=86400)
+    assert card["title"].endswith("(2)") and card["action"] is None
+    assert card["notes"] == {0: ["differs by 7 min from the camera’s UTC time"],
+                             1: ["camera’s UTC time suggests +03:00"]}
+
+
+def test_the_card_about_the_camera_s_utc_time_comes_first(track):
+    photos = [with_utc("a.jpg", 590, 0, TZ_CAMERA), photo("b.jpg", 600),
+              with_utc("c.jpg", 20, 600, TZ_CAMERA)]
+    cards = warnings_of(match_photos(photos, [track], 0, 120), [track], 120)
+    assert [card["kind"] for card in cards] == ["utc-camera", "jumps"]
