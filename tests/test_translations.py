@@ -856,13 +856,13 @@ def test_catalog_for_the_page_without_a_translation(monkeypatch, tmp_path):
      "Teraz 1 zdjęcie wypada na postoju, a 1 z 14 leży poza czasem trasy. "
      "Po przesunięciu o +1 h 11 z 14 trafia na postoje."),
     (ShiftHint(-3600, 13, 15, 6, 5), 15, 0,
-     "Teraz 5 zdjęć wypada na postojach. Po przesunięciu o -1 h 13 z 15 trafia na postoje."),
+     "Teraz 5 zdjęć wypada na postojach. Po przesunięciu o −1 h 13 z 15 trafia na postoje."),
     (ShiftHint(-3600, 12, 15, 6, 0), 15, 0,
      "Teraz żadne zdjęcie nie wypada na postoju. "
-     "Po przesunięciu o -1 h 12 z 15 trafia na postoje."),
+     "Po przesunięciu o −1 h 12 z 15 trafia na postoje."),
     (ShiftHint(-3600, 23, 25, 6, 0), 25, 0,
      "Teraz żadne zdjęcie nie wypada na postoju. "
-     "Po przesunięciu o -1 h 23 z 25 trafiają na postoje."),
+     "Po przesunięciu o −1 h 23 z 25 trafiają na postoje."),
 ])
 def test_the_card_of_a_shift_uses_polish_plurals(polish_mo, monkeypatch, hint, total, outside,
                                                  expected):

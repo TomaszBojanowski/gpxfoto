@@ -21,6 +21,16 @@ from gpxfoto.engine.photos import (
     TZ_CAMERA, TZ_SYSTEM, ZONE_STEP, format_utc_offset, summarize_time_checks)
 from gpxfoto.i18n import N_
 
+def _signed(seconds):
+    """A time span with its sign, with the minus sign the page uses elsewhere."""
+    return i18n.exact_duration(seconds, sign=True).replace("-", "\u2212")
+
+
+def _offset(offset):
+    """A UTC offset such as +02:00, with the minus sign the page uses elsewhere."""
+    return format_utc_offset(offset).replace("-", "\u2212")
+
+
 # At most this many pairs of photos are named in the card about jumps
 JUMP_EXAMPLES = 3
 
@@ -87,7 +97,7 @@ def _camera_utc(results, correction, limit):
                 # Translators: a note on a photo in the list; {zone} is a UTC
                 # offset such as +02:00
                 note = _("camera’s UTC time suggests {zone}").format(
-                    zone=format_utc_offset(check.suggested_tz.utcoffset(None)))
+                    zone=_offset(check.suggested_tz.utcoffset(None)))
                 changes.add(result.photo.taken.utcoffset() - check.suggested_tz.utcoffset(None))
             else:
                 # Translators: a note on a photo in the list; {duration} is a
@@ -99,7 +109,7 @@ def _camera_utc(results, correction, limit):
         if summary.suggested_tz is not None and not (summary.source == TZ_SYSTEM
                                                      and zone_in_exif):
             zone = _("UTC{offset}").format(
-                offset=format_utc_offset(summary.suggested_tz.utcoffset(None)))
+                offset=_offset(summary.suggested_tz.utcoffset(None)))
             # Translators: {zone} is a UTC offset as shown to the user, such
             # as “UTC+02:00”
             text += " " + _("Both times would match in the time zone {zone}.").format(zone=zone)
@@ -110,7 +120,7 @@ def _camera_utc(results, correction, limit):
                 wanted = changes.pop().total_seconds() + fine
                 if abs(wanted) <= limit and wanted != correction:
                     action = {"label": _("Apply {shift}").format(
-                        shift=i18n.exact_duration(wanted - correction, sign=True)),
+                        shift=_signed(wanted - correction)),
                         "correction": wanted}
         cards.append({
             "kind": "utc-" + summary.source,
@@ -151,7 +161,7 @@ def _shift_text(hint, total, outside):
                                        total=i18n.number(total))
     else:
         now += "."
-    shift = i18n.exact_duration(hint.shift, sign=True)
+    shift = _signed(hint.shift)
     if hint.pinned == hint.matched == total:
         # Translators: {shift} is a whole number of hours or half an hour with
         # a sign, such as “+1 h” or “-30 min”; {count} is the number of all
@@ -172,7 +182,7 @@ def _shift_text(hint, total, outside):
 
 def _shift(hint, total, outside, correction, limit):
     """The card about a whole-hour shift that puts clearly more photos at stops."""
-    shift = i18n.exact_duration(hint.shift, sign=True)
+    shift = _signed(hint.shift)
     if abs(hint.shift) == 3600:
         advice = _("A difference of exactly one hour usually means that the camera "
                    "was not switched to or from summer time, or that its time zone "
@@ -248,7 +258,7 @@ def _jumps(jumps, shots, ids, results):
             detail = _("{first} and {second}: taken {interval} apart, placed {distance} "
                        "apart").format(**values)
         else:
-            shown = [_("UTC{offset}").format(offset=format_utc_offset(zone)) for zone in zones]
+            shown = [_("UTC{offset}").format(offset=_offset(zone)) for zone in zones]
             short.append(" → ".join(shown))
             detail = _("{first} and {second}: taken {interval} apart, placed {distance} apart, "
                        "time zones {first_zone} and {second_zone}").format(

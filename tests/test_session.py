@@ -676,7 +676,7 @@ def test_a_time_that_differs_from_the_camera_s_utc_time_is_warned_of(session, ev
     [card] = warnings["warnings"]
     assert (card["kind"], card["title"]) == ("utc-system", "Camera’s UTC time differs (1)")
     assert card["notes"] == {"0": ["camera’s UTC time suggests +03:00"]}
-    assert card["action"] == {"label": "Apply -1 h", "correction": -3600}
+    assert card["action"] == {"label": "Apply −1 h", "correction": -3600}
     match = events.wait("matches", lambda d: d["version"] == warnings["version"])
     assert match["results"][0]["state"] == "skipped"
     # The photo also says where its time zone comes from

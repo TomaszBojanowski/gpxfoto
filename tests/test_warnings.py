@@ -131,9 +131,9 @@ def test_the_shift_is_added_to_the_correction_in_effect(hike):
     # Two hours and ten minutes ahead, of which the correction takes the minutes
     results = match_photos(at_the_stops(7800), [hike], -600, 120)
     [card] = warnings_of(results, [hike], 120, correction=-600, limit=86400)
-    assert card["title"] == "Shift the photo times by -2 h?" and "time zone" in card["advice"]
+    assert card["title"] == "Shift the photo times by −2 h?" and "time zone" in card["advice"]
     assert "summer time" not in card["advice"]
-    assert card["action"] == {"label": "Apply -2 h", "correction": -7800}
+    assert card["action"] == {"label": "Apply −2 h", "correction": -7800}
 
 
 def test_a_shift_beyond_the_limit_of_corrections_has_no_button(hike):
@@ -153,7 +153,7 @@ def test_no_shift_is_looked_for_without_stops(hike):
      "Shifted by +1 h, all 12 fall during stops."),
     # No photo is outside the track: nothing is said of that
     (ShiftHint(-1800, 12, 12, 6, 0), 12, 0,
-     "Now no photo falls during a stop. Shifted by -30 min, all 12 fall during stops."),
+     "Now no photo falls during a stop. Shifted by −30 min, all 12 fall during stops."),
     (ShiftHint(3600, 11, 14, 6, 1), 14, 1,
      "Now 1 photo falls during a stop, and 1 of 14 is outside the time of the track. "
      "Shifted by +1 h, 11 of 14 fall during stops."),
@@ -228,7 +228,7 @@ def test_times_that_differ_from_the_camera_s_utc_time_get_a_card(track):
     assert card["advice"].startswith("EXIF has no time zone")
     assert card["notes"] == {0: ["camera’s UTC time suggests +03:00"],
                              1: ["camera’s UTC time suggests +03:00"]}
-    assert card["action"] == {"label": "Apply -1 h", "correction": -3600}
+    assert card["action"] == {"label": "Apply −1 h", "correction": -3600}
     assert (card["items"], card["more"]) == ([], None)
     # Applied, the times match and the photos are where the camera's UTC time puts them
     applied = match_photos(photos, [track], -3600, 120)
@@ -240,11 +240,11 @@ def test_a_fine_correction_stays_when_the_time_zone_is_applied(track):
     photos = [with_utc("a.jpg", 100, 3600)]
     [card] = warnings_of(match_photos(photos, [track], 20, 120), [track], 120, correction=20,
                          limit=86400)
-    assert card["action"] == {"label": "Apply -1 h", "correction": -3580}
+    assert card["action"] == {"label": "Apply −1 h", "correction": -3580}
     # A correction by another hour is replaced
     [card] = warnings_of(match_photos(photos, [track], 3620, 120), [track], 120, correction=3620,
                          limit=86400)
-    assert card["action"] == {"label": "Apply -2 h", "correction": -3580}
+    assert card["action"] == {"label": "Apply −2 h", "correction": -3580}
     [card] = warnings_of(match_photos(photos, [track], 0, 120), [track], 120, limit=3000)
     assert card["action"] is None
 
@@ -282,3 +282,13 @@ def test_the_card_about_the_camera_s_utc_time_comes_first(track):
               with_utc("c.jpg", 20, 600, TZ_CAMERA)]
     cards = warnings_of(match_photos(photos, [track], 0, 120), [track], 120)
     assert [card["kind"] for card in cards] == ["utc-camera", "jumps"]
+
+
+def test_time_zones_west_of_greenwich_have_a_minus_sign(track):
+    # As everywhere on the page, not the hyphen of the terminal
+    photos = [with_utc("a.jpg", 100, 3600)._replace(
+        taken=datetime.fromtimestamp(T0 + 3700, timezone(timedelta(hours=-5))))]
+    [card] = warnings_of(match_photos(photos, [track], 0, 120), [track], 120, limit=86400)
+    assert "in the time zone UTC−04:00." in card["text"]
+    assert card["notes"] == {0: ["camera’s UTC time suggests −04:00"]}
+    assert card["action"]["label"] == "Apply −1 h"
