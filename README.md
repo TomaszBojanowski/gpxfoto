@@ -32,13 +32,98 @@ a phone. It writes nothing but GPS metadata and never changes the image.
   - Arch Linux: `sudo pacman -S perl-image-exiftool`
   - openSUSE: `sudo zypper install exiftool`
   - macOS, with [Homebrew](https://brew.sh/): `brew install exiftool`
-- for installing: `msgfmt` from GNU gettext (on Fedora: `sudo dnf install gettext`)
+- for installing: `msgfmt` from GNU gettext, which compiles the translations:
+  - Fedora: `sudo dnf install gettext`
+  - Debian and Ubuntu: `sudo apt install gettext`
+  - Arch Linux: `sudo pacman -S gettext`
+  - openSUSE: `sudo zypper install gettext-runtime`
+  - macOS, with Homebrew: `brew install gettext`
+- for the browser interface: a web browser, and a connection to the internet
+  for the map (see [Browser interface](#browser-interface))
+
+gpxfoto is developed and tested on Fedora. It is meant to run on macOS as
+well, but it has not been checked there since the latest changes.
 
 ## Installation
 
+Get the sources, either with git or as the source archive of a
+[release](https://github.com/TomaszBojanowski/gpxfoto/releases), unpacked:
+
 ```
-pip install --user .
+git clone https://github.com/TomaszBojanowski/gpxfoto
+cd gpxfoto
 ```
+
+Install with [pipx](https://pipx.pypa.io/), which keeps gpxfoto in an
+environment of its own:
+
+```
+pipx install .
+```
+
+pipx itself comes from the system’s packages: `sudo dnf install pipx` on
+Fedora, `sudo apt install pipx` on Debian 12 and Ubuntu 23.04 or newer,
+`sudo pacman -S python-pipx` on Arch Linux, `brew install pipx` on macOS.
+On openSUSE its package is named after the version of Python, such as
+`python313-pipx`; `zypper search pipx` shows it.
+
+Without pipx, a virtual environment does the same anywhere:
+
+```
+python3 -m venv venv
+venv/bin/pip install .
+venv/bin/gpxfoto --version
+```
+
+`pip install --user .` also works where the system allows it, as Fedora
+does; Debian, Ubuntu and Homebrew refuse it and ask for one of the ways
+above.
+
+Then check that the command is found:
+
+```
+gpxfoto --version
+```
+
+If it is not, the directory it was installed to, usually `~/.local/bin`, is
+missing from `PATH`. `pipx ensurepath` adds it; open a new terminal
+afterwards.
+
+## Browser interface
+
+```
+gpxfoto --ui
+```
+
+This starts gpxfoto and opens its page in the default browser. If no
+browser opens, open the address shown in the terminal. Closing the page or
+pressing Ctrl+C in the terminal ends the program.
+
+- **Photos** and **Track** choose the folder with the photos and the GPX
+  file, or a folder of GPX files. A GPX file can also be dropped on the page.
+- The map shows the track and where each photo falls on it; the list gives
+  each photo’s position, or the reason why it was skipped.
+- **Time correction** moves all photos along the track, as `--offset` does:
+  with the slider, by an hour or a second with the buttons, or by typing the
+  value after a click on it.
+- Warnings appear above the list when the camera clock or time zone looks
+  wrong, as described under [Warnings](#warnings). Some offer a button that
+  applies the suggested correction. They never stop you from writing.
+- **Edit locations** lets you drag a photo on the map, or click on the map to
+  place a photo that has no position.
+- Nothing is written until you press the **Write** button and confirm.
+  **Undo the last write** then restores the photos, byte for byte, as they
+  were; it is offered while gpxfoto keeps running.
+
+The browser interface has no `--backup` option yet. For your first tries,
+work on a copy of the folder.
+
+The page is served only to this computer, at an address with a random
+key. Photos and tracks never leave the computer. The only thing loaded from
+the internet is the map itself, from
+[OpenFreeMap](https://openfreemap.org/), which therefore learns which part
+of the map is shown; without a connection, everything works but the map
+background.
 
 ## Usage
 
@@ -72,6 +157,8 @@ gpxfoto ~/Pictures/2026-10-06 -g activity.gpx --write
 | `--travel-direction` | also add the direction of travel from the track (EXIF `GPSTrack`); see below |
 | `--backup` | keep copies of the original files in an `originals` subdirectory next to each photo; an existing copy is never replaced |
 | `-r`, `--recursive` | also look for photos and tracks in subdirectories |
+| `--ui` | open the [browser interface](#browser-interface) instead; given alone |
+| `--version` | show the version of gpxfoto |
 
 The time zone of a photo is read from `OffsetTimeOriginal` (or
 `OffsetTime`), which cameras such as the Panasonic LUMIX S5II record.

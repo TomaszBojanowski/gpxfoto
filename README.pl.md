@@ -32,13 +32,99 @@ zmienia obrazu.
   - Arch Linux: `sudo pacman -S perl-image-exiftool`
   - openSUSE: `sudo zypper install exiftool`
   - macOS, przez [Homebrew](https://brew.sh/): `brew install exiftool`
-- do instalacji: `msgfmt` z pakietu GNU gettext (w systemie Fedora: `sudo dnf install gettext`)
+- do instalacji: `msgfmt` z pakietu GNU gettext, który kompiluje tłumaczenia:
+  - Fedora: `sudo dnf install gettext`
+  - Debian i Ubuntu: `sudo apt install gettext`
+  - Arch Linux: `sudo pacman -S gettext`
+  - openSUSE: `sudo zypper install gettext-runtime`
+  - macOS, przez Homebrew: `brew install gettext`
+- do interfejsu w przeglądarce: przeglądarka internetowa oraz połączenie
+  z internetem dla mapy (zobacz [Interfejs w przeglądarce](#interfejs-w-przeglądarce))
+
+Program gpxfoto jest rozwijany i testowany w systemie Fedora. Ma działać
+także w systemie macOS, ale po ostatnich zmianach nie został tam sprawdzony.
 
 ## Instalacja
 
+Najpierw należy pobrać źródła: przez git albo jako rozpakowane archiwum
+źródeł jednego z [wydań](https://github.com/TomaszBojanowski/gpxfoto/releases):
+
 ```
-pip install --user .
+git clone https://github.com/TomaszBojanowski/gpxfoto
+cd gpxfoto
 ```
+
+Instalacja przez [pipx](https://pipx.pypa.io/), który trzyma gpxfoto
+w osobnym środowisku:
+
+```
+pipx install .
+```
+
+Sam pipx pochodzi z pakietów systemu: `sudo dnf install pipx` w systemie
+Fedora, `sudo apt install pipx` w systemach Debian 12 i Ubuntu 23.04 lub
+nowszych, `sudo pacman -S python-pipx` w systemie Arch Linux,
+`brew install pipx` w systemie macOS. W systemie openSUSE nazwa pakietu
+zawiera wersję Pythona, na przykład `python313-pipx`; pokaże ją polecenie
+`zypper search pipx`.
+
+Bez pipx to samo wszędzie daje środowisko wirtualne:
+
+```
+python3 -m venv venv
+venv/bin/pip install .
+venv/bin/gpxfoto --version
+```
+
+Polecenie `pip install --user .` też działa tam, gdzie system na to pozwala,
+jak Fedora; Debian, Ubuntu i Homebrew odmawiają i wymagają jednego
+z powyższych sposobów.
+
+Na koniec warto sprawdzić, czy polecenie jest dostępne:
+
+```
+gpxfoto --version
+```
+
+Jeśli nie, katalogu, do którego je zainstalowano, zwykle `~/.local/bin`,
+brakuje w zmiennej `PATH`. Dodaje go polecenie `pipx ensurepath`; potem
+należy otworzyć nowy terminal.
+
+## Interfejs w przeglądarce
+
+```
+gpxfoto --ui
+```
+
+To polecenie uruchamia gpxfoto i otwiera jego stronę w domyślnej
+przeglądarce. Jeśli przeglądarka się nie otworzy, należy otworzyć adres
+wyświetlony w terminalu. Zamknięcie strony albo naciśnięcie Ctrl+C
+w terminalu kończy program.
+
+- Przyciski **Zdjęcia** i **Trasa** służą do wyboru folderu ze zdjęciami oraz
+  pliku GPX albo folderu z plikami GPX. Plik GPX można też upuścić na stronę.
+- Mapa pokazuje trasę i miejsce każdego zdjęcia na niej; lista podaje
+  położenie każdego zdjęcia albo powód, dla którego zostało pominięte.
+- **Poprawka czasu** przesuwa wszystkie zdjęcia po trasie, tak jak opcja
+  `--offset`: suwakiem, przyciskami o godzinę lub o sekundę albo przez
+  wpisanie wartości po kliknięciu w nią.
+- Nad listą pojawiają się ostrzeżenia, gdy zegar lub strefa czasowa aparatu
+  wyglądają na błędne, opisane w części [Ostrzeżenia](#ostrzeżenia). Niektóre
+  mają przycisk, który stosuje proponowaną poprawkę. Nigdy nie blokują zapisu.
+- Przycisk **Edytuj położenie** pozwala przeciągnąć zdjęcie na mapie albo
+  kliknięciem w mapę umieścić zdjęcie, które nie ma położenia.
+- Nic nie jest zapisywane, dopóki nie zostanie naciśnięty przycisk zapisu
+  i potwierdzone pytanie. **Cofnij ostatni zapis** przywraca potem zdjęcia do
+  stanu sprzed zapisu, co do bajta; jest dostępne, dopóki gpxfoto działa.
+
+Interfejs w przeglądarce nie ma jeszcze odpowiednika opcji `--backup`. Przy
+pierwszych próbach warto pracować na kopii folderu.
+
+Strona jest dostępna tylko z tego komputera, pod adresem z losowym kluczem.
+Zdjęcia i trasy nigdy nie opuszczają komputera. Z internetu pobierana jest
+wyłącznie sama mapa, z serwisu [OpenFreeMap](https://openfreemap.org/),
+który przez to dowiaduje się, jaki fragment mapy jest wyświetlany; bez
+połączenia działa wszystko poza podkładem mapy.
 
 ## Użycie
 
@@ -72,6 +158,8 @@ gpxfoto ~/Obrazy/2026-10-06 -g activity.gpx --write
 | `--travel-direction` | dopisuje także kierunek ruchu z trasy (EXIF `GPSTrack`); zob. niżej |
 | `--backup` | zachowuje kopie oryginalnych plików w podkatalogu `originals` obok każdego zdjęcia; istniejąca kopia nigdy nie jest zastępowana |
 | `-r`, `--recursive` | wyszukuje zdjęcia i trasy także w podkatalogach |
+| `--ui` | otwiera zamiast tego [interfejs w przeglądarce](#interfejs-w-przeglądarce); podawana sama |
+| `--version` | wyświetla wersję programu gpxfoto |
 
 Strefa czasowa zdjęcia jest odczytywana z pola `OffsetTimeOriginal` (lub
 `OffsetTime`), które zapisują aparaty takie jak Panasonic LUMIX S5II. Opcja
