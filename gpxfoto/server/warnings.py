@@ -37,8 +37,8 @@ JUMP_EXAMPLES = 3
 # Why capture times may not match the camera's UTC time, by the source of
 # their time zone; the page has no other sources
 TIME_CHECK_CAUSES = {
-    TZ_SYSTEM: N_("EXIF has no time zone, so this computer’s time zone was used; either it or "
-                  "the camera’s time zone setting is wrong."),
+    TZ_SYSTEM: N_("EXIF has no time zone, so this computer’s time zone was used. Either it or "
+                  "the time zone set in the camera is wrong."),
     TZ_CAMERA: N_("Another program may have changed the capture time or the time zone in EXIF; "
                   "the locations follow the time in EXIF."),
 }
