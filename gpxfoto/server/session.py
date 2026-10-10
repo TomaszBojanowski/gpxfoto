@@ -22,7 +22,7 @@ from gettext import gettext as _, ngettext
 from gpxfoto.engine.journal import Journal
 from gpxfoto.engine.matching import corrected_times, match_photos, placed_by_hand, summarize
 from gpxfoto.engine.photos import (
-    exif_thumbnail, find_photos, photo_from_metadata, read_metadata)
+    TZ_SYSTEM, exif_thumbnail, find_photos, photo_from_metadata, read_metadata)
 from gpxfoto.engine.track import find_tracks, load_track, quick_span, tracks_needed
 from gpxfoto.server import files
 from gpxfoto.server.geometry import track_lines
@@ -612,8 +612,13 @@ class Session:
     @staticmethod
     def _photo_summary(index, photo, look):
         orientation, thumbnail = look
+        # Said of a photo whose time zone did not come from the camera
+        tz_note = None
+        if photo.tz_source == TZ_SYSTEM:
+            # Translators: a note on a photo in the list
+            tz_note = _("computer’s time zone (not in EXIF)")
         return {"id": index, "name": os.path.basename(photo.path),
-                "taken": _time_text(photo.taken), "tz": photo.tz_source,
+                "taken": _time_text(photo.taken), "tz": photo.tz_source, "tz_note": tz_note,
                 "reason": photo.reason, "has_location": photo.has_location,
                 "orientation": orientation if orientation in range(1, 9) else 1,
                 "thumbnail": thumbnail}

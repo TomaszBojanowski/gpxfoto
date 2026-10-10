@@ -105,8 +105,8 @@ def test_photos_come_in_batches_as_they_are_read(session, events, tmp_path, monk
     assert [b["done"] for b in batches] == [2, 4, 5]
     first = batches[0]["photos"][0]
     assert first == {"id": 0, "name": "p0.jpg", "taken": "2024-05-01T12:00:10.000+02:00",
-                     "tz": "camera", "reason": None, "has_location": False, "orientation": 1,
-                     "thumbnail": False}
+                     "tz": "camera", "tz_note": None, "reason": None, "has_location": False,
+                     "orientation": 1, "thumbnail": False}
     state = session.state()["photos"]
     assert (state["loading"], len(state["photos"])) == (False, 5)
 
@@ -679,6 +679,9 @@ def test_a_time_that_differs_from_the_camera_s_utc_time_is_warned_of(session, ev
     assert card["action"] == {"label": "Apply -1 h", "correction": -3600}
     match = events.wait("matches", lambda d: d["version"] == warnings["version"])
     assert match["results"][0]["state"] == "skipped"
+    # The photo also says where its time zone comes from
+    [summary] = session.state()["photos"]["photos"]
+    assert (summary["tz"], summary["tz_note"]) == ("system", "computer’s time zone (not in EXIF)")
     session.set_correction(card["action"]["correction"])
     match = matches_for(events, -3600)
     assert (match["results"][0]["state"], match["results"][0]["lat"]) == ("matched", 50.0005)

@@ -327,6 +327,9 @@ function moreOf(photo, result) {
     }
     lines.push(position);
   }
+  if (photo.tz_note) {
+    lines.push(photo.tz_note);
+  }
   for (const note of state.notes.get(photo.id) || []) {
     lines.push(WARNING_SIGN + note);
   }
@@ -383,6 +386,11 @@ function renderRow(row, id, selected) {
   const time = document.createElement("span");
   time.className = "time";
   time.textContent = clockTime(result && result.time ? result.time : photo.taken);
+  if (photo.tz_note) {
+    // The time zone of this time is a guess
+    time.classList.add("assumed");
+    time.title = photo.tz_note;
+  }
   row.append(thumb, text, time);
 }
 
