@@ -25,7 +25,10 @@ a phone. It writes nothing but GPS metadata and never changes the image.
 ## Requirements
 
 - Python 3.11 or newer
-- [ExifTool](https://exiftool.org/) (on Fedora: `sudo dnf install perl-Image-ExifTool`)
+- [ExifTool](https://exiftool.org/). gpxfoto reads and writes the metadata of
+  photos with it and does not work without it. Install it with:
+  - Fedora: `sudo dnf install perl-Image-ExifTool`
+  - macOS, with [Homebrew](https://brew.sh/): `brew install exiftool`
 - for installing: `msgfmt` from GNU gettext (on Fedora: `sudo dnf install gettext`)
 
 ## Installation

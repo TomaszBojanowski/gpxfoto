@@ -10,7 +10,7 @@ from datetime import datetime, timedelta, timezone
 import pytest
 
 from conftest import (
-    hike_gpx, latin2_name, make_jpeg, needs_exiftool, read_tags, run_cli,
+    ROOT, hike_gpx, latin2_name, make_jpeg, needs_exiftool, read_tags, run_cli,
     set_panasonic_time_stamp, set_tags, write_gpx)
 from gpxfoto import cli, i18n
 from gpxfoto.engine import track as track_module
@@ -1458,6 +1458,12 @@ def test_directory_without_jpegs(tmp_path, gpx):
     assert result.stderr == "No JPEG photos found.\n"
 
 
+MISSING_EXIFTOOL = ("exiftool is not installed; gpxfoto needs it to read and write the metadata "
+                    "of photos.\n"
+                    "On Fedora, install it with: sudo dnf install perl-Image-ExifTool\n"
+                    "On macOS, install it with: brew install exiftool\n")
+
+
 def test_exiftool_not_on_path(tmp_path, gpx, jpeg_file):
     empty = tmp_path / "bin"
     empty.mkdir()
@@ -1466,8 +1472,26 @@ def test_exiftool_not_on_path(tmp_path, gpx, jpeg_file):
 
     assert result.returncode == 1
     assert result.stdout == ""
-    assert result.stderr == ("exiftool is not installed. On Fedora, install it with: "
-                             "sudo dnf install perl-Image-ExifTool\n")
+    assert result.stderr == MISSING_EXIFTOOL
+
+
+def test_the_browser_interface_needs_exiftool_too(tmp_path):
+    empty = tmp_path / "bin"
+    empty.mkdir()
+
+    result = run_cli("--ui", env={"PATH": str(empty)})
+
+    assert result.returncode == 1
+    assert result.stdout == ""
+    assert result.stderr == MISSING_EXIFTOOL
+
+
+def test_the_readmes_give_the_commands_of_the_message():
+    for name in ("README.md", "README.pl.md"):
+        with open(os.path.join(ROOT, name), encoding="utf-8") as f:
+            text = f.read()
+        for command in ("sudo dnf install perl-Image-ExifTool", "brew install exiftool"):
+            assert f"`{command}`" in text and command in MISSING_EXIFTOOL
 
 
 @needs_posix_shell

@@ -16,8 +16,8 @@ from gpxfoto.server.app import Server
 def run(open_browser=True):
     """Serve the browser interface until its page is closed or Ctrl+C."""
     if shutil.which("exiftool") is None:
-        sys.exit(_("exiftool is not installed. On Fedora, install it with: {command}").format(
-            command="sudo dnf install perl-Image-ExifTool"))
+        from gpxfoto.engine.photos import missing_exiftool
+        sys.exit(missing_exiftool())
     from gpxfoto.server.api import Api     # the engine, loaded once the page is coming
     server = Server()
     server.api = Api(server.events)

@@ -145,6 +145,16 @@ def _thumbnail_in_tiff(tiff):
     return thumbnail
 
 
+def missing_exiftool():
+    """What the user is told when exiftool is not installed, as in the README."""
+    # Translators: {fedora} and {macos} are commands to type in a terminal
+    return _("exiftool is not installed; gpxfoto needs it to read and write the metadata of "
+             "photos.\n"
+             "On Fedora, install it with: {fedora}\n"
+             "On macOS, install it with: {macos}").format(
+                 fedora="sudo dnf install perl-Image-ExifTool", macos="brew install exiftool")
+
+
 def check_exiftool():
     """Raise RuntimeError with exiftool's messages if it does not run."""
     process = subprocess.run(["exiftool", "-ver"], capture_output=True, text=True,

@@ -25,7 +25,10 @@ zmienia obrazu.
 ## Wymagania
 
 - Python 3.11 lub nowszy
-- [ExifTool](https://exiftool.org/) (w systemie Fedora: `sudo dnf install perl-Image-ExifTool`)
+- [ExifTool](https://exiftool.org/). Program gpxfoto odczytuje i zapisuje nim
+  metadane zdjęć i bez niego nie działa. Instalacja:
+  - Fedora: `sudo dnf install perl-Image-ExifTool`
+  - macOS, przez [Homebrew](https://brew.sh/): `brew install exiftool`
 - do instalacji: `msgfmt` z pakietu GNU gettext (w systemie Fedora: `sudo dnf install gettext`)
 
 ## Instalacja

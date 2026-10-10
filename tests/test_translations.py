@@ -440,9 +440,12 @@ def test_missing_exiftool_message_is_polish(polish_cli, monkeypatch):
     monkeypatch.setattr(shutil, "which", lambda name, *args, **kwargs: None)
     with pytest.raises(SystemExit) as exit_info:
         polish_cli("-g", "t.gpx", "a.jpg")
-    assert exit_info.value.code == ("Program exiftool nie jest zainstalowany. W systemie Fedora "
-                                    "można go zainstalować poleceniem: "
-                                    "sudo dnf install perl-Image-ExifTool")
+    assert exit_info.value.code == (
+        "Program exiftool nie jest zainstalowany; gpxfoto potrzebuje go do odczytywania "
+        "i zapisywania metadanych zdjęć.\n"
+        "W systemie Fedora można go zainstalować poleceniem: "
+        "sudo dnf install perl-Image-ExifTool\n"
+        "W systemie macOS można go zainstalować poleceniem: brew install exiftool")
 
 
 def test_invalid_timezone_message_is_polish(polish_cli, exiftool_present):

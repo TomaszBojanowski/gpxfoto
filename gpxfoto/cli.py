@@ -14,7 +14,8 @@ from gpxfoto.engine.matching import (
     corrected_times, match_photos, shots_of, summarize, suspicion, with_nearest_tracks)
 from gpxfoto.engine.photos import (
     TZ_CAMERA, TZ_MANUAL, TZ_SYSTEM, check_exiftool, find_photos, format_utc_offset,
-    parse_utc_offset, photo_from_metadata, read_metadata, summarize_time_checks)
+    missing_exiftool, parse_utc_offset, photo_from_metadata, read_metadata,
+    summarize_time_checks)
 from gpxfoto.engine.track import (
     find_tracks, load_track, quick_span, tracks_needed, travel_direction)
 from gpxfoto.engine.writer import BACKUP_DIR, write_location
@@ -559,8 +560,7 @@ def main():
             option="--offset", other="--clock-photo"))
 
     if shutil.which("exiftool") is None:
-        sys.exit(_("exiftool is not installed. On Fedora, install it with: {command}").format(
-            command="sudo dnf install perl-Image-ExifTool"))
+        sys.exit(missing_exiftool())
     try:
         check_exiftool()
     except RuntimeError as e:
