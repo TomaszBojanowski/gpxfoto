@@ -21,6 +21,8 @@ const state = {
   photos: [],             // summaries from the server, by id
   results: [],            // the last match, by id
   matchVersion: null,     // its number, which a write names
+  warnings: [],           // the cards about signs of a suspicious match
+  notes: new Map(),       // id -> what the shown cards say of the photo
   loading: false,
   tracksLoading: false,
   writing: null,          // the progress of the write or undo under way
@@ -73,6 +75,137 @@ function notice(message, kind = "error") {
   $("notices").append(element);
   while ($("notices").children.length > 5) {
     $("notices").firstElementChild.remove();
+  }
+}
+
+// --- warnings ------------------------------------------------------------
+
+// The warning sign as text, which takes the colour of the warnings
+const WARNING_SIGN = "\u26a0\ufe0e ";
+
+// Signs of a suspicious match, as cards. They only inform: nothing is
+// changed for them, and writing the locations never depends on them. A
+// card can be folded, or hidden until gpxfoto is closed, by its kind.
+const WARNING_CHOICES = "gpxfoto-warnings";
+const warningChoices = { folded: new Set(), hidden: new Set() };
+try {
+  const stored = JSON.parse(sessionStorage.getItem(WARNING_CHOICES) || "{}");
+  for (const name of Object.keys(warningChoices)) {
+    warningChoices[name] = new Set(Array.isArray(stored[name]) ? stored[name] : []);
+  }
+} catch (error) {
+  // Without the storage, the choices last until the page is loaded again
+}
+
+function chooseWarning(name, kind, chosen) {
+  warningChoices[name][chosen ? "add" : "delete"](kind);
+  try {
+    sessionStorage.setItem(WARNING_CHOICES, JSON.stringify({
+      folded: [...warningChoices.folded], hidden: [...warningChoices.hidden] }));
+  } catch (error) {
+    // As above
+  }
+  showWarnings();
+}
+
+function warningCard(card) {
+  const folded = warningChoices.folded.has(card.kind);
+  const element = document.createElement("section");
+  element.className = "warning";
+  const head = document.createElement("div");
+  head.className = "warning-head";
+  const title = document.createElement("button");
+  title.type = "button";
+  title.className = "warning-title";
+  title.textContent = card.title;
+  title.setAttribute("aria-expanded", String(!folded));
+  title.addEventListener("click", () => chooseWarning("folded", card.kind, !folded));
+  const hide = document.createElement("button");
+  hide.type = "button";
+  hide.className = "warning-hide";
+  hide.textContent = "×";
+  hide.title = _("Hide this warning until gpxfoto is closed");
+  hide.setAttribute("aria-label", hide.title);
+  hide.addEventListener("click", () => chooseWarning("hidden", card.kind, true));
+  head.append(title, hide);
+  element.append(head);
+  if (folded) {
+    return element;
+  }
+  const body = document.createElement("div");
+  body.className = "warning-body";
+  body.append(paragraph(card.text));
+  if (card.items.length) {
+    const items = document.createElement("ul");
+    for (const item of card.items) {
+      const line = document.createElement("li");
+      const show = document.createElement("button");
+      show.type = "button";
+      show.className = "warning-item";
+      show.textContent = item.text;
+      // Its photos in turn, with each click
+      show.addEventListener("click", () => {
+        const at = item.photos.indexOf(state.selected);
+        showPhoto(item.photos[(at + 1) % item.photos.length]);
+      });
+      line.append(show);
+      items.append(line);
+    }
+    body.append(items);
+  }
+  if (card.more) {
+    body.append(paragraph(card.more));
+  }
+  if (card.advice) {
+    body.append(paragraph(card.advice, "advice"));
+  }
+  element.append(body);
+  return element;
+}
+
+function showWarnings() {
+  const shown = state.warnings.filter((card) => !warningChoices.hidden.has(card.kind));
+  const hidden = state.warnings.length - shown.length;
+  state.notes = new Map();
+  for (const card of shown) {
+    for (const id of card.photos) {
+      state.notes.set(id, [...(state.notes.get(id) || []), card.note]);
+    }
+  }
+  const content = shown.map(warningCard);
+  if (hidden) {
+    const line = paragraph(format(ngettext("{count} warning is hidden.",
+      "{count} warnings are hidden.", hidden), { count: number(hidden) }), "warnings-hidden");
+    const back = document.createElement("button");
+    back.type = "button";
+    back.className = "small";
+    back.textContent = _("Show");
+    back.addEventListener("click", () => {
+      for (const card of state.warnings) {
+        warningChoices.hidden.delete(card.kind);
+      }
+      chooseWarning("hidden", null, false);
+    });
+    line.append(" ", back);
+    content.push(line);
+  }
+  $("warnings").replaceChildren(...content);
+  list.refresh();
+}
+
+function applyWarnings(data) {
+  if (data && data.generation === state.photoGeneration
+      && data.tracks === state.trackGeneration) {
+    state.warnings = data.warnings;
+    showWarnings();
+  }
+}
+
+// The warnings of photos or tracks that were replaced
+function dropWarnings() {
+  if (state.warnings.length) {
+    state.warnings = [];
+    showWarnings();
   }
 }
 
@@ -174,6 +307,9 @@ function moreOf(photo, result) {
     }
     lines.push(position);
   }
+  for (const note of state.notes.get(photo.id) || []) {
+    lines.push(WARNING_SIGN + note);
+  }
   return lines.filter(Boolean);
 }
 
@@ -200,6 +336,14 @@ function renderRow(row, id, selected) {
   const name = document.createElement("span");
   name.className = "name";
   name.textContent = photo.name;
+  const notes = state.notes.get(id);
+  if (notes) {
+    const mark = document.createElement("span");
+    mark.className = "mark";
+    mark.textContent = WARNING_SIGN;
+    mark.title = notes.join("\n");
+    name.prepend(mark);
+  }
   text.append(name);
   for (const line of selected ? moreOf(photo, result) : [detailOf(photo, result)]) {
     const detail = document.createElement("span");
@@ -207,6 +351,9 @@ function renderRow(row, id, selected) {
     detail.textContent = line;
     if (result && result.overwrites && !text.querySelector(".overwrites")) {
       detail.classList.add("overwrites");
+    }
+    if (line.startsWith(WARNING_SIGN)) {
+      detail.classList.add("warned");
     }
     text.append(detail);
   }
@@ -411,6 +558,18 @@ function select(id) {
   list.select(id);
   const result = state.results[id];
   photoMap.select(id, isMatched(result) ? result : null);
+}
+
+// Select a photo, also when the list is filtered to leave it out
+function showPhoto(id) {
+  if (!state.photos[id]) {
+    return;
+  }
+  if (!visibleIds().includes(id)) {
+    state.filter = "all";
+    showPhotos();
+  }
+  select(id);
 }
 
 // --- what the page shows -------------------------------------------------
@@ -823,6 +982,7 @@ function resetPhotos(generation, folder) {
   state.photos = [];
   state.results = [];
   state.matchVersion = null;
+  state.warnings = [];
   state.selected = null;
   state.autoFit = true;
   // First the rows of the old photos go: selecting draws the list again
@@ -831,6 +991,7 @@ function resetPhotos(generation, folder) {
   photoMap.select(null);
   photoMap.setPhotos(generation, []);
   showSummary(null);
+  showWarnings();
   showChoices();
   showPhotos();
 }
@@ -876,6 +1037,7 @@ const handlers = {
       state.results = [];
       state.matchVersion = null;
       state.tracksLoading = true;
+      dropWarnings();
       photoMap.setPhotos(state.photoGeneration, []);
       showSummary(null);
       showChoices();
@@ -896,6 +1058,7 @@ const handlers = {
     }
   },
   "matches": applyMatch,
+  "warnings": applyWarnings,
   "photos-changed": (data) => {
     if (data.generation === state.photoGeneration) {
       for (const photo of data.photos) {
@@ -987,6 +1150,11 @@ async function catchUp() {
   showPhotos();
   showWriting();
   applyMatch(data.matches);
+  if (data.warnings) {
+    applyWarnings(data.warnings);
+  } else {
+    dropWarnings();
+  }
 }
 
 // --- start -----------------------------------------------------------------

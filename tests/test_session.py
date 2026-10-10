@@ -551,3 +551,69 @@ def test_a_photo_changed_after_the_write_is_not_undone(session, events, tmp_path
     assert "GPSLatitude" in read_tags(paths[1], "GPSLatitude")
     # It can be tried again
     assert events.wait("undo") == {"count": 1}
+
+
+# The track is at once 111 km further north: two photos ten seconds apart
+# cannot have been taken that far from each other
+LEAP = [(f"2024-05-01T10:{second // 60:02}:{second % 60:02}Z", 50.0 if second < 125 else 51.0,
+         20.0, 200.0) for second in range(0, 300, 5)]
+
+
+def leaping(session, events, tmp_path):
+    """Two photos on either side of the leap, and the warnings about them."""
+    paths = [photo(tmp_path / "photos", "a.jpg", "12:02:00"),
+             photo(tmp_path / "photos", "b.jpg", "12:02:10")]
+    session.choose_photos(str(tmp_path / "photos"))
+    session.choose_track_files([str(write_gpx(tmp_path / "leap.gpx", LEAP))])
+    events.wait("photos-done")
+    return paths, events.wait("warnings", lambda d: d["warnings"])
+
+
+@needs_exiftool
+def test_photos_placed_implausibly_far_apart_are_warned_of(session, events, tmp_path,
+                                                           monkeypatch):
+    monkeypatch.setenv("LANGUAGE", "C")
+    _paths, warnings = leaping(session, events, tmp_path)
+    match = events.wait("matches", lambda d: d["version"] == warnings["version"])
+    assert match["matched"] == 2
+    assert (warnings["generation"], warnings["tracks"]) == (match["generation"], match["tracks"])
+    [card] = warnings["warnings"]
+    assert card["kind"] == "jumps" and card["photos"] == [0, 1] and card["more"] is None
+    assert card["items"] == [{"photos": [0, 1], "text": "a.jpg and b.jpg: taken 10 s apart, "
+                                                        "placed 111.2 km apart"}]
+    assert session.state()["warnings"] == warnings
+    # With both photos before the leap, there is nothing to warn of
+    session.set_correction(-10)
+    calm = events.wait("warnings", lambda d: d["version"] > warnings["version"])
+    assert calm["warnings"] == [] and session.state()["warnings"] == calm
+
+
+@needs_exiftool
+def test_a_photo_placed_by_hand_is_not_warned_of(session, events, tmp_path):
+    _paths, warnings = leaping(session, events, tmp_path)
+    session.place(warnings["generation"], 1, 10.0, 21.25)
+    after = events.wait("warnings", lambda d: d["version"] > warnings["version"])
+    assert after["warnings"] == []
+
+
+@needs_exiftool
+def test_warnings_of_other_photos_or_tracks_are_dropped(session, events, tmp_path):
+    _paths, warnings = leaping(session, events, tmp_path)
+    session.choose_track_files([str(write_gpx(tmp_path / "track.gpx", TRACK))])
+    assert session.state()["warnings"] is None or session.state()["warnings"]["tracks"] == 2
+    calm = events.wait("warnings", lambda d: d["tracks"] == 2)
+    assert calm["warnings"] == []
+    session.choose_photos(str(tmp_path / "photos"))
+    state = session.state()["warnings"]
+    assert state is None or state["generation"] == session.photo_generation
+
+
+@needs_exiftool
+def test_warnings_do_not_stop_the_locations_from_being_written(session, events, tmp_path):
+    paths, warnings = leaping(session, events, tmp_path)
+    assert warnings["warnings"]
+    assert session.write(warnings["version"]) == 2
+    done = events.wait("write-done")
+    assert (done["written"], done["failed"]) == (2, [])
+    assert [read_tags(path, "GPSLatitude")["GPSLatitude"] for path in paths] == [
+        pytest.approx(50.0), pytest.approx(51.0)]

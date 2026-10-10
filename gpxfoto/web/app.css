@@ -15,6 +15,7 @@
   --located: #b8860b;
   --manual: #8e44ad;
   --error: #c42b1c;
+  --warning: #b45309;
   --shadow: 0 2px 12px rgba(0, 0, 0, 0.18);
   --radius: 12px;
   color-scheme: light dark;
@@ -36,6 +37,7 @@
     --located: #e0b33a;
     --manual: #c28be0;
     --error: #ff7b6e;
+    --warning: #f0b048;
     --shadow: 0 2px 16px rgba(0, 0, 0, 0.5);
   }
 }
@@ -181,6 +183,35 @@ button.small { padding: 3px 8px; font-size: 13px; }
 .progress-row { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
 #progress p { margin: 0; flex: 1; font-size: 12px; color: var(--fg-dim); }
 
+/* Signs of a suspicious match; they take at most a part of the sidebar */
+#warnings:empty { display: none; }
+#warnings { padding: 8px 8px 0; display: flex; flex-direction: column; gap: 6px;
+  flex: none; max-height: 45%; overflow-y: auto; }
+
+.warning {
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--warning);
+  border-radius: 8px;
+  background: var(--bg-solid);
+  font-size: 13px;
+}
+
+.warning-head { display: flex; align-items: flex-start; }
+.warning-head button { border: none; background: none; }
+.warning-title { flex: 1; text-align: left; font-weight: 600; padding: 7px 4px 7px 8px; }
+.warning-title::before { content: "▾ "; color: var(--warning); }
+.warning-title[aria-expanded="false"]::before { content: "▸ "; }
+.warning-hide { padding: 5px 9px; color: var(--fg-dim); }
+.warning-body { padding: 0 10px 8px; }
+.warning-body p { margin: 0 0 6px; overflow-wrap: anywhere; }
+.warning-body p:last-child { margin-bottom: 0; }
+.warning-body .advice { color: var(--fg-dim); }
+.warning-body ul { list-style: none; margin: 0 0 6px; padding: 0; }
+.warning-item { display: block; width: 100%; text-align: left; border: none; background: none;
+  padding: 3px 6px; border-radius: 6px; font-size: 13px; overflow-wrap: anywhere; }
+.warning-item:hover { background: var(--hover); }
+.warnings-hidden { margin: 0; padding: 0 4px; font-size: 12px; color: var(--fg-dim); }
+
 #summary { margin: 8px 12px 4px; color: var(--fg-dim); font-size: 13px; }
 #summary:empty { display: none; }
 
@@ -257,6 +288,7 @@ button.small { padding: 3px 8px; font-size: 13px; }
 
 .row.has_location .detail { color: var(--located); }
 .row .overwrites { color: var(--located); }
+.row .mark, .row .warned { color: var(--warning); }
 .row .time { font-variant-numeric: tabular-nums; font-size: 12px; color: var(--fg-dim); }
 
 #empty { padding: 16px; color: var(--fg-dim); text-align: center; }

@@ -9,6 +9,7 @@ gpxfoto/server/app.py
 gpxfoto/server/files.py
 gpxfoto/server/session.py
 gpxfoto/server/ui.py
+gpxfoto/server/warnings.py
 gpxfoto/server/writing.py
 gpxfoto/web/js/api.js
 gpxfoto/web/js/chooser.js

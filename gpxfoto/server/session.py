@@ -26,6 +26,7 @@ from gpxfoto.engine.photos import (
 from gpxfoto.engine.track import find_tracks, load_track, quick_span, tracks_needed
 from gpxfoto.server import files
 from gpxfoto.server.geometry import track_lines
+from gpxfoto.server.warnings import warnings_of
 from gpxfoto.server.writing import Job, UndoJob, Writing
 
 # Photos are read in batches of this many, so that the list fills as it goes
@@ -74,6 +75,7 @@ class Session:
         self.stops = True
         self.match = None                # what was last sent as "matches"
         self.results = []                # its PhotoResult of each photo
+        self.warnings = None             # what was last sent as "warnings"
         self._match_number = 0
         self.writing = None              # Writing, while the photos are written
         self.journals = []               # Journal of each write that can be undone, the last last
@@ -100,7 +102,7 @@ class Session:
             self.placed = {}
             self.photos_loading = True
             self._thumbnails.clear()
-            self.match, self.results = None, []
+            self.match, self.results, self.warnings = None, [], None
         files.remember("photos", folder)
         self.events.publish("photos-reset", {"generation": generation, "folder": folder,
                                              "recursive": recursive})
@@ -172,7 +174,7 @@ class Session:
             stops = self.stops
             # Until the new tracks are read, no photo is placed; a choice
             # that cannot be read leaves them so
-            self.match, self.results = None, []
+            self.match, self.results, self.warnings = None, [], None
             self._want_match()
         self.events.publish("tracks-reset", {"generation": generation, "choice": choice})
         threading.Thread(target=self._load_tracks, args=(generation, choice, stops),
@@ -365,7 +367,7 @@ class Session:
                            "loading": self.tracks_loading,
                            "tracks": [self.summaries[id(t)] for t in self._tracks()]},
                 "correction": self.correction, "overwrite": self.overwrite,
-                "stops": self.stops, "matches": self.match,
+                "stops": self.stops, "matches": self.match, "warnings": self.warnings,
                 "writing": None if self.writing is None else self.writing.progress(),
                 "undo": self.undoable(),
             }
@@ -573,7 +575,23 @@ class Session:
             match["version"] = self._match_number
             self.match = match
             self.results = results
+            # Signs of a suspicious match are looked for only in a match
+            # that stays: during a drag of the slider, a newer one is wanted
+            stays = not self._wanted
         self.events.publish("matches", match)
+        if stays:
+            self._warn(match, results, tracks, stops, placed)
+
+    def _warn(self, match, results, tracks, stops, placed):
+        """Tell the page of the signs of a suspicious match; they change nothing."""
+        warnings = {"version": match["version"], "generation": match["generation"],
+                    "tracks": match["tracks"],
+                    "warnings": warnings_of(results, tracks, MAX_GAP, stops, placed)}
+        with self.lock:
+            if self.match is not match:
+                return
+            self.warnings = warnings
+        self.events.publish("warnings", warnings)
 
     # --- what the page gets ------------------------------------------------
 
