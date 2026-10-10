@@ -3,11 +3,12 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
+from conftest import hike_gpx
 from gpxfoto.engine.matching import (
     PhotoResult, Summary, corrected_times, match_photo, match_photos, placed_by_hand,
-    summarize)
+    shots_of, summarize, suspicion, with_nearest_tracks)
 from gpxfoto.engine.photos import TZ_CAMERA, TZ_MANUAL, Photo
-from gpxfoto.engine.track import Track, find_stops, locate
+from gpxfoto.engine.track import Track, find_stops, load_track, locate, quick_span
 
 WARSAW = timezone(timedelta(hours=2))
 T0 = datetime(2024, 5, 1, 10, 0, 0, tzinfo=timezone.utc).timestamp()
@@ -142,3 +143,66 @@ def test_a_photo_without_a_time_placed_by_hand_has_none():
     result = placed_by_hand(Photo("a.jpg", None, None, "no capture time in EXIF", False),
                             0, 49.5, 19.25)
     assert (result.time, result.time_utc, result.reason) == (None, None, None)
+
+
+def test_a_time_zone_and_the_same_difference_as_a_correction_place_a_photo_alike(track):
+    # What is written comes from the position, the elevation and the time
+    # in UTC alone, so the file is the same either way
+    taken = datetime(2024, 5, 1, 12, 0, 50)
+    in_zone = Photo("a.jpg", taken.replace(tzinfo=WARSAW), TZ_MANUAL, None, False)
+    wrong_zone = Photo("a.jpg", taken.replace(tzinfo=timezone.utc), TZ_MANUAL, None, False)
+    one = match_photo(in_zone, [track], 0, 120)
+    other = match_photo(wrong_zone, [track], -2 * 3600, 120)
+    assert one.reason is None
+    assert (one.lat, one.lon, one.ele, one.time_utc) == (
+        other.lat, other.lon, other.ele, other.time_utc)
+
+
+def test_shots_are_the_photos_with_a_time(track):
+    photos = [photo((12, 0, 50)), Photo("x.jpg", None, None, "no capture time in EXIF", False),
+              photo((12, 30, 0))]
+    shots, indices = shots_of(match_photos(photos, [track], 10, 120))
+    assert indices == [0, 2]
+    assert [(shot.time, shot.clock) for shot in shots] == [
+        (T0 + 60, T0 + 60 + 7200), (T0 + 1810, T0 + 1810 + 7200)]
+    assert (shots[0].lat, shots[0].lon) == locate(track.points, track.times, T0 + 60, 120)[:2]
+    assert (shots[1].lat, shots[1].lon) == (None, None)
+
+
+def test_a_photo_no_track_covers_names_the_nearest_track(tmp_path):
+    early = hike_gpx(str(tmp_path / "early.gpx"), [(T0 - 7200 + i, 50.0, 20.0, 200.0)
+                                                 for i in range(0, 100, 10)])
+    late = hike_gpx(str(tmp_path / "late.gpx"), [(T0 + 3600 + i, 50.0, 20.0, 200.0)
+                                               for i in range(0, 100, 10)])
+    broken = str(tmp_path / "broken.gpx")
+    with open(broken, "w", encoding="utf-8") as f:
+        f.write("<gpx><trk><trkseg><trkpt lat='50' lon='20'><time>2024-05-01T10:20:00Z</time>")
+    tracks = [load_track([early], named=False)]
+    spans = {path: quick_span(path) for path in (early, late, broken)}
+    photos = [photo((12, 30, 0)), photo((10, 30, 0))]
+    results = match_photos(photos, tracks, 0, 120)
+    assert [result.covered for result in results] == [False, False]
+    changed, loaded, failed = with_nearest_tracks(results, tracks, spans, stops=True)
+    assert (changed[0].reason, changed[0].files) == (
+        "30 min before the start of the nearest track", (late,))
+    assert (changed[1].reason, changed[1].files) == (
+        "28 min after the end of the nearest track", (early,))
+    assert [t.files for t in loaded] == [(late,)]
+    [(path, error)] = failed
+    assert path == broken and isinstance(error, ValueError)
+    # A file known to be unreadable is not read again
+    assert with_nearest_tracks(results, tracks, spans, True, skipped=[broken])[2] == []
+
+
+def test_jumps_are_looked_for_without_stops_and_on_several_tracks(track):
+    far = Track(["far.gpx"], True, [(T0 + 110, 51.0, 20.0, 200.0), (T0 + 200, 51.0, 20.0, 200.0)])
+    photos = [photo((12, 1, 30)), photo((12, 2, 0), path="b.jpg")]
+    results = match_photos(photos, [track, far], 0, 120)
+    assert [result.files for result in results] == [("track.gpx",), ("far.gpx",)]
+    shots, _indices = shots_of(results)
+    found = suspicion(results, [track, far], shots, 120)
+    assert (found.shift, found.motion) == (None, None)
+    [jump] = found.jumps
+    assert (jump.first, jump.second, jump.clock_gap) == (0, 1, 30)
+    one = match_photos(photos[:1], [track], 0, 120)
+    assert suspicion(one, [track], shots_of(one)[0], 120, stops=False).jumps == []

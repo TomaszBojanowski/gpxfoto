@@ -4,8 +4,10 @@ from collections import namedtuple
 from datetime import timedelta, timezone
 from gettext import gettext as _
 
+from gpxfoto import i18n
+from gpxfoto.engine import checks
 from gpxfoto.engine.photos import check_against_camera_utc
-from gpxfoto.engine.track import match
+from gpxfoto.engine.track import load_track, match, nearest_track
 
 # The outcome for one photo. time is the corrected capture time in the
 # photo's own time zone and time_utc the same in UTC; both are None when
@@ -96,3 +98,82 @@ def summarize(results):
     matched = sum(1 for result in results if result.reason is None)
     at_stops = sum(1 for result in results if result.stop is not None)
     return Summary(matched, len(results) - matched, at_stops)
+
+
+def with_nearest_tracks(results, tracks, spans, stops, skipped=()):
+    """results, where a photo no track covers names the nearest track file;
+    the tracks loaded for that; and the (path, error) of the files among
+    them that cannot be read. skipped are files already known to be so."""
+    loaded = {}
+    failed = []
+
+    def load(path):
+        if path not in loaded:
+            try:
+                loaded[path] = load_track([path], named=False, stops=stops)
+            except ValueError as e:
+                failed.append((path, e))
+                loaded[path] = None     # not read again for the next photo
+        return loaded[path]
+
+    singles = [track for track in tracks if len(track.files) == 1]
+    unread = {path: span for path, span in spans.items() if path not in skipped
+              and not any(track.files[0] == path for track in singles)}
+    changed = []
+    for result in results:
+        if not result.covered:
+            nearest = nearest_track(result.time.timestamp(), singles, unread, load)
+            if nearest is not None:
+                seconds, path, after = nearest
+                if after:
+                    # Translators: reason why a photo was skipped; {duration} is
+                    # a time span such as “10 min”
+                    reason = _("{duration} after the end of the nearest track")
+                else:
+                    # Translators: reason why a photo was skipped; {duration} is
+                    # a time span such as “10 min”
+                    reason = _("{duration} before the start of the nearest track")
+                result = result._replace(reason=reason.format(duration=i18n.duration(seconds)),
+                                         files=(path,))
+        changed.append(result)
+    return changed, [track for track in loaded.values() if track is not None], failed
+
+
+def shots_of(results):
+    """The photos with a capture time as the checks of a suspicious match
+    see them, and the index of each in results."""
+    shots, indices = [], []
+    for index, result in enumerate(results):
+        if result.time is not None:
+            time = result.time.timestamp()
+            shots.append(checks.Shot(time, time + result.time.utcoffset().total_seconds(),
+                                     result.lat, result.lon))
+            indices.append(index)
+    return shots, indices
+
+
+def suspicion(results, tracks, shots, max_gap, stops=True, nearby=()):
+    """The signs of a suspicious match.
+
+    The whole-hour shift and the photos in motion are looked for only on
+    the track that placed every matched photo, as they need its stops and
+    speeds. When no photo was matched, that is the only track loaded, or
+    the only one of nearby, the tracks loaded to name the nearest one.
+    Photos skipped for another track would not move onto this track's
+    stops with any shift. Without stops, only jumps are looked for.
+    """
+    owner = {path: track for track in tracks for path in track.files}
+    used = []
+    for result in results:
+        if result.reason is None and owner[result.files[0]] not in used:
+            used.append(owner[result.files[0]])
+    others = {owner.get(path) for result in results if result.reason is not None
+              and result.covered for path in result.files}
+    one = used or tracks + [track for track in nearby if track not in tracks]
+    if len(one) == 1 and others <= set(one) and stops:
+        track = one[0]
+        top = None if track.sources is None else checks.top_speed(track.points, track.sources)
+        return checks.suspicious_match(track.points, track.times, track.stops, shots,
+                                       max_gap, top=top)
+    top = max((checks.top_speed(track.points, track.sources) for track in used), default=0.0)
+    return checks.Suspicion(None, None, checks.jumps(shots, top))

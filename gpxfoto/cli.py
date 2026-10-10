@@ -9,14 +9,14 @@ from datetime import datetime, timedelta, timezone
 from gettext import gettext as _, ngettext
 
 from gpxfoto import i18n
-from gpxfoto.engine import checks
 from gpxfoto.engine.clock import MAX_WITHOUT_DATE, ClockError, measure, parse_reading
-from gpxfoto.engine.matching import corrected_times, match_photos, summarize
+from gpxfoto.engine.matching import (
+    corrected_times, match_photos, shots_of, summarize, suspicion, with_nearest_tracks)
 from gpxfoto.engine.photos import (
     TZ_CAMERA, TZ_MANUAL, TZ_SYSTEM, check_exiftool, find_photos, format_utc_offset,
     parse_utc_offset, photo_from_metadata, read_metadata, summarize_time_checks)
 from gpxfoto.engine.track import (
-    find_tracks, load_track, nearest_track, quick_span, tracks_needed, travel_direction)
+    find_tracks, load_track, quick_span, tracks_needed, travel_direction)
 from gpxfoto.engine.writer import BACKUP_DIR, write_location
 from gpxfoto.i18n import N_
 
@@ -384,89 +384,9 @@ def skip_track_file(error):
     print("  " + _("This file is skipped; the other tracks are used."), file=sys.stderr)
 
 
-def with_nearest_tracks(results, tracks, spans, stops, skipped=()):
-    """results, where a photo no track covers names the nearest track file;
-    the tracks loaded for that; and the files among them that cannot be
-    read, which are reported. skipped are files already known to be so."""
-    loaded = {}
-    failed = []
-
-    def load(path):
-        if path not in loaded:
-            try:
-                loaded[path] = load_track([path], named=False, stops=stops)
-            except ValueError as e:
-                skip_track_file(e)
-                failed.append(path)
-                loaded[path] = None     # not read again for the next photo
-        return loaded[path]
-
-    singles = [track for track in tracks if len(track.files) == 1]
-    unread = {path: span for path, span in spans.items() if path not in skipped
-              and not any(track.files[0] == path for track in singles)}
-    changed = []
-    for result in results:
-        if not result.covered:
-            nearest = nearest_track(result.time.timestamp(), singles, unread, load)
-            if nearest is not None:
-                seconds, path, after = nearest
-                if after:
-                    # Translators: reason why a photo was skipped; {duration} is
-                    # a time span such as “10 min”
-                    reason = _("{duration} after the end of the nearest track")
-                else:
-                    # Translators: reason why a photo was skipped; {duration} is
-                    # a time span such as “10 min”
-                    reason = _("{duration} before the start of the nearest track")
-                result = result._replace(reason=reason.format(duration=i18n.duration(seconds)),
-                                         files=(path,))
-        changed.append(result)
-    return changed, [track for track in loaded.values() if track is not None], failed
-
-
 def usable_offset(offset):
     """Whether a timedelta is a UTC offset that --timezone and --clock-time take."""
     return abs(offset) <= timedelta(hours=14) and not offset % timedelta(minutes=1)
-
-
-def shots_of(results):
-    """The photos with a capture time as the checks of a suspicious match
-    see them, and their names."""
-    shots, names = [], []
-    for result in results:
-        if result.time is not None:
-            time = result.time.timestamp()
-            shots.append(checks.Shot(time, time + result.time.utcoffset().total_seconds(),
-                                     result.lat, result.lon))
-            names.append(printable(os.path.basename(result.photo.path)))
-    return shots, names
-
-
-def suspicion(results, tracks, shots, args, nearby=()):
-    """The signs of a suspicious match.
-
-    The whole-hour shift and the photos in motion are looked for only on
-    the track that placed every matched photo, as they need its stops and
-    speeds. When no photo was matched, that is the only track loaded, or
-    the only one of nearby, the tracks loaded to name the nearest one.
-    Photos skipped for another track would not move onto this track's
-    stops with any shift.
-    """
-    owner = {path: track for track in tracks for path in track.files}
-    used = []
-    for result in results:
-        if result.reason is None and owner[result.files[0]] not in used:
-            used.append(owner[result.files[0]])
-    others = {owner.get(path) for result in results if result.reason is not None
-              and result.covered for path in result.files}
-    one = used or tracks + [track for track in nearby if track not in tracks]
-    if len(one) == 1 and others <= set(one) and not args.no_stops:
-        track = one[0]
-        top = None if track.sources is None else checks.top_speed(track.points, track.sources)
-        return checks.suspicious_match(track.points, track.times, track.stops, shots,
-                                       args.max_gap, top=top)
-    top = max((checks.top_speed(track.points, track.sources) for track in used), default=0.0)
-    return checks.Suspicion(None, None, checks.jumps(shots, top))
 
 
 def shift_lines(hint, shots, correction, clock, zone_option=True):
@@ -735,7 +655,9 @@ def main():
     if found:
         results, nearby, failed = with_nearest_tracks(results, tracks, spans,
                                                       not args.no_stops, skipped_files)
-        skipped_files += failed
+        for path, error in failed:
+            skip_track_file(error)
+            skipped_files.append(path)
     if found:
         used = covering(tracks, results, args.max_gap)
         total = len(named) + len(found)
@@ -782,8 +704,9 @@ def main():
     for line in time_check_lines(results):
         print(line)
     if not args.write:
-        shots, names = shots_of(results)
-        signs = suspicion(results, tracks, shots, args, nearby)
+        shots, indices = shots_of(results)
+        names = [printable(os.path.basename(results[index].photo.path)) for index in indices]
+        signs = suspicion(results, tracks, shots, args.max_gap, not args.no_stops, nearby)
         # Photos whose camera records UTC would then disagree with it
         zone_option = not any(result.photo.camera_utc is not None for result in results)
         for line in warning_lines(signs, shots, names, correction, clock, zone_option):
