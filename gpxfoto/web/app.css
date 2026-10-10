@@ -282,15 +282,21 @@ button.small { padding: 3px 8px; font-size: 13px; }
 /* The selected row shows all of its detail, on as many lines as it needs */
 .row.expanded { height: auto; min-height: 60px; align-items: flex-start; padding: 8px 12px; }
 .row.expanded .thumb { margin-top: 0; }
-.row.expanded .detail { white-space: normal; overflow-wrap: anywhere; }
+.row.expanded .detail { display: block; -webkit-line-clamp: unset; line-clamp: unset;
+  overflow-wrap: anywhere; }
 .row.expanded .time { margin-top: 2px; }
 .row .name { font-weight: 600; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+/* Up to two lines, so that the reason why a photo was skipped can be read
+   whole; a row is high enough for the name and both */
 .row .detail {
   font-size: 12px;
+  line-height: 1.3;
   color: var(--fg-dim);
   overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
 }
 
 .row.has_location .detail { color: var(--located); }
