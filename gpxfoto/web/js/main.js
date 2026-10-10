@@ -345,6 +345,11 @@ function moreOf(photo, result) {
     }
     lines.push(position);
   }
+  // Of a folder of tracks, the file that places the photo, or is nearest
+  if (result && result.files && result.files.length && state.trackChoice
+      && state.trackChoice.folder) {
+    lines.push(format(_("track: {name}"), { name: result.files.join(", ") }));
+  }
   if (photo.tz_note) {
     lines.push(photo.tz_note);
   }

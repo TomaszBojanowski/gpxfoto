@@ -687,3 +687,44 @@ def test_a_time_that_differs_from_the_camera_s_utc_time_is_warned_of(session, ev
     assert (match["results"][0]["state"], match["results"][0]["lat"]) == ("matched", 50.0005)
     calm = events.wait("warnings", lambda d: d["version"] == match["version"])
     assert calm["warnings"] == []
+
+
+@needs_exiftool
+def test_a_photo_no_track_of_the_folder_covers_names_the_nearest(session, events, tmp_path,
+                                                                 monkeypatch):
+    monkeypatch.setenv("LANGUAGE", "C")
+    tracks = tmp_path / "tracks"
+    write_gpx(tracks.mkdir() or tracks / "day1.gpx", TRACK)
+    write_gpx(tracks / "day2.gpx", [("2024-05-02T10:00:00Z", 51.0, 21.0, None),
+                                    ("2024-05-02T10:01:40Z", 51.0, 21.001, None)])
+    (tracks / "broken.gpx").write_text(
+        "<gpx><trk><trkseg><trkpt lat='50' lon='20'><time>2024-05-02T09:55:00Z</time>")
+    photo(tmp_path / "photos", "a.jpg", "12:00:50")
+    photo(tmp_path / "photos", "b.jpg", "12:30:00")
+    photo(tmp_path / "photos", "c.jpg", "11:50:00", "+02:00",
+          "-DateTimeOriginal=2024:05:02 11:50:00")
+    photo(tmp_path / "photos", "d.jpg", "12:00:00", "+02:00",
+          "-DateTimeOriginal=2024:05:09 12:00:00")
+    session.choose_photos(str(tmp_path / "photos"))
+    session.choose_track_folder(str(tracks))
+    events.wait("photos-done")
+    match = events.wait("matches", lambda d: len(d["results"]) == 4)
+    a, b, c, d = match["results"]
+    assert (a["state"], a["files"]) == ("matched", ["day1.gpx"])
+    assert (b["state"], b["reason"], b["files"]) == (
+        "skipped", "28 min after the end of the nearest track", ["day1.gpx"])
+    assert (c["state"], c["reason"], c["files"]) == (
+        "skipped", "10 min before the start of the nearest track", ["day2.gpx"])
+    # No track within a day: none is named
+    assert d["state"] == "skipped" and d["files"] == [] and "nearest" not in d["reason"]
+    # The track read to name it is shown like the others; the file that
+    # cannot be read is told of once, however often the photos are matched
+    session.set_correction(1)
+    again = matches_for(events, 1)
+    assert again["results"][2]["files"] == ["day2.gpx"]
+    loaded = [data["track"]["files"] for name, data in events.published if name == "track"]
+    assert sorted(loaded) == [["day1.gpx"], ["day2.gpx"]]
+    errors = [data["message"] for name, data in events.published if name == "failure"]
+    assert len(errors) == 1 and "broken.gpx" in errors[0]
+    assert sorted(t["files"] for t in session.state()["tracks"]["tracks"]) == [
+        ["day1.gpx"], ["day2.gpx"]]

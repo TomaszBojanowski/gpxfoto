@@ -20,7 +20,8 @@ from collections import OrderedDict
 from gettext import gettext as _, ngettext
 
 from gpxfoto.engine.journal import Journal
-from gpxfoto.engine.matching import corrected_times, match_photos, placed_by_hand, summarize
+from gpxfoto.engine.matching import (
+    corrected_times, match_photos, placed_by_hand, summarize, with_nearest_tracks)
 from gpxfoto.engine.photos import (
     TZ_SYSTEM, exif_thumbnail, find_photos, photo_from_metadata, read_metadata)
 from gpxfoto.engine.track import find_tracks, load_track, quick_span, tracks_needed
@@ -553,6 +554,11 @@ class Session:
             unreadable = list(self.unreadable)
         results = match_photos(photos, tracks, correction, MAX_GAP, overwrite=overwrite,
                                label=os.path.basename, unreadable=unreadable)
+        if spans:
+            named = self._name_nearest_tracks(track_generation, results, tracks, spans, stops)
+            if named is None:
+                return
+            results, tracks = named
         for index, (lat, lon) in placed.items():
             if index < len(results):
                 results[index] = placed_by_hand(photos[index], correction, lat, lon)
@@ -581,6 +587,31 @@ class Session:
         self.events.publish("matches", match)
         if stays:
             self._warn(match, results, tracks, stops, placed)
+
+    def _name_nearest_tracks(self, generation, results, tracks, spans, stops):
+        """results, where a photo that no track of the chosen folder covers
+        names the nearest track file, and tracks with those read to find it,
+        which are kept and shown like the others. None when other tracks
+        were chosen meanwhile."""
+        with self.lock:
+            skipped = [path for path, track in self.loaded.items() if track is None]
+        results, nearby, failed = with_nearest_tracks(results, tracks, spans, stops, skipped)
+        summaries = [self._track_summary(track) for track in nearby]
+        with self.lock:
+            if generation != self.track_generation:
+                return None
+            for track, summary in zip(nearby, summaries):
+                self.loaded[track.files[0]] = track
+                self.summaries[id(track)] = summary
+            for path, _error in failed:
+                self.loaded[path] = None
+                if spans[path] is not None:
+                    self.unreadable.append((path, spans[path]))
+        for _path, error in failed:
+            self.events.publish("failure", {"message": str(error)})
+        for summary in summaries:
+            self.events.publish("track", {"generation": generation, "track": summary})
+        return results, tracks + nearby
 
     def _warn(self, match, results, tracks, stops, placed):
         """Tell the page of the signs of a suspicious match; they change nothing."""
