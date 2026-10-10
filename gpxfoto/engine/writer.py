@@ -230,6 +230,8 @@ def _rewrite(path, make, backup, seen):
     # readable by others whatever its permissions
     temp_dir = tempfile.mkdtemp(prefix=TEMP_PREFIX, dir=directory)
     try:
+        # Such a list can also keep the owner out of a new directory
+        os.chmod(temp_dir, 0o700)
         temp = os.path.join(temp_dir, os.path.basename(path))
         make(temp)
         if image_checksum(temp) != before:
@@ -333,6 +335,9 @@ def _backup_dir(directory):
     if not os.path.lexists(target_dir):
         temp = tempfile.mkdtemp(prefix=TEMP_PREFIX, dir=directory)
         try:
+            # A default access control list of directory can keep the owner
+            # out of a new directory; nobody else loses access by this
+            os.chmod(temp, stat.S_IMODE(os.stat(temp).st_mode) | stat.S_IRWXU)
             with open(os.path.join(temp, BACKUP_MARKER), "w", encoding="utf-8") as f:
                 f.write(_("This directory holds copies of the photos next to it as they were "
                           "before gpxfoto added locations to them. gpxfoto never changes or "

@@ -473,16 +473,48 @@ def posix_acl(*entries):
 
 
 def test_access_control_list_of_the_directory_is_not_inherited(tmp_path, photo, fake_exiftool):
-    # New files in the directory give user 4242 access, which the photo does not
+    # New files in the directory give user 4242 access, which the photo does
+    # not, and new directories in it cannot be entered even by their owner
     anyone = 0xFFFFFFFF
     set_xattr(tmp_path, "system.posix_acl_default", posix_acl(
         (0x01, 6, anyone), (0x02, 6, 4242), (0x04, 4, anyone), (0x10, 6, anyone),
         (0x20, 0, anyone)))
+    original = photo.read_bytes()
+    checksum = image_checksum(photo)
     fake_exiftool()
     write_location(photo, 50.0, 19.0, 200.0, TIME, backup=True)
+    assert state(photo) == (add_comment(original), MTIME_NS, 0o640)
+    assert image_checksum(photo) == checksum
+    assert state(tmp_path / BACKUP_DIR / "photo.jpg") == (original, MTIME_NS, 0o640)
     for path in (photo, tmp_path / BACKUP_DIR / "photo.jpg"):
         assert "system.posix_acl_access" not in os.listxattr(path)
-        assert stat.S_IMODE(os.stat(path).st_mode) == 0o640
+    assert sorted(os.listdir(tmp_path)) == sorted([BACKUP_DIR, "photo.jpg"])
+
+
+def test_new_backup_directory_keeps_the_permissions_of_others(tmp_path, photo, fake_exiftool):
+    os.chmod(tmp_path, 0o755)
+    anyone = 0xFFFFFFFF
+    set_xattr(tmp_path, "system.posix_acl_default", posix_acl(
+        (0x01, 6, anyone), (0x04, 5, anyone), (0x20, 5, anyone)))
+    fake_exiftool()
+    write_location(photo, 50.0, 19.0, 200.0, TIME, backup=True)
+    assert stat.S_IMODE(os.stat(tmp_path / BACKUP_DIR).st_mode) == 0o755
+
+
+def test_permissions_of_an_existing_backup_directory_are_not_changed(tmp_path, photo,
+                                                                     fake_exiftool):
+    fake_exiftool()
+    write_location(photo, 50.0, 19.0, 200.0, TIME, backup=True)
+    other = tmp_path / "other.jpg"
+    shutil.copy2(photo, other)
+    # The owner may enter and write, but not list it
+    os.chmod(tmp_path / BACKUP_DIR, 0o370)
+    try:
+        write_location(other, 50.0, 19.0, 200.0, TIME, backup=True)
+        assert stat.S_IMODE(os.stat(tmp_path / BACKUP_DIR).st_mode) == 0o370
+    finally:
+        os.chmod(tmp_path / BACKUP_DIR, 0o700)
+    assert backups(tmp_path) == ["other.jpg", "photo.jpg"]
 
 
 @pytest.mark.skipif(not hasattr(os, "geteuid") or os.geteuid() != 0,
