@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "gpxfoto"
-version = "0.1.0"
+version = "0.1.0a1"
 description = "Geotag photos from a GPX track without changing the image"
 readme = "README.md"
 license = "GPL-3.0-or-later"
