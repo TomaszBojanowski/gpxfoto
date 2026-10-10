@@ -28,6 +28,9 @@ zmienia obrazu.
 - [ExifTool](https://exiftool.org/). Program gpxfoto odczytuje i zapisuje nim
   metadane zdjęć i bez niego nie działa. Instalacja:
   - Fedora: `sudo dnf install perl-Image-ExifTool`
+  - Debian i Ubuntu: `sudo apt install libimage-exiftool-perl`
+  - Arch Linux: `sudo pacman -S perl-image-exiftool`
+  - openSUSE: `sudo zypper install exiftool`
   - macOS, przez [Homebrew](https://brew.sh/): `brew install exiftool`
 - do instalacji: `msgfmt` z pakietu GNU gettext (w systemie Fedora: `sudo dnf install gettext`)
 

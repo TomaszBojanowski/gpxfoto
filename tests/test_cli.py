@@ -13,6 +13,7 @@ from conftest import (
     ROOT, hike_gpx, latin2_name, make_jpeg, needs_exiftool, read_tags, run_cli,
     set_panasonic_time_stamp, set_tags, write_gpx)
 from gpxfoto import cli, i18n
+from gpxfoto.engine import photos as photos_module
 from gpxfoto.engine import track as track_module
 from gpxfoto.engine.checks import Jump, Motion, ShiftHint, Shot
 from gpxfoto.engine.clock import correction_from, parse_reading
@@ -1459,9 +1460,7 @@ def test_directory_without_jpegs(tmp_path, gpx):
 
 
 MISSING_EXIFTOOL = ("exiftool is not installed; gpxfoto needs it to read and write the metadata "
-                    "of photos.\n"
-                    "On Fedora, install it with: sudo dnf install perl-Image-ExifTool\n"
-                    "On macOS, install it with: brew install exiftool\n")
+                    "of photos.\n")
 
 
 def test_exiftool_not_on_path(tmp_path, gpx, jpeg_file):
@@ -1472,7 +1471,9 @@ def test_exiftool_not_on_path(tmp_path, gpx, jpeg_file):
 
     assert result.returncode == 1
     assert result.stdout == ""
-    assert result.stderr == MISSING_EXIFTOOL
+    # The second line is the one for the system the tests run on
+    assert result.stderr == photos_module.missing_exiftool() + "\n"
+    assert result.stderr.startswith(MISSING_EXIFTOOL) and result.stderr.count("\n") == 2
 
 
 def test_the_browser_interface_needs_exiftool_too(tmp_path):
@@ -1483,15 +1484,71 @@ def test_the_browser_interface_needs_exiftool_too(tmp_path):
 
     assert result.returncode == 1
     assert result.stdout == ""
-    assert result.stderr == MISSING_EXIFTOOL
+    assert result.stderr == photos_module.missing_exiftool() + "\n"
 
 
-def test_the_readmes_give_the_commands_of_the_message():
+def os_release(monkeypatch, system, release=None):
+    """Make the program see the system and the fields of its /etc/os-release."""
+    def read():
+        if release is None:
+            raise OSError("no os-release file")
+        return release
+    monkeypatch.setattr(photos_module.sys, "platform", system)
+    monkeypatch.setattr(photos_module.platform, "freedesktop_os_release", read)
+
+
+@pytest.mark.parametrize("system, release, command", [
+    ("linux", {"ID": "fedora"}, "sudo dnf install perl-Image-ExifTool"),
+    ("linux", {"ID": "debian"}, "sudo apt install libimage-exiftool-perl"),
+    ("linux", {"ID": "ubuntu", "ID_LIKE": "debian"}, "sudo apt install libimage-exiftool-perl"),
+    ("linux", {"ID": "linuxmint", "ID_LIKE": "ubuntu debian"},
+     "sudo apt install libimage-exiftool-perl"),
+    ("linux", {"ID": "arch"}, "sudo pacman -S perl-image-exiftool"),
+    ("linux", {"ID": "manjaro", "ID_LIKE": "arch"}, "sudo pacman -S perl-image-exiftool"),
+    ("linux", {"ID": "opensuse-tumbleweed", "ID_LIKE": "opensuse suse"},
+     "sudo zypper install exiftool"),
+    ("linux", {"ID": "opensuse-leap", "ID_LIKE": "suse opensuse"},
+     "sudo zypper install exiftool"),
+    ("darwin", None, "brew install exiftool"),
+])
+def test_the_command_that_installs_exiftool_is_that_of_the_system(monkeypatch, system, release,
+                                                                  command):
+    os_release(monkeypatch, system, release)
+    assert photos_module.exiftool_install_command() == command
+    assert photos_module.missing_exiftool() == (
+        MISSING_EXIFTOOL + "Install it with: " + command)
+
+
+@pytest.mark.parametrize("system, release", [
+    ("linux", {"ID": "gentoo"}),
+    # Made from Fedora, but with the package only in an added repository
+    ("linux", {"ID": "rhel", "ID_LIKE": "fedora"}),
+    ("linux", {"ID": "rocky", "ID_LIKE": "rhel centos fedora"}),
+    ("linux", {}),
+    ("linux", None),             # no os-release file
+    ("win32", None),
+    ("freebsd14", None),
+])
+def test_an_unknown_system_is_sent_to_the_readme(monkeypatch, system, release):
+    os_release(monkeypatch, system, release)
+    assert photos_module.exiftool_install_command() is None
+    assert photos_module.missing_exiftool() == (
+        MISSING_EXIFTOOL + "How to install it is described at "
+        "https://github.com/TomaszBojanowski/gpxfoto#requirements")
+
+
+def test_the_readmes_give_every_command_of_the_message():
+    commands = set(photos_module.EXIFTOOL_ON_LINUX.values()) | {photos_module.EXIFTOOL_ON_MACOS}
+    assert len(commands) == 5
     for name in ("README.md", "README.pl.md"):
         with open(os.path.join(ROOT, name), encoding="utf-8") as f:
             text = f.read()
-        for command in ("sudo dnf install perl-Image-ExifTool", "brew install exiftool"):
-            assert f"`{command}`" in text and command in MISSING_EXIFTOOL
+        for command in commands:
+            assert f"`{command}`" in text
+    # The address in the message leads to the section that lists them
+    with open(os.path.join(ROOT, "README.md"), encoding="utf-8") as f:
+        assert "\n## Requirements\n" in f.read()
+    assert photos_module.README_URL.endswith("#requirements")
 
 
 @needs_posix_shell

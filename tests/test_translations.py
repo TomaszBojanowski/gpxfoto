@@ -15,6 +15,7 @@ import pytest
 from conftest import (
     ROOT, hike_gpx, make_jpeg, needs_exiftool, set_panasonic_time_stamp, set_tags, write_gpx)
 from gpxfoto import cli, i18n
+from gpxfoto.engine import photos
 from gpxfoto.engine.checks import ShiftHint
 from gpxfoto.server import warnings
 from test_checks import at_stops, in_pauses, pauses_hike, stops_hike
@@ -438,14 +439,20 @@ def test_argparse_errors_are_polish(polish_cli, capsys, args, message):
 
 def test_missing_exiftool_message_is_polish(polish_cli, monkeypatch):
     monkeypatch.setattr(shutil, "which", lambda name, *args, **kwargs: None)
+    monkeypatch.setattr(photos.sys, "platform", "linux")
+    monkeypatch.setattr(photos.platform, "freedesktop_os_release", lambda: {"ID": "fedora"})
     with pytest.raises(SystemExit) as exit_info:
         polish_cli("-g", "t.gpx", "a.jpg")
     assert exit_info.value.code == (
         "Program exiftool nie jest zainstalowany; gpxfoto potrzebuje go do odczytywania "
         "i zapisywania metadanych zdjęć.\n"
-        "W systemie Fedora można go zainstalować poleceniem: "
-        "sudo dnf install perl-Image-ExifTool\n"
-        "W systemie macOS można go zainstalować poleceniem: brew install exiftool")
+        "Można go zainstalować poleceniem: sudo dnf install perl-Image-ExifTool")
+    monkeypatch.setattr(photos.platform, "freedesktop_os_release", lambda: {"ID": "gentoo"})
+    with pytest.raises(SystemExit) as exit_info:
+        polish_cli("-g", "t.gpx", "a.jpg")
+    assert exit_info.value.code.endswith(
+        "\nSposób instalacji opisano na stronie "
+        "https://github.com/TomaszBojanowski/gpxfoto#requirements")
 
 
 def test_invalid_timezone_message_is_polish(polish_cli, exiftool_present):

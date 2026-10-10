@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: gpxfoto 0.1.0\n"
 "Report-Msgid-Bugs-To: https://github.com/tomaszbojanowski/gpxfoto/issues\n"
-"POT-Creation-Date: 2026-10-10 21:50+0200\n"
+"POT-Creation-Date: 2026-10-10 21:59+0200\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -654,53 +654,61 @@ msgstr ""
 msgid "{duration} before the start of the nearest track"
 msgstr ""
 
-#: gpxfoto/engine/photos.py:77 gpxfoto/server/session.py:121
+#: gpxfoto/engine/photos.py:79 gpxfoto/server/session.py:121
 #, python-brace-format
 msgid "No such file or directory: {path}"
 msgstr ""
 
-#. Translators: {fedora} and {macos} are commands to type in a terminal
-#: gpxfoto/engine/photos.py:151
-#, python-brace-format
+#: gpxfoto/engine/photos.py:188
 msgid ""
 "exiftool is not installed; gpxfoto needs it to read and write the metadata "
-"of photos.\n"
-"On Fedora, install it with: {fedora}\n"
-"On macOS, install it with: {macos}"
+"of photos."
 msgstr ""
 
-#: gpxfoto/engine/photos.py:163
+#. Translators: {url} is the address of the README of gpxfoto
+#: gpxfoto/engine/photos.py:193
+#, python-brace-format
+msgid "How to install it is described at {url}"
+msgstr ""
+
+#. Translators: {command} is a command to type in a terminal
+#: gpxfoto/engine/photos.py:196
+#, python-brace-format
+msgid "Install it with: {command}"
+msgstr ""
+
+#: gpxfoto/engine/photos.py:204
 #, python-brace-format
 msgid ""
 "exiftool does not work:\n"
 "{errors}"
 msgstr ""
 
-#: gpxfoto/engine/photos.py:193
+#: gpxfoto/engine/photos.py:234
 msgid "exiftool did not finish reading the photos in time"
 msgstr ""
 
-#: gpxfoto/engine/photos.py:201
+#: gpxfoto/engine/photos.py:242
 msgid "exiftool returned data that cannot be read"
 msgstr ""
 
-#: gpxfoto/engine/photos.py:219
+#: gpxfoto/engine/photos.py:260
 msgid "exiftool could not read the file"
 msgstr ""
 
 #. Translators: reason why a photo was skipped; {error} comes from exiftool
-#: gpxfoto/engine/photos.py:355
+#: gpxfoto/engine/photos.py:396
 #, python-brace-format
 msgid "cannot be read: {error}"
 msgstr ""
 
 #. Translators: reason why a photo was skipped
-#: gpxfoto/engine/photos.py:357
+#: gpxfoto/engine/photos.py:398
 msgid "no capture time in EXIF"
 msgstr ""
 
 #. Translators: reason why a photo was skipped; {value} is the text found
-#: gpxfoto/engine/photos.py:369
+#: gpxfoto/engine/photos.py:410
 #, python-brace-format
 msgid "invalid capture time in EXIF: {value}"
 msgstr ""

@@ -1,8 +1,10 @@
 """Finding photos and reading their metadata and capture time."""
 import json
 import os
+import platform
 import re
 import subprocess
+import sys
 from collections import namedtuple
 from datetime import datetime, timedelta, timezone
 from gettext import gettext as _
@@ -145,14 +147,53 @@ def _thumbnail_in_tiff(tiff):
     return thumbnail
 
 
+# The commands that install exiftool, as the READMEs give them. On Linux,
+# by the ID of the distribution in /etc/os-release
+EXIFTOOL_ON_LINUX = {
+    "fedora": "sudo dnf install perl-Image-ExifTool",
+    "debian": "sudo apt install libimage-exiftool-perl",
+    "ubuntu": "sudo apt install libimage-exiftool-perl",
+    "arch": "sudo pacman -S perl-image-exiftool",
+    "opensuse": "sudo zypper install exiftool",
+    "suse": "sudo zypper install exiftool",
+}
+EXIFTOOL_ON_MACOS = "brew install exiftool"
+# Distributions made from these, which name them in ID_LIKE, have the same
+# package. Those made from Fedora may not: RHEL has it only in EPEL.
+SAME_PACKAGE_AS = ("debian", "ubuntu", "arch", "opensuse", "suse")
+README_URL = "https://github.com/TomaszBojanowski/gpxfoto#requirements"
+
+
+def exiftool_install_command():
+    """The command that installs exiftool on this system, or None when it is not known."""
+    if sys.platform == "darwin":
+        return EXIFTOOL_ON_MACOS
+    if not sys.platform.startswith("linux"):
+        return None
+    try:
+        release = platform.freedesktop_os_release()
+    except OSError:
+        return None
+    name = release.get("ID", "").lower()
+    if name in EXIFTOOL_ON_LINUX:
+        return EXIFTOOL_ON_LINUX[name]
+    for like in release.get("ID_LIKE", "").lower().split():
+        if like in SAME_PACKAGE_AS:
+            return EXIFTOOL_ON_LINUX[like]
+    return None
+
+
 def missing_exiftool():
-    """What the user is told when exiftool is not installed, as in the README."""
-    # Translators: {fedora} and {macos} are commands to type in a terminal
-    return _("exiftool is not installed; gpxfoto needs it to read and write the metadata of "
-             "photos.\n"
-             "On Fedora, install it with: {fedora}\n"
-             "On macOS, install it with: {macos}").format(
-                 fedora="sudo dnf install perl-Image-ExifTool", macos="brew install exiftool")
+    """What the user is told when exiftool is not installed."""
+    message = _("exiftool is not installed; gpxfoto needs it to read and write the metadata of "
+                "photos.")
+    command = exiftool_install_command()
+    if command is None:
+        # Translators: {url} is the address of the README of gpxfoto
+        return message + "\n" + _("How to install it is described at {url}").format(
+            url=README_URL)
+    # Translators: {command} is a command to type in a terminal
+    return message + "\n" + _("Install it with: {command}").format(command=command)
 
 
 def check_exiftool():

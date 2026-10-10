@@ -28,6 +28,9 @@ a phone. It writes nothing but GPS metadata and never changes the image.
 - [ExifTool](https://exiftool.org/). gpxfoto reads and writes the metadata of
   photos with it and does not work without it. Install it with:
   - Fedora: `sudo dnf install perl-Image-ExifTool`
+  - Debian and Ubuntu: `sudo apt install libimage-exiftool-perl`
+  - Arch Linux: `sudo pacman -S perl-image-exiftool`
+  - openSUSE: `sudo zypper install exiftool`
   - macOS, with [Homebrew](https://brew.sh/): `brew install exiftool`
 - for installing: `msgfmt` from GNU gettext (on Fedora: `sudo dnf install gettext`)
 
