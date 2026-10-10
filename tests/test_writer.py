@@ -459,9 +459,12 @@ def test_extended_attributes_the_photo_lacks_are_removed(tmp_path, photo, fake_e
         os.setxattr(command[command.index("-o") + 1], "user.added", b"1")
         return result
 
+    # The system may add attributes of its own, such as security.selinux
+    before = sorted(os.listxattr(photo))
     monkeypatch.setattr(writer.subprocess, "run", run_and_add_attribute)
     write_location(photo, 50.0, 19.0, 200.0, TIME, backup=False)
-    assert os.listxattr(photo) == ["user.xdg.comment"]
+    assert "user.xdg.comment" in before
+    assert sorted(os.listxattr(photo)) == before
 
 
 def posix_acl(*entries):
