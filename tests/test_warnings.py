@@ -43,7 +43,9 @@ def test_a_pair_across_a_leap_is_named(track):
     assert card["items"] == [{"photos": [1, 2], "text": "a → b · 10 s · 111.2 km",
                               "detail": "a.jpg and b.jpg: taken 10 s apart, placed 111.2 km "
                                         "apart"}]
-    assert (card["photos"], bool(card["note"])) == ([1, 2], True)
+    assert card["more"] is None
+    assert card["notes"] == {1: ["jump: 111.2 km from b in 10 s"],
+                             2: ["jump: 111.2 km from a in 10 s"]}
 
 
 def test_only_some_pairs_are_named_and_all_are_counted(track):
@@ -51,9 +53,9 @@ def test_only_some_pairs_are_named_and_all_are_counted(track):
               for leap in range(1, 6) for side, second in (("a", -10), ("b", 0))]
     [card] = warnings_of(match_photos(photos, [track], 0, 120), [track], 120)
     assert [item["photos"] for item in card["items"]] == [[0, 1], [2, 3], [4, 5]]
-    assert len(card["items"]) == JUMP_EXAMPLES
+    assert len(card["items"]) == JUMP_EXAMPLES and card["more"] == "+2"
     assert card["title"] == "Position jumps (5 pairs)"
-    assert card["photos"] == list(range(10))
+    assert sorted(card["notes"]) == list(range(10))
 
 
 def test_different_time_zones_are_told(track):
@@ -71,7 +73,7 @@ def test_different_time_zones_are_told(track):
 def test_photos_placed_by_hand_are_left_out(track):
     photos = [photo("a.jpg", 590), photo("b.jpg", 600), photo("c.jpg", 605)]
     results = match_photos(photos, [track], 0, 120)
-    assert warnings_of(results, [track], 120)[0]["photos"] == [0, 1]
+    assert sorted(warnings_of(results, [track], 120)[0]["notes"]) == [0, 1]
     by_hand = list(results)
     by_hand[0] = placed_by_hand(photos[0], 0, 10.0, 10.0)
     # Far from the others, but put there on purpose
@@ -79,4 +81,12 @@ def test_photos_placed_by_hand_are_left_out(track):
     by_hand = list(results)
     by_hand[1] = placed_by_hand(photos[1], 0, 10.0, 10.0)
     [card] = warnings_of(by_hand, [track], 120, placed={1: (10.0, 10.0)})
-    assert card["photos"] == [0, 2] and card["items"][0]["photos"] == [0, 2]
+    assert sorted(card["notes"]) == [0, 2] and card["items"][0]["photos"] == [0, 2]
+
+
+def test_a_photo_between_two_leaps_has_a_note_of_each(track):
+    quick = Track(["quick.gpx"], True, [(T0 + second, 50.0 + second // 20, 20.0, 200.0)
+                                        for second in range(0, 600, 5)])
+    photos = [photo("a.jpg", 15), photo("b.jpg", 25), photo("c.jpg", 45)]
+    [card] = warnings_of(match_photos(photos, [quick], 0, 120), [quick], 120)
+    assert card["notes"][1] == ["jump: 111.2 km from a in 10 s", "jump: 111.2 km from c in 20 s"]

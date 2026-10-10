@@ -1,10 +1,10 @@
 """The signs of a suspicious match, as the page shows them.
 
-Each is a card: {"kind", "title", "text", "items", "advice", "note",
-"photos"}. items are {"text", "detail", "photos"}, the examples the card
-lists: a short line, the same in full, and the ids of its photos. The
-title tells how many there are in all. photos are the ids of all the
-photos the card is about, and note is what the row of each of them says.
+Each is a card: {"kind", "title", "text", "items", "more", "advice",
+"notes"}. items are {"text", "detail", "photos"}, the examples the card
+lists: a short line, the same in full, and the ids of its photos; more is
+a short text such as “+2” when some were left out, or None. notes maps
+the id of each photo the card is about to the short lines its row says.
 The cards only inform: they change nothing and never stop the locations
 from being written.
 """
@@ -40,16 +40,25 @@ def warnings_of(results, tracks, max_gap, stops=True, placed=()):
 def _jumps(jumps, shots, ids, results):
     """The card about photos taken one after the other but placed far apart."""
     items = []
-    for jump in jumps[:JUMP_EXAMPLES]:
+    notes = {}
+    for number, jump in enumerate(jumps):
         pair = (jump.first, jump.second)
         zones = [timedelta(seconds=round(shots[i].clock - shots[i].time)) for i in pair]
         first, second = (os.path.basename(results[ids[i]].photo.path) for i in pair)
         values = dict(first=first, second=second,
                       interval=i18n.exact_duration(jump.clock_gap),
                       distance=i18n.distance(jump.distance))
-        # The short line names the photos without their extensions
-        short = [" → ".join(os.path.splitext(name)[0] for name in (first, second)),
-                 values["interval"], values["distance"]]
+        # The short lines name the photos without their extensions
+        stems = [os.path.splitext(name)[0] for name in (first, second)]
+        for i, other in zip(pair, reversed(stems)):
+            # Translators: a note on a photo in the list, which must stay
+            # short; {name} is the other photo, {distance} a distance such
+            # as “1.3 km” and {interval} a time span such as “4 s”
+            note = _("jump: {distance} from {name} in {interval}")
+            notes.setdefault(ids[i], []).append(note.format(name=other, **values))
+        if number >= JUMP_EXAMPLES:
+            continue
+        short = [" → ".join(stems), values["interval"], values["distance"]]
         if zones[0] == zones[1]:
             detail = _("{first} and {second}: taken {interval} apart, placed {distance} "
                        "apart").format(**values)
@@ -70,9 +79,9 @@ def _jumps(jumps, shots, ids, results):
         "text": _("These photos were taken less than a minute apart, but are placed far "
                   "from each other:"),
         "items": items,
+        "more": None if len(jumps) <= JUMP_EXAMPLES else "+" + i18n.number(
+            len(jumps) - JUMP_EXAMPLES),
         "advice": _("Check the time zones of these photos, and whether the GPX files "
                     "record different trips at the same time."),
-        # Translators: a note on a photo in the list
-        "note": _("placed implausibly far from a photo taken less than a minute apart"),
-        "photos": sorted({ids[i] for jump in jumps for i in (jump.first, jump.second)}),
+        "notes": notes,
     }

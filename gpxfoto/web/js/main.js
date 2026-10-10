@@ -163,6 +163,9 @@ function warningCard(card, index) {
     }
     body.append(items);
   }
+  if (card.more) {
+    body.append(paragraph(card.more, "more"));
+  }
   if (card.advice) {
     body.append(paragraph(card.advice, "advice"));
   }
@@ -175,8 +178,8 @@ function showWarnings() {
   const hidden = state.warnings.length - shown.length;
   state.notes = new Map();
   for (const card of shown) {
-    for (const id of card.photos) {
-      state.notes.set(id, [...(state.notes.get(id) || []), card.note]);
+    for (const [id, notes] of Object.entries(card.notes)) {
+      state.notes.set(Number(id), [...(state.notes.get(Number(id)) || []), ...notes]);
     }
   }
   const content = shown.map(warningCard);

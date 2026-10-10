@@ -578,11 +578,12 @@ def test_photos_placed_implausibly_far_apart_are_warned_of(session, events, tmp_
     assert match["matched"] == 2
     assert (warnings["generation"], warnings["tracks"]) == (match["generation"], match["tracks"])
     [card] = warnings["warnings"]
-    assert card["kind"] == "jumps" and card["photos"] == [0, 1]
+    assert card["kind"] == "jumps" and sorted(card["notes"]) == ["0", "1"]
     assert card["title"] == "Position jumps (1 pair)"
     assert [(item["photos"], item["text"]) for item in card["items"]] == [
         ([0, 1], "a → b · 10 s · 111.2 km")]
-    assert session.state()["warnings"] == warnings
+    # As the page gets them: the ids of the photos with notes are texts in JSON
+    assert json.loads(json.dumps(session.state()["warnings"])) == warnings
     # With both photos before the leap, there is nothing to warn of
     session.set_correction(-10)
     calm = events.wait("warnings", lambda d: d["version"] > warnings["version"])
