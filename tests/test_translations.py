@@ -15,6 +15,8 @@ import pytest
 from conftest import (
     ROOT, hike_gpx, make_jpeg, needs_exiftool, set_panasonic_time_stamp, set_tags, write_gpx)
 from gpxfoto import cli, i18n
+from gpxfoto.engine.checks import ShiftHint
+from gpxfoto.server import warnings
 from test_checks import at_stops, in_pauses, pauses_hike, stops_hike
 from test_cli import AT_STOP, stop_track
 
@@ -840,3 +842,30 @@ def test_catalog_for_the_page_without_a_translation(monkeypatch, tmp_path):
     catalog = i18n.catalog()
     assert (catalog["language"], catalog["messages"]) == ("en", {})
     assert catalog["plural"][:3] == [1, 0, 1]
+
+
+@pytest.mark.parametrize("hint, total, outside, expected", [
+    (ShiftHint(3600, 12, 12, 6, 0), 12, 6,
+     "Teraz żadne zdjęcie nie wypada na postoju, a 6 z 12 leży poza czasem trasy. "
+     "Po przesunięciu o +1 h wszystkie 12 trafia na postoje."),
+    (ShiftHint(3600, 22, 22, 6, 2), 22, 3,
+     "Teraz 2 zdjęcia wypadają na postojach, a 3 z 22 leżą poza czasem trasy. "
+     "Po przesunięciu o +1 h wszystkie 22 trafiają na postoje."),
+    (ShiftHint(3600, 11, 14, 6, 1), 14, 1,
+     "Teraz 1 zdjęcie wypada na postoju, a 1 z 14 leży poza czasem trasy. "
+     "Po przesunięciu o +1 h 11 z 14 trafia na postoje."),
+    (ShiftHint(-3600, 13, 15, 6, 5), 15, 0,
+     "Teraz 5 zdjęć wypada na postojach. Po przesunięciu o -1 h 13 z 15 trafia na postoje."),
+    (ShiftHint(-3600, 12, 15, 6, 0), 15, 0,
+     "Teraz żadne zdjęcie nie wypada na postoju. "
+     "Po przesunięciu o -1 h 12 z 15 trafia na postoje."),
+    (ShiftHint(-3600, 23, 25, 6, 0), 25, 0,
+     "Teraz żadne zdjęcie nie wypada na postoju. "
+     "Po przesunięciu o -1 h 23 z 25 trafiają na postoje."),
+])
+def test_the_card_of_a_shift_uses_polish_plurals(polish_mo, monkeypatch, hint, total, outside,
+                                                 expected):
+    polish = gettext.translation(i18n.DOMAIN, str(polish_mo), languages=["pl"])
+    monkeypatch.setattr(warnings, "_", polish.gettext)
+    monkeypatch.setattr(warnings, "ngettext", polish.ngettext)
+    assert warnings._shift_text(hint, total, outside) == expected

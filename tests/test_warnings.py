@@ -6,7 +6,8 @@ import pytest
 from gpxfoto.engine.matching import match_photos, placed_by_hand
 from gpxfoto.engine.photos import TZ_CAMERA, Photo
 from gpxfoto.engine.track import Track, find_stops
-from gpxfoto.server.warnings import JUMP_EXAMPLES, warnings_of
+from gpxfoto.engine.checks import ShiftHint
+from gpxfoto.server.warnings import JUMP_EXAMPLES, _shift_text, warnings_of
 from test_checks import STOP_MINUTES, stops_hike
 from test_stops import T0 as HIKE_T0
 
@@ -114,8 +115,9 @@ def test_a_clock_an_hour_behind_gets_a_card_that_applies_the_shift(hike):
     results = match_photos(at_the_stops(-3600), [hike], 0, 120)
     [card] = warnings_of(results, [hike], 120, limit=86400)
     assert (card["kind"], card["title"]) == ("shift", "Shift the photo times by +1 h?")
-    assert card["text"] == ("With the photo times shifted by +1 h, clearly more photos fall "
-                            "during stops: 12 of 12 instead of 0.")
+    # The first six photos are from before the start of the track
+    assert card["text"] == ("Now no photo falls during a stop, and 6 of 12 are outside the time "
+                            "of the track. Shifted by +1 h, all 12 fall during stops.")
     assert "summer time" in card["advice"]
     assert card["action"] == {"label": "Apply +1 h", "correction": 3600}
     assert (card["items"], card["more"], card["notes"]) == ([], None, {})
@@ -143,3 +145,21 @@ def test_a_shift_beyond_the_limit_of_corrections_has_no_button(hike):
 def test_no_shift_is_looked_for_without_stops(hike):
     results = match_photos(at_the_stops(-3600), [hike], 0, 120)
     assert warnings_of(results, [hike], 120, stops=False) == []
+
+
+@pytest.mark.parametrize("hint, total, outside, expected", [
+    (ShiftHint(3600, 12, 12, 6, 0), 12, 6,
+     "Now no photo falls during a stop, and 6 of 12 are outside the time of the track. "
+     "Shifted by +1 h, all 12 fall during stops."),
+    # No photo is outside the track: nothing is said of that
+    (ShiftHint(-1800, 12, 12, 6, 0), 12, 0,
+     "Now no photo falls during a stop. Shifted by -30 min, all 12 fall during stops."),
+    (ShiftHint(3600, 11, 14, 6, 1), 14, 1,
+     "Now 1 photo falls during a stop, and 1 of 14 is outside the time of the track. "
+     "Shifted by +1 h, 11 of 14 fall during stops."),
+    # With the shift, two photos are still off the track
+    (ShiftHint(7200, 10, 10, 5, 3), 12, 0,
+     "Now 3 photos fall during stops. Shifted by +2 h, 10 of 10 fall during stops."),
+])
+def test_the_text_of_a_shift_tells_of_now_and_then(hint, total, outside, expected):
+    assert _shift_text(hint, total, outside) == expected

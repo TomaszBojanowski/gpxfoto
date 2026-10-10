@@ -39,13 +39,60 @@ def warnings_of(results, tracks, max_gap, stops=True, placed=(), correction=0.0,
     found = suspicion(checked, tracks, shots, max_gap, stops)
     cards = []
     if found.shift is not None:
-        cards.append(_shift(found.shift, correction, limit))
+        # Of the photos with a capture time, those no track covers
+        outside = sum(not checked[index].covered for index in indices)
+        cards.append(_shift(found.shift, len(shots), outside, correction, limit))
     if found.jumps:
         cards.append(_jumps(found.jumps, shots, ids, results))
     return cards
 
 
-def _shift(hint, correction, limit):
+def _shift_text(hint, total, outside):
+    """What the shift changes: where the photos fall now, then with the shift.
+
+    total photos have a capture time, and outside of them are taken at a
+    time that no track covers.
+    """
+    if hint.pinned_now:
+        # Translators: the start of a sentence, about the photos as they are
+        # placed now; {count} is a number of photos
+        now = ngettext("Now {count} photo falls during a stop",
+                       "Now {count} photos fall during stops", hint.pinned_now).format(
+                           count=i18n.number(hint.pinned_now))
+    else:
+        # Translators: the start of a sentence, about the photos as they are
+        # placed now
+        now = _("Now no photo falls during a stop")
+    if outside:
+        # Translators: the end of a sentence that starts with “Now no photo
+        # falls during a stop” or “Now {count} photos fall during stops”;
+        # {count} and {total} are numbers of photos
+        now = ngettext("{now}, and {count} of {total} is outside the time of the track.",
+                       "{now}, and {count} of {total} are outside the time of the track.",
+                       outside).format(now=now, count=i18n.number(outside),
+                                       total=i18n.number(total))
+    else:
+        now += "."
+    shift = i18n.exact_duration(hint.shift, sign=True)
+    if hint.pinned == hint.matched == total:
+        # Translators: {shift} is a whole number of hours or half an hour with
+        # a sign, such as “+1 h” or “-30 min”; {count} is the number of all
+        # the photos
+        then = ngettext("Shifted by {shift}, the {count} photo falls during a stop.",
+                        "Shifted by {shift}, all {count} fall during stops.", total).format(
+                            shift=shift, count=i18n.number(total))
+    else:
+        # Translators: {shift} is a whole number of hours or half an hour with
+        # a sign, such as “+1 h” or “-30 min”; {pinned} of the {matched}
+        # photos on the track then fall during stops
+        then = ngettext("Shifted by {shift}, {pinned} of {matched} falls during a stop.",
+                        "Shifted by {shift}, {pinned} of {matched} fall during stops.",
+                        hint.pinned).format(shift=shift, pinned=i18n.number(hint.pinned),
+                                            matched=i18n.number(hint.matched))
+    return now + " " + then
+
+
+def _shift(hint, total, outside, correction, limit):
     """The card about a whole-hour shift that puts clearly more photos at stops."""
     shift = i18n.exact_duration(hint.shift, sign=True)
     if abs(hint.shift) == 3600:
@@ -68,13 +115,7 @@ def _shift(hint, correction, limit):
         # is a whole number of hours or half an hour with a sign, such as
         # “+1 h” or “-30 min”
         "title": _("Shift the photo times by {shift}?").format(shift=shift),
-        # Translators: {shift} is a whole number of hours or half an hour with
-        # a sign, such as “+1 h” or “-30 min”; {pinned}, {matched} and {now}
-        # are numbers of photos
-        "text": _("With the photo times shifted by {shift}, clearly more photos fall during "
-                  "stops: {pinned} of {matched} instead of {now}.").format(
-                      shift=shift, pinned=i18n.number(hint.pinned),
-                      matched=i18n.number(hint.matched), now=i18n.number(hint.pinned_now)),
+        "text": _shift_text(hint, total, outside),
         "items": [], "more": None, "advice": advice, "notes": {}, "action": action,
     }
 
