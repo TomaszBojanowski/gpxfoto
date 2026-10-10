@@ -230,6 +230,23 @@ function dropWarnings() {
   }
 }
 
+// --- a correction kept from other photos -----------------------------------
+
+// The time correction stays when other photos are chosen, as they are
+// often of the same camera. The page then says so, until the correction
+// is changed or the message is closed.
+function showCarried(carried) {
+  $("carried").hidden = !carried || state.correction === 0;
+  if (!$("carried").hidden) {
+    $("carried").querySelector("p").textContent = format(
+      _("The time correction of {correction} from the previous photos is still in effect."),
+      { correction: exactDuration(state.correction, true) });
+  }
+}
+
+$("carried-reset").addEventListener("click", () => setCorrection(0, 0));
+$("carried-close").addEventListener("click", () => showCarried(false));
+
 // The progress of reading the photos; a write takes its place
 let reading = { done: 0, total: null };
 
@@ -737,6 +754,8 @@ function setCorrection(seconds, base = Math.round(seconds / 3600) * 3600) {
   const limit = (value) => Math.max(-MAX_CORRECTION, Math.min(MAX_CORRECTION, value));
   state.correction = limit(seconds);
   state.base = limit(base);
+  // The correction is now the user's choice for these photos
+  showCarried(false);
   seconds = state.correction;
   showCorrection();
   sendCorrection(seconds);
@@ -887,7 +906,7 @@ function paragraph(text, kind = "") {
 // While the photos are written, nothing can be chosen anew
 const LOCKED = ["choose-photos", "choose-tracks", "overwrite", "stops", "correction",
   "minus-hour", "plus-hour", "minus-second", "plus-second", "correction-value",
-  "reset-correction", "edit", "undo"];
+  "reset-correction", "carried-reset", "edit", "undo"];
 
 function showWriting() {
   for (const id of LOCKED) {
@@ -1088,7 +1107,9 @@ function resetPhotos(generation, folder) {
 const handlers = {
   "photos-reset": (data) => {
     if (data.generation > state.photoGeneration) {
+      const before = state.folder;
       resetPhotos(data.generation, data.folder);
+      showCarried(before !== null);
       progress(0, 0);
     }
   },
